@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+title: SteelAI Workbench
+message: If you use this research-software architecture, please cite this repository.
+type: software
+authors:
+  - family-names: Yang
+    given-names: Jiahui
+repository-code: https://github.com/shidao23/steelai-workbench
+license: MIT
+version: 0.11.0
+date-released: 2026-08-22

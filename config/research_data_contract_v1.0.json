@@ -1,0 +1,155 @@
+{
+  "contract_id": "SteelAI-ResearchData-BR-v1.1",
+  "schema_version": "1.1",
+  "scope": {
+    "included_samples": ["B-DQ", "R-DQ"],
+    "excluded_datasets": ["experiments_1_14"],
+    "source_of_truth": "external_raw_experiment_folders_read_only",
+    "missing_value_rule": "blank_is_missing_not_zero"
+  },
+  "tables": {
+    "samples": {
+      "path": "data/processed/samples.csv",
+      "required": true,
+      "essential_fields": ["sample_id", "steel", "condition", "batch", "data_status"],
+      "recommended_fields": ["notes"],
+      "units": {}
+    },
+    "composition": {
+      "path": "data/processed/composition.csv",
+      "required": true,
+      "essential_fields": ["sample_id", "C", "Mn", "Si", "source_status"],
+      "recommended_fields": ["Cr", "Ni", "Mo", "Nb", "V", "Ti", "Al", "Cu", "P", "S", "N", "B", "As", "Sn", "Sb"],
+      "optional_fields": ["O", "W"],
+      "numeric_fields": ["C", "Mn", "Si", "Cr", "Ni", "Mo", "Nb", "V", "Ti", "Al", "Cu", "P", "S", "N", "B", "As", "Sn", "Sb", "O", "W"],
+      "units": {"default_numeric": "wt.%"}
+    },
+    "composition_observations": {
+      "path": "data/processed/composition_observations.csv",
+      "required": false,
+      "essential_fields": ["sample_id", "observation_id", "element", "value", "unit", "source_status"],
+      "recommended_fields": ["heat_id", "method", "uncertainty", "replicate_group"],
+      "optional_fields": ["notes"],
+      "numeric_fields": ["value", "uncertainty"],
+      "allowed_units": ["wt.%", "mass_ppm"],
+      "primary_key": ["observation_id"],
+      "interpretation_guardrails": [
+        "blank_is_missing_not_zero",
+        "repeated_readings_are_not_automatically_independent_heats"
+      ]
+    },
+    "process": {
+      "path": "data/processed/process.csv",
+      "required": true,
+      "essential_fields": ["sample_id", "rolling_passes", "cooling_route", "source_status"],
+      "recommended_fields": ["reheat_temp_c", "roughing_temp_c", "finish_temp_c", "total_reduction_pct", "quench_medium", "tempering_temp_c", "tempering_time_min"],
+      "numeric_fields": ["rolling_passes", "reheat_temp_c", "roughing_temp_c", "finish_temp_c", "total_reduction_pct", "tempering_temp_c", "tempering_time_min"],
+      "units": {"temperature": "degC", "time": "min", "reduction": "%"}
+    },
+    "microstructure": {
+      "path": "data/processed/microstructure.csv",
+      "required": true,
+      "essential_fields": ["sample_id"],
+      "recommended_fields": ["pag_size_um", "packet_size_um", "block_size_um", "hagb_pct", "kam_mean_deg", "gnd_m2"],
+      "optional_fields": ["manual_notes"],
+      "numeric_fields": ["pag_size_um", "packet_size_um", "block_size_um", "hagb_pct", "kam_mean_deg", "gnd_m2"],
+      "units": {"size": "um", "boundary_fraction": "%", "kam": "deg", "gnd": "m^-2"},
+      "interpretation_guardrails": [
+        "multiple_fields_from_one_specimen_are_not_independent_specimen_replicates",
+        "ebsd_scales_must_not_be_pooled",
+        "orientation_grains_are_not_automatically_packets_blocks_or_prior_austenite_grains"
+      ]
+    },
+    "properties": {
+      "path": "data/processed/properties.csv",
+      "required": true,
+      "essential_fields": ["sample_id", "ys_mpa", "uts_mpa", "impact_minus40_j", "replicates", "source_status"],
+      "recommended_fields": ["ys_std_mpa", "uts_std_mpa", "elongation_pct", "reduction_area_pct", "impact_std_j", "impact_toughness_j_cm2", "hv"],
+      "numeric_fields": ["ys_mpa", "ys_std_mpa", "uts_mpa", "uts_std_mpa", "elongation_pct", "elongation_std_pct", "reduction_area_pct", "reduction_area_std_pct", "impact_minus40_j", "impact_std_j", "impact_toughness_j_cm2", "hv", "replicates"],
+      "units": {"strength": "MPa", "impact_energy": "J", "impact_toughness": "J/cm^2", "hardness": "HV"},
+      "interpretation_guardrails": [
+        "aggregate_replicate_count_does_not_prove_independent_specimens",
+        "statistical_significance_requires_specimen_level_records"
+      ]
+    },
+    "process_steps": {
+      "path": "data/processed/process_steps.csv",
+      "required": false,
+      "essential_fields": ["sample_id", "step_id", "step_type", "sequence", "source_status"],
+      "recommended_fields": ["start_temp_c", "end_temp_c", "strain", "strain_rate_s", "duration_s", "cooling_rate_c_s"],
+      "numeric_fields": ["sequence", "start_temp_c", "end_temp_c", "strain", "strain_rate_s", "duration_s", "cooling_rate_c_s"],
+      "optional_fields": ["notes"],
+      "primary_key": ["sample_id", "step_id"],
+      "interpretation_guardrails": ["step_sequence_must_preserve_the_real_process_order"]
+    },
+    "microstructure_observations": {
+      "path": "data/processed/microstructure_observations.csv",
+      "required": false,
+      "essential_fields": ["sample_id", "observation_id", "method", "field_id", "metric", "value", "unit", "source_status"],
+      "recommended_fields": ["acquisition_group", "magnification", "step_size_um", "roi_definition", "uncertainty"],
+      "numeric_fields": ["value", "magnification", "step_size_um", "uncertainty"],
+      "optional_fields": ["specimen_id", "notes"],
+      "allowed_units": ["um", "%", "deg", "m^-2", "count", "dimensionless", "px"],
+      "primary_key": ["observation_id"],
+      "interpretation_guardrails": [
+        "fields_are_nested_within_specimens",
+        "different_acquisition_scales_remain_separate"
+      ]
+    },
+    "property_observations": {
+      "path": "data/processed/property_observations.csv",
+      "required": false,
+      "essential_fields": ["sample_id", "specimen_id", "property", "value", "unit", "source_status"],
+      "recommended_fields": ["test_temperature_c", "orientation", "standard", "replicate_group"],
+      "numeric_fields": ["value", "test_temperature_c"],
+      "optional_fields": ["uncertainty", "notes"],
+      "allowed_units": ["MPa", "%", "J", "J/cm^2", "HV"],
+      "primary_key": ["sample_id", "specimen_id", "property"],
+      "interpretation_guardrails": ["specimen_id_is_required_for_inferential_statistics"]
+    },
+    "physics_observations": {
+      "path": "data/processed/physics_observations.csv",
+      "required": false,
+      "essential_fields": ["sample_id", "observation_id", "quantity", "value", "unit", "measurement_type", "source_status"],
+      "recommended_fields": ["method", "uncertainty", "replicates", "model_id", "model_value", "residual"],
+      "numeric_fields": ["value", "uncertainty", "replicates", "model_value", "residual"],
+      "optional_fields": ["specimen_id", "run_id", "notes"],
+      "primary_key": ["observation_id"],
+      "allowed_measurement_types": ["experimental", "model_estimate", "calibrated_estimate"],
+      "interpretation_guardrails": [
+        "model_estimate_is_not_experimental_truth",
+        "residual_requires_matched_experimental_and_model_values"
+      ]
+    }
+  },
+  "relationships": [
+    {"from": "composition.sample_id", "to": "samples.sample_id", "cardinality": "one_to_one"},
+    {"from": "composition_observations.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"},
+    {"from": "process.sample_id", "to": "samples.sample_id", "cardinality": "one_to_one"},
+    {"from": "microstructure.sample_id", "to": "samples.sample_id", "cardinality": "one_to_one_summary"},
+    {"from": "properties.sample_id", "to": "samples.sample_id", "cardinality": "one_to_one_summary"},
+    {"from": "process_steps.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"},
+    {"from": "microstructure_observations.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"},
+    {"from": "property_observations.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"},
+    {"from": "physics_observations.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"}
+  ],
+  "physics_model_requirements": [
+    "model_id",
+    "family",
+    "formula_or_backend",
+    "source",
+    "required_inputs",
+    "output_unit",
+    "applicability",
+    "range_basis",
+    "limitations",
+    "review_status"
+  ],
+  "future_model_families": [
+    "empirical_formula",
+    "thermodynamic_equilibrium",
+    "kinetic_transformation",
+    "experiment_calibrated_model",
+    "machine_learning_surrogate"
+  ]
+}

@@ -1,0 +1,34 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.streamlit/secrets.toml
+config/settings.toml
+outputs/
+runtime/
+project_log/events.jsonl
+streamlit-smoke*.log
+
+# Raw research and specialist-model artifacts are never repository inputs.
+*.ctf
+*.tif
+*.tiff
+*.zarr
+*.h5
+*.hdf5
+*.mat
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.xlsx
+*.xls
+
+# Local model environments and caches.
+model_lab/**/.venv*/
+model_lab/**/cache/
+model_lab/**/weights/
+model_lab/**/wheels/
+
+# The tracked data/processed files in this public repository are synthetic demo fixtures only.

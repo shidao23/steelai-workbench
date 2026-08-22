@@ -1,0 +1,44 @@
+{
+  "policy_id": "SteelAI-Research-ID-v1.0",
+  "principles": [
+    "IDs describe real experimental hierarchy and must not invent independent specimens.",
+    "A field of view is nested within a specimen and is not a specimen replicate.",
+    "A model run is separate from an experimental observation.",
+    "Provisional IDs must be marked provisional until verified against source records."
+  ],
+  "levels": [
+    {"field": "material_id", "meaning": "material or steel design", "example": "NM450-B"},
+    {"field": "heat_id", "meaning": "independently melted heat", "example": "HEAT-B-01"},
+    {"field": "batch_id", "meaning": "processing batch", "example": "DQ-6PASS-B"},
+    {"field": "sample_id", "meaning": "research condition used across summary tables", "example": "B-DQ"},
+    {"field": "specimen_id", "meaning": "physical test specimen", "example": "B-DQ-CHARPY-01"},
+    {"field": "field_id", "meaning": "imaging or EBSD field nested within a specimen", "example": "B-DQ-EBSD-LR-F01"},
+    {"field": "observation_id", "meaning": "one measured or extracted value", "example": "OBS-BDQ-0001"},
+    {"field": "run_id", "meaning": "model or analysis execution", "example": "RUN-20260819-0001"}
+  ],
+  "allowed_core_samples": ["B-DQ", "R-DQ"],
+  "excluded_dataset_labels": ["experiments_1_14"],
+  "provisional_status": "provisional_unverified",
+  "verified_statuses": [
+    "instrument_export",
+    "verified_from_source",
+    "verified_from_source_note",
+    "manual_extraction_verified",
+    "model_generated"
+  ],
+  "column_aliases": {
+    "样品编号": "sample_id",
+    "试样编号": "specimen_id",
+    "观察编号": "observation_id",
+    "视场编号": "field_id",
+    "炉号": "heat_id",
+    "批次编号": "batch_id",
+    "元素": "element",
+    "指标": "metric",
+    "数值": "value",
+    "单位": "unit",
+    "方法": "method",
+    "来源状态": "source_status",
+    "备注": "notes"
+  }
+}

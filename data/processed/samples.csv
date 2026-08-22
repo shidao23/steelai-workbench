@@ -1,0 +1,3 @@
+sample_id,steel,condition,batch,data_status,is_demo,notes
+B-DQ,B,DQ,SYNTHETIC_B,synthetic_ci,true,公开CI合成数据，不是实验结果
+R-DQ,R,DQ,SYNTHETIC_R,synthetic_ci,true,公开CI合成数据，不是实验结果

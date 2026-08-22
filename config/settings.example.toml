@@ -1,0 +1,36 @@
+[project]
+name = "SteelAI Workbench"
+version = "0.11.0-public-demo"
+timezone = "Asia/Shanghai"
+public_demo = true
+
+[sources]
+# Keep local research paths only in the ignored config/settings.toml file.
+research_root = ""
+experiment_root = ""
+workbench_root = ""
+master_workbook = ""
+wearsteel_v01_root = ""
+
+[ai]
+# CI and public examples are deterministic and offline.
+enabled = false
+provider = "deepseek"
+model = "deepseek-v4-flash"
+api_key_env = "DEEPSEEK_API_KEY"
+base_url = "https://api.deepseek.com/beta"
+structured_data_only = true
+reasoning_effort = "low"
+max_tool_calls = 6
+max_rounds = 4
+
+[specialists]
+# Local-only backends. Keep blank in the public demo.
+matlab_exe = ""
+mtex_root = ""
+ebsd_pilot_ctf = ""
+ebsd_b_matched_ctf = ""
+ebsd_r_matched_ctf = ""
+ebsd_r_highres_ctf = ""
+micro_sam_python = ""
+review30_root = ""
