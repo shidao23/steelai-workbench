@@ -1,5 +1,7 @@
 # SteelAI Workbench 中文说明
 
+**[在线公开演示](https://steelai-workbench.streamlit.app/)** · [English README](README.md)
+
 SteelAI Workbench 是一个面向耐磨钢研究的本地科研 AI 工作台，将成分—工艺—组织—性能数据、经验物理公式、SEM/EBSD 分析、证据校验和研究报告串成可追溯流程。
 
 ## 公开版说明

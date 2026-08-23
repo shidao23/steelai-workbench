@@ -12,6 +12,8 @@
 
 [中文说明](README.zh-CN.md) · [Data Card](docs/DATA_CARD.md) · [Model Card](docs/MODEL_CARD.md) · [Privacy Design](docs/PRIVACY.md) · [Portfolio Case](docs/PORTFOLIO.md)
 
+**[Open the live public demo](https://steelai-workbench.streamlit.app/)**
+
 ## Why this project
 
 Materials research often spans spreadsheets, empirical equations, SEM/EBSD results, scripts and narrative reports. SteelAI turns that fragmented workflow into a reproducible chain while keeping deterministic calculations authoritative and language models constrained by structured evidence.

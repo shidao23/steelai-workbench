@@ -1,5 +1,9 @@
 # Portfolio Case
 
+Live demo: https://steelai-workbench.streamlit.app/
+
+Source: https://github.com/shidao23/steelai-workbench
+
 ## Problem
 
 Wear-resistant-steel research data were distributed across tables, empirical equations, microscopy outputs and scripts. The challenge was to create a useful AI-assisted workflow without allowing a language model to replace scientific calculation or overstate weak evidence.
