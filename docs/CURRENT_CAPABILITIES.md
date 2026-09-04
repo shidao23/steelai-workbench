@@ -12,7 +12,7 @@
 | Research Data Contract 与质量门禁 | 已实现 | 当前 B/R 证据仍为 `directional_evidence_only`，不支持因果或机器学习结论 |
 | Research Agent 与 DSH 旁路 | 已实现为只读 | 不允许写数据、审批配置、启动重型任务或读取未登记原始文件 |
 | Physics Model Registry | 已实现 | 公式输出是经验估算，不是实验真值；缺输入不补零 |
-| 获准真实拉伸批次端到端验收 | 待阶段一完成 | 合成与契约测试通过，真实批次仍需脱敏和人工批准 |
+| 获准真实拉伸批次端到端验收 | 已完成 T10 | 一批脱敏 DQ 结果已通过 human 批准、SteelData 完整性/QC/重放和 Workbench 18 条观测暂存预检；正式长表未自动提交 |
 | SteelStats 与公开旗舰演示 | 未实现 | 分别属于后续阶段，不在阶段零范围内 |
 
 ## 入口状态

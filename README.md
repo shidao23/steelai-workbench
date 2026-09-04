@@ -2,7 +2,7 @@
 
 一个面向耐磨钢课题的本地科研 AI 工作台：Python 负责可复现的数据处理与物理计算，GPT 只负责在证据约束下组织自然语言报告。生活管理不在本项目范围内，继续放在 Notion。
 
-本机真实资料路径只保存在被 Git 忽略的 `config/settings.toml` 中，仓库只保留 `config/settings.example.toml`。B/R processed 数据来自 v0.1 已核对研究笔记，但仍须遵守其 `verification_status` 和证据边界；它不是对原始仪器数据的再次核验。
+本机真实资料路径只保存在被 Git 忽略的 `config/settings.toml` 中，仓库只保留 `config/settings.example.toml`。B/R processed 摘要仍来自 v0.1 已核对研究笔记并受其证据边界约束；阶段一 T10 另外完成了一批脱敏 DQ 逐试样拉伸结果的结果包、重放和暂存预检，但尚未提交正式长表。
 
 ## 当前状态与项目治理
 
@@ -74,6 +74,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 - 首版接通拉伸结果 → `property_observations.csv`，一条试样记录变成 YS、UTS、EL 三条观测；必须人工对应 `sample_id`，保留原 `specimen_id`。
 - 合成数据、partial/failed、QC failed/needs_review、未知/重复样品和不明确单位不能入库。成分与曲线仅预览，尚不转入长表。
 - 两路共用最终入库闸门，提交前重检并加写入锁；保存接入审计和逐单元格来源，不自动覆盖旧性能摘要、生成统计结论或改动 DSH。
+- 阶段一 T10 已用一批人工批准的脱敏 DQ 结果验证 6 个试样到 18 条性能观测的完整预检；本地暂存状态为 `not_committed`，正式 `property_observations.csv` 仍需另行确认。
 
 操作步骤、字段对应、代码分工和扩展边界见 [docs/STEELDATA_INTEGRATION.md](docs/STEELDATA_INTEGRATION.md)。
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## stage1-t10-real-tensile-acceptance - 2026-09-04
+
+- Accepted one human-approved, desensitized DQ SteelData package with 6 physical specimens and passed integrity, QC and same-runtime replay checks.
+- Applied the six explicit specimen-to-sample bindings and `manual_extraction_verified` source status to a Workbench preflight containing 18 unique YS/UTS/EL observations.
+- Saved an ignored local staging package, validation manifest and source audit with `not_committed` status; no formal `property_observations.csv` append occurred.
+- Marked T10 complete while retaining T200, curves, impact, geometry, reduction of area and microscopy outside this task.
+
 ## stage0-governance - 2026-09-04
 
 - Established the local Git privacy baseline and documented excluded real-data, path, credential, output and model-weight areas.
