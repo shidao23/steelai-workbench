@@ -1,0 +1,317 @@
+"""All fixtures are synthetic and all writes target TemporaryDirectory, never real data."""
+import copy
+import hashlib
+import json
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from steelai.data_intake import commit_intake, validate_intake_csv
+from steelai.steeldata_bridge import (
+    SteelDataClient, _digest, commit_run, inspect_run, mapping_rows, prepare_intake,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def write_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+
+
+def seal(root, manifest):
+    manifest["artifacts"] = {
+        p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in root.rglob("*") if p.is_file() and p.name not in {"manifest.json", "COMPLETE"}
+    }
+    write_json(root / "manifest.json", manifest)
+    (root / "COMPLETE").write_text(hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest(), encoding="ascii")
+
+
+def result_fixture(root, *, synthetic=False):
+    """False only exercises the real-data gate in an isolated test project; not real data."""
+    root.mkdir(parents=True)
+    source = b"SYNTHETIC TEST FIXTURE,not laboratory data\n"
+    source_hash = hashlib.sha256(source).hexdigest()
+    (root / "sources").mkdir()
+    (root / "sources/0001.csv").write_bytes(source)
+    (root / "report.html").write_text("<p>Synthetic test</p>", encoding="utf-8")
+    profile = {"profile_id": "test-tensile", "domain": "tensile"}
+    approval = {"kind": "human", "profile": profile, "profile_sha256": _digest(profile),
+                "reviewer": "automated-test-only", "note": "synthetic sandbox", "approved_at": "test"}
+    write_json(root / "approvals/test-tensile.json", approval)
+    data = {"schema_version": 1, "domain": "tensile", "kind": "table", "source_file": "fixture.csv",
+            "source_sha256": source_hash, "sheet": "CSV", "metadata": {"units": {
+                "ys_mpa": {"target": "MPa"}, "uts_mpa": {"target": "MPa"}, "el_pct": {"target": "%"}}},
+            "records": [{"record_id": "test-record-01", "specimen_id": "SYN-T01", "source_row": 2,
+                         "ys_mpa": 950.0, "uts_mpa": 1250.0, "el_pct": 12.0, "raw_values": {"uts_mpa": "1.25"},
+                         "source_cells": {field: {"row": 2, "column": i, "header": field}
+                                          for i, field in enumerate(["ys_mpa", "uts_mpa", "el_pct"], 1)}}]}
+    write_json(root / "datasets/001-tensile/data.json", data)
+    write_json(root / "qc.json", {"schema_version": 1, "status": "passed", "values_modified_by_qc": False, "issues": []})
+    manifest = {"schema_version": 1, "module": "steeldata", "version": "0.2.0", "complete": True,
+                "run_id": "run-test", "processing_status": "complete", "qc_status": "passed",
+                "synthetic": synthetic, "input_fingerprint": "fixture-fingerprint",
+                "counts": {"files": 1, "datasets": 1, "records": 1}, "files": [{
+                    "source_file": "fixture.csv", "source_sha256": source_hash, "snapshot": "sources/0001.csv",
+                    "status": "processed", "records": 1, "dataset_dir": "datasets/001-tensile", "domain": "tensile",
+                    "kind": "table", "profile_id": "test-tensile", "qc_status": "passed"}],
+                "approvals": [{"profile_id": "test-tensile", "kind": "human", "profile_sha256": _digest(profile),
+                               "approval_record_sha256": _digest(approval)}]}
+    seal(root, manifest)
+    return manifest
+
+
+class BridgeTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.run = self.root / "module-output/run-test"
+        self.manifest = result_fixture(self.run)
+        self.project = self.root / "workbench"
+        (self.project / "data/processed").mkdir(parents=True)
+        (self.project / "data/processed/samples.csv").write_text("sample_id\nB-DQ\nR-DQ\n", encoding="utf-8")
+        self.kwargs = {"project_root": self.project}
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def candidate(self, sample="B-DQ"):
+        inspection = inspect_run(self.run)
+        bindings = {r["mapping_key"]: sample for r in mapping_rows(inspection)}
+        return prepare_intake(inspection, bindings, "instrument_export", **self.kwargs), bindings
+
+    def commit(self, candidate, bindings, **kwargs):
+        return commit_run(self.run, bindings, "instrument_export", candidate["preview_sha256"],
+                          reviewer="test", note="synthetic sandbox only", confirmed=True, **self.kwargs, **kwargs)
+
+    def test_tensile_wide_to_long_preserves_value_identity_and_provenance(self):
+        candidate, _ = self.candidate()
+        self.assertEqual(candidate["report"]["status"], "ready")
+        rows = candidate["report"]["rows"]
+        self.assertEqual(len(rows), 3)
+        self.assertEqual([r["property"] for r in rows], ["ys_mpa", "uts_mpa", "elongation_pct"])
+        self.assertEqual(float(rows[1]["value"]), 1250)
+        self.assertTrue(all(r["specimen_id"] == "SYN-T01" for r in rows))
+        self.assertEqual(candidate["evidence"]["provenance"][1]["source_cell"]["column"], 2)
+        self.assertFalse((self.project / "data/processed/property_observations.csv").exists())
+
+    def test_commit_appends_and_leaves_audit_without_copying_raw_sources(self):
+        candidate, bindings = self.candidate()
+        result = self.commit(candidate, bindings)
+        self.assertEqual(result["rows_added"], 3)
+        package = self.project / "outputs/data_intake" / result["intake_id"]
+        self.assertTrue((package / "steeldata_provenance.json").exists())
+        self.assertTrue((package / "commit_result.json").exists())
+        self.assertFalse((self.project / "data/processed/properties.csv").exists())
+        self.assertFalse(list(self.project.rglob("0001.csv")))
+
+    def test_second_import_is_blocked_even_if_sample_is_changed(self):
+        candidate, bindings = self.candidate()
+        self.commit(candidate, bindings)
+        second, _ = self.candidate("R-DQ")
+        self.assertEqual(second["report"]["status"], "blocked")
+        self.assertIn("来源单元格", " ".join(second["report"]["errors"]))
+
+    def test_synthetic_partial_failed_needs_review_are_all_blocked(self):
+        for key, value in [("synthetic", True), ("synthetic", None), ("processing_status", "partial"),
+                           ("qc_status", "failed"), ("qc_status", "needs_review")]:
+            with self.subTest(key=key, value=value):
+                m = {**self.manifest, key: value}
+                seal(self.run, m)
+                view = inspect_run(self.run)
+                self.assertFalse(view.transferable)
+                with self.assertRaises(ValueError):
+                    prepare_intake(view, {}, "instrument_export", **self.kwargs)
+
+    def test_warning_is_visible_and_still_requires_explicit_confirmation(self):
+        self.manifest["qc_status"] = "warning"
+        self.manifest["files"][0]["qc_status"] = "warning"
+        write_json(self.run / "qc.json", {"status": "warning", "values_modified_by_qc": False,
+            "issues": [{"severity": "warning", "code": "test_warning", "message": "review me"}]})
+        seal(self.run, self.manifest)
+        self.assertEqual(inspect_run(self.run).warnings, ["test_warning: review me"])
+        candidate, bindings = self.candidate()
+        with self.assertRaises(ValueError):
+            commit_run(self.run, bindings, "instrument_export", candidate["preview_sha256"],
+                       reviewer="test", note="test", confirmed=False, **self.kwargs)
+
+    def test_inconsistent_qc_error_cannot_hide_behind_passed_status(self):
+        write_json(self.run / "qc.json", {"status": "passed", "values_modified_by_qc": False,
+            "issues": [{"severity": "error", "code": "hidden", "message": "bad"}]})
+        seal(self.run, self.manifest)
+        self.assertFalse(inspect_run(self.run).transferable)
+
+    def test_corrupted_file_and_manifest_marker_are_rejected(self):
+        (self.run / "report.html").write_text("changed", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            inspect_run(self.run)
+        seal(self.run, self.manifest)
+        (self.run / "COMPLETE").write_text("invalid", encoding="ascii")
+        with self.assertRaises(ValueError):
+            inspect_run(self.run)
+
+    def test_path_traversal_is_rejected_before_read(self):
+        self.manifest["artifacts"]["../outside.txt"] = "0" * 64
+        write_json(self.run / "manifest.json", self.manifest)
+        (self.run / "COMPLETE").write_text(hashlib.sha256((self.run / "manifest.json").read_bytes()).hexdigest())
+        with self.assertRaises(ValueError):
+            inspect_run(self.run)
+
+    def test_empty_file_list_is_rejected_cleanly(self):
+        self.manifest["files"] = []
+        seal(self.run, self.manifest)
+        with self.assertRaises(ValueError):
+            inspect_run(self.run)
+
+    def test_modified_approval_digest_is_rejected(self):
+        path = self.run / "approvals/test-tensile.json"
+        approval = json.loads(path.read_text())
+        approval["profile"]["domain"] = "composition"
+        write_json(path, approval)
+        seal(self.run, self.manifest)
+        with self.assertRaises(ValueError):
+            inspect_run(self.run)
+
+    def test_unknown_domain_is_inspect_only(self):
+        path = self.run / "datasets/001-tensile/data.json"
+        data = json.loads(path.read_text())
+        data["domain"] = "composition"
+        self.manifest["files"][0]["domain"] = "composition"
+        write_json(path, data)
+        seal(self.run, self.manifest)
+        self.assertFalse(inspect_run(self.run).transferable)
+
+    def test_invalid_physics_and_missing_units_block_even_when_qc_says_passed(self):
+        path = self.run / "datasets/001-tensile/data.json"
+        original = json.loads(path.read_text())
+        for change in ["value", "unit", "missing", "empty"]:
+            with self.subTest(change=change):
+                data = copy.deepcopy(original)
+                if change == "value":
+                    data["records"][0]["uts_mpa"] = 100
+                elif change == "unit":
+                    data["metadata"]["units"]["uts_mpa"]["target"] = "GPa"
+                elif change == "missing":
+                    data["records"][0]["ys_mpa"] = None
+                else:
+                    data["records"][0]["source_cells"] = {}
+                write_json(path, data)
+                seal(self.run, self.manifest)
+                self.assertFalse(inspect_run(self.run).transferable)
+
+    def test_mapping_never_guesses_from_specimen_name(self):
+        inspection = inspect_run(self.run)
+        self.assertEqual(mapping_rows(inspection)[0]["sample_id"], "")
+        with self.assertRaises(ValueError):
+            prepare_intake(inspection, {}, "instrument_export", **self.kwargs)
+
+    def test_t200_and_unregistered_samples_stay_blocked(self):
+        for sample in ["B-T200", "EXP-01"]:
+            candidate, _ = self.candidate(sample)
+            self.assertEqual(candidate["report"]["status"], "blocked")
+        (self.project / "data/processed/samples.csv").write_text("sample_id\nB-DQ\n", encoding="utf-8")
+        candidate, _ = self.candidate("R-DQ")
+        self.assertEqual(candidate["report"]["status"], "blocked")
+
+    def test_commit_rebuild_detects_changed_mapping_and_changed_result(self):
+        candidate, bindings = self.candidate()
+        with self.assertRaises(ValueError):
+            self.commit(candidate, {k: "R-DQ" for k in bindings})
+        self.manifest["run_id"] = "changed-after-preview"
+        seal(self.run, self.manifest)
+        with self.assertRaises(ValueError):
+            self.commit(candidate, bindings)
+
+    def test_model_generated_source_status_not_accepted(self):
+        inspection = inspect_run(self.run)
+        bindings = {r["mapping_key"]: "B-DQ" for r in mapping_rows(inspection)}
+        with self.assertRaises(ValueError):
+            prepare_intake(inspection, bindings, "model_generated", **self.kwargs)
+
+    def test_shared_gate_rechecks_stale_report_and_lock(self):
+        candidate, _ = self.candidate()
+        report = candidate["report"]
+        lock = self.project / "data/processed/.intake.lock"
+        lock.write_text("other writer", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            commit_intake(report, **self.kwargs)
+        lock.unlink()
+        commit_intake(report, **self.kwargs)
+        with self.assertRaises(ValueError):
+            commit_intake(report, **self.kwargs)
+        self.assertFalse(lock.exists())
+
+    def test_manual_upload_with_extra_cells_is_blocked_not_silently_truncated(self):
+        content = b"sample_id,specimen_id,property,value,unit,source_status\nB-DQ,T01,ys_mpa,950,MPa,instrument_export,EXTRA\n"
+        report = validate_intake_csv("property_observations", content, **self.kwargs)
+        self.assertEqual(report["status"], "blocked")
+
+
+class ClientTests(unittest.TestCase):
+    def test_cli_uses_isolated_python_argument_list_no_shell_and_handles_partial(self):
+        client = SteelDataClient(ROOT.parent / "SteelData")
+        response = subprocess.CompletedProcess([], 2, '{"run_dir":"example","processing_status":"partial"}', "")
+        with patch.object(client, "availability", return_value={"ready": True}), patch(
+            "steelai.steeldata_bridge.subprocess.run", return_value=response) as run:
+            payload = client._call(["run", "--input", "path with spaces & text"], accepted=(0, 2, 3))
+        self.assertEqual(payload["processing_status"], "partial")
+        args, kwargs = run.call_args
+        self.assertEqual(args[0][-1], "path with spaces & text")
+        self.assertFalse(kwargs["shell"])
+        self.assertEqual(kwargs["timeout"], 180)
+        self.assertNotIn("DEEPSEEK_API_KEY", kwargs["env"])
+
+    def test_missing_module_invalid_json_and_timeout_are_actionable(self):
+        client = SteelDataClient(Path("missing-module"))
+        with self.assertRaises(ValueError):
+            client.doctor()
+        with patch.object(client, "availability", return_value={"ready": True}), patch(
+            "steelai.steeldata_bridge.subprocess.run", return_value=subprocess.CompletedProcess([], 1, "oops", "broken")):
+            with self.assertRaisesRegex(ValueError, "JSON"):
+                client.doctor()
+        with patch.object(client, "availability", return_value={"ready": True}), patch(
+            "steelai.steeldata_bridge.subprocess.run", side_effect=subprocess.TimeoutExpired([], 180)):
+            with self.assertRaisesRegex(ValueError, "180"):
+                client.doctor()
+
+
+class PanelTests(unittest.TestCase):
+    def test_valid_package_renders_mapping_without_default_sample(self):
+        from streamlit.testing.v1 import AppTest
+        with tempfile.TemporaryDirectory() as temp:
+            run = Path(temp) / "run"
+            result_fixture(run)
+            app = AppTest.from_file(str(ROOT / "steelai/views/data_quality_panel.py"), default_timeout=20).run()
+            app.text_input(key="sd_run_path").set_value(str(run))
+            app.button(key="sd_load").click().run()
+            self.assertFalse(app.exception, str(app.exception))
+            inspection = app.session_state["sd_inspection"]
+            self.assertEqual(mapping_rows(inspection)[0]["sample_id"], "")
+            self.assertTrue(any("真实来源状态" in item.label for item in app.selectbox))
+            self.assertFalse(any(item.key == "sd_commit" for item in app.button))
+
+    def test_existing_and_new_import_tabs_render_without_module_execution(self):
+        from streamlit.testing.v1 import AppTest
+        with patch.object(SteelDataClient, "_call", side_effect=AssertionError("No automatic execution")):
+            app = AppTest.from_file(str(ROOT / "steelai/views/data_quality_panel.py"), default_timeout=20).run()
+        self.assertFalse(app.exception, str(app.exception))
+        self.assertEqual([t.label for t in app.tabs], ["当前数据状态", "模板与编号规则", "标准表导入", "SteelData 标准化接入"])
+        self.assertTrue(any(item.label == "上传填写后的CSV" for item in app.get("file_uploader")))
+
+    def test_synthetic_load_shows_disabled_commit(self):
+        from streamlit.testing.v1 import AppTest
+        with tempfile.TemporaryDirectory() as temp:
+            run = Path(temp) / "run"
+            result_fixture(run, synthetic=True)
+            app = AppTest.from_file(str(ROOT / "steelai/views/data_quality_panel.py"), default_timeout=20).run()
+            app.text_input(key="sd_run_path").set_value(str(run))
+            app.button(key="sd_load").click().run()
+            self.assertFalse(app.exception, str(app.exception))
+            self.assertTrue(app.button(key="sd_blocked_commit").disabled)
+
+
+if __name__ == "__main__":
+    unittest.main()

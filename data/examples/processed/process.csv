@@ -1,0 +1,3 @@
+sample_id,reheat_temp_c,roughing_temp_c,rolling_passes,finish_temp_c,total_reduction_pct,cooling_route,quench_medium,tempering_temp_c,tempering_time_min,source_status
+B-DQ,,,6,,,direct_quench,,,,synthetic_ci
+R-DQ,,,6,,,direct_quench,,,,synthetic_ci

@@ -1,0 +1,13 @@
+{
+  "name": "steelai-dsh-sidecar",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pinned DeepSeek Harness runtime for the SteelAI read-only sidecar.",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis-plugin-group": "1.0.2",
+    "@deepseek-ai/dsh": "0.1.1-rc.2"
+  }
+}

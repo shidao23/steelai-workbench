@@ -1,0 +1,36 @@
+[project]
+name = "SteelAI Workbench"
+version = "0.10.0-research-data-contract"
+timezone = "Asia/Shanghai"
+
+[sources]
+# Keep local research paths only in the ignored config/settings.toml file.
+research_root = ""
+experiment_root = ""
+workbench_root = ""
+master_workbook = ""
+wearsteel_v01_root = ""
+
+[tools]
+# Keep machine-specific executables and research file paths in ignored config/settings.toml.
+microsam_python = ""
+review30_root = ""
+matlab_exe = ""
+mtex_root = ""
+ebsd_pilot_ctf = ""
+ebsd_matched_b_ctf = ""
+ebsd_matched_r_ctf = ""
+ebsd_highres_r_ctf = ""
+composition_mcp_server = ""
+
+[ai]
+# CI and public examples are deterministic and offline.
+enabled = false
+provider = "deepseek"
+model = "deepseek-v4-flash"
+api_key_env = "DEEPSEEK_API_KEY"
+base_url = "https://api.deepseek.com/beta"
+structured_data_only = true
+reasoning_effort = "low"
+max_tool_calls = 6
+max_rounds = 4

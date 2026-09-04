@@ -1,0 +1,4 @@
+streamlit>=1.41
+pandas>=2.2
+openai>=1.75
+mcp>=1.13,<2

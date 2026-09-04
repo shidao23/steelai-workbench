@@ -1,0 +1,25 @@
+- insert:
+    - id: mcp-steelai-readonly
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: steelai
+        transport: stdio
+        command: '<SteelAI项目目录>\.venv\Scripts\python.exe'
+        args: ['-m', 'steelai.dsh_mcp_server']
+        cwd: '<SteelAI项目目录>'
+        env:
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: 'utf-8'
+        searchTimeoutMs: 30000
+    - id: mcp-nm450-composition-intake
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: nm450-composition
+        transport: stdio
+        command: '<SteelAI项目目录>\.venv\Scripts\python.exe'
+        args: ['<本机composition-mcp目录>\dsh_composition_mcp_server.py']
+        cwd: '<本机composition-mcp目录>'
+        env:
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: 'utf-8'
+        searchTimeoutMs: 30000

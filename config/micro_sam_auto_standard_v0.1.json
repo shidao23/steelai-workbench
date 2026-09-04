@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "standard_id": "AutoDimple-BDQ-1000x-v0.1",
+  "status": "preliminary_automatic_operational_standard",
+  "scope": "Matched 1000x SEM fracture images acquired and exported under the B-DQ-1-06 conditions",
+  "calibration": {
+    "sample": "B-DQ-1-06",
+    "human_reported_correct": 22,
+    "review_total": 30,
+    "candidate_acceptance_rate": 0.733333,
+    "candidate_rejection_rate": 0.266667,
+    "wilson_95_interval": [0.555517, 0.858175],
+    "saved_mask_retained": 25,
+    "saved_mask_discrepancy": "The reviewed TIFF retains 25 labels, while the human aggregate reports 22 correct. The aggregate 22/30 rate is used; no per-object identity is fabricated for the unresolved three."
+  },
+  "input_requirements": {
+    "magnification_x": 1000,
+    "pixel_size_um": 0.27265625,
+    "pixel_size_relative_tolerance": 0.05,
+    "same_preparation_detector_contrast_required": true
+  },
+  "segmentation": {
+    "model": "Segment Anything ViT-B via micro-sam 1.8.8",
+    "pred_iou_thresh": 0.78,
+    "stability_score_thresh": 0.87,
+    "box_nms_thresh": 0.60,
+    "min_object_size_px": 50,
+    "preservation_threshold": 0.78
+  },
+  "postprocessing": {
+    "minimum_area_px": 50,
+    "minimum_area_um2": 3.717072,
+    "minimum_equivalent_diameter_um": 2.175482,
+    "exclude_edge_touching_objects": true,
+    "remove_post_commit_fragments_below_minimum": true
+  },
+  "automatic_policy": {
+    "routine_object_by_object_review": false,
+    "candidate_count_correction_factor": 0.733333,
+    "correction_is_exploratory": true,
+    "baseline_coverage_percent": 28.01766,
+    "allowed_coverage_percent": [18.01766, 38.01766],
+    "baseline_median_deq_um": 7.586165,
+    "allowed_median_deq_um": [5.310316, 9.862015],
+    "out_of_standard_action": "Exclude the image from pooled statistics and report the triggered rule."
+  },
+  "interpretation_boundary": "This standard produces preliminary automated dimple-candidate estimates. It is calibrated on one B-DQ image and is not yet a publication-grade universal dimple measurement standard."
+}

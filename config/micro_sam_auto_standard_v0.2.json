@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "standard_id": "AutoDimple-BR-1000x-v0.2",
+  "status": "preliminary_automatic_comparison_standard",
+  "scope": "Matched B/R 1000x SEM fracture images acquired and exported under the pilot acquisition conditions",
+  "calibration": {
+    "sample": "B-DQ-1-06",
+    "human_reported_correct": 22,
+    "review_total": 30,
+    "candidate_acceptance_rate": 0.733333,
+    "candidate_rejection_rate": 0.266667,
+    "wilson_95_interval": [0.555517, 0.858175],
+    "cross_steel_validation_status": "not_independently_validated_on_R"
+  },
+  "input_requirements": {
+    "magnification_x": 1000,
+    "pixel_size_um": 0.27265625,
+    "pixel_size_relative_tolerance": 0.05,
+    "same_preparation_detector_contrast_required": true
+  },
+  "segmentation": {
+    "model": "Segment Anything ViT-B via micro-sam 1.8.8",
+    "pred_iou_thresh": 0.78,
+    "stability_score_thresh": 0.87,
+    "box_nms_thresh": 0.60,
+    "min_object_size_px": 50,
+    "preservation_threshold": 0.78
+  },
+  "postprocessing": {
+    "minimum_area_px": 50,
+    "minimum_area_um2": 3.717072,
+    "minimum_equivalent_diameter_um": 2.175482,
+    "exclude_edge_touching_objects": true,
+    "remove_post_commit_fragments_below_minimum": true
+  },
+  "automatic_policy": {
+    "routine_object_by_object_review": false,
+    "candidate_count_correction_factor": 0.733333,
+    "correction_is_exploratory": true,
+    "baseline_coverage_percent": 28.01766,
+    "allowed_coverage_percent": [18.01766, 38.01766],
+    "baseline_median_deq_um": 7.586165,
+    "allowed_median_deq_um": [5.310316, 9.862015],
+    "warning_coverage_percent": [18.01766, 38.01766],
+    "warning_median_deq_um": [5.310316, 9.862015],
+    "hard_allowed_coverage_percent": [10.0, 60.0],
+    "hard_allowed_median_deq_um": [2.175482, 25.0],
+    "out_of_standard_action": "Exclude only metadata failures or gross segmentation failures from pooled statistics.",
+    "warning_action": "Keep the image in exploratory comparison and report the distribution shift."
+  },
+  "interpretation_boundary": "This standard supports exploratory B/R image-level comparison. Distribution shifts are retained because they may be the phenomenon of interest; they are warnings, not automatic exclusions."
+}

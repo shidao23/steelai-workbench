@@ -1,0 +1,57 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+.DS_Store
+*.log
+.streamlit/secrets.toml
+config/settings.toml
+config/local-tools.cmd
+streamlit-smoke.log
+streamlit-smoke.err.log
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+*.token
+**/secrets.*
+
+# Local processed research data and generated artifacts are not public-repository inputs.
+data/processed/
+data/index/
+outputs/
+
+# 真实资料路径和报告可能包含未公开信息；提交前逐项复核。
+project_log/events.jsonl
+
+# DSH sidecar runtime and user-generated scratch notes.
+dsh_workspace/node_modules/
+dsh_workspace/results/*
+dsh_workspace/.dsh/cordis.patch.yml
+
+# Open Model Lab: reproducible code is tracked; large local runtimes and weights are not.
+model_lab/micro_sam/.venv-micro-sam/
+model_lab/micro_sam/cache/
+model_lab/micro_sam/wheels/
+model_lab/micro_sam/weights/
+model_lab/micro_sam/environment_status.json
+.not-configured/
+
+# Private intake areas and large model binaries must not enter a baseline commit.
+raw_data/
+inbox/
+inbox_v2/
+approved_mappings/
+approved_v2/
+*.ckpt
+*.onnx
+*.pt
+*.pth
+*.safetensors
