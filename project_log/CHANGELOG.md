@@ -1,5 +1,11 @@
 # Changelog
 
+## stage1-t11-real-format-regressions - 2026-09-05
+
+- Recorded SteelData's public synthetic regression coverage for Chinese/English headers, blank rows, worksheet selection, profile ambiguity, unit conflicts, duplicates and bad values.
+- Kept the Workbench result-contract and formal-import gates unchanged; the T10 local staging package remains `not_committed`.
+- Confirmed that no real report content, measurement values, identities, report identifiers or local paths were added to either repository.
+
 ## stage1-t10-real-tensile-acceptance - 2026-09-04
 
 - Accepted one human-approved, desensitized DQ SteelData package with 6 physical specimens and passed integrity, QC and same-runtime replay checks.

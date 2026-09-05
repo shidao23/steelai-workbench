@@ -2,7 +2,7 @@
 
 一个面向耐磨钢课题的本地科研 AI 工作台：Python 负责可复现的数据处理与物理计算，GPT 只负责在证据约束下组织自然语言报告。生活管理不在本项目范围内，继续放在 Notion。
 
-本机真实资料路径只保存在被 Git 忽略的 `config/settings.toml` 中，仓库只保留 `config/settings.example.toml`。B/R processed 摘要仍来自 v0.1 已核对研究笔记并受其证据边界约束；阶段一 T10 另外完成了一批脱敏 DQ 逐试样拉伸结果的结果包、重放和暂存预检，但尚未提交正式长表。
+本机真实资料路径只保存在被 Git 忽略的 `config/settings.toml` 中，仓库只保留 `config/settings.example.toml`。B/R processed 摘要仍来自 v0.1 已核对研究笔记并受其证据边界约束；阶段一 T10 另外完成了一批脱敏 DQ 逐试样拉伸结果的结果包、重放和暂存预检，但尚未提交正式长表。T11 已在 SteelData 中把可公开的真实格式特征转成合成回归测试，Workbench 的入库门禁不变。
 
 ## 当前状态与项目治理
 
