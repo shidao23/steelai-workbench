@@ -1,9 +1,16 @@
 # Changelog
 
+## stage1-t14-frictionless-optional-adapter - 2026-09-05
+
+- Added a lazy, synthetic-only Frictionless 5.19.0 adapter for the graduation-v1 Tabular Data Package descriptor and independent structural validation.
+- Pinned all 40 Windows CPython 3.12 packages with wheel hashes; retained the MIT license, source record, measured dependency size and a removal guide outside main requirements.
+- Measured 30 warm runs: native median 1.691 ms and adapter end-to-end median 36.033 ms; the extra 34.342 ms is acceptable for an optional export demonstration.
+- Added fail-closed evidence checks and verified both installed and unavailable paths. Corrected the Workbench runtime record from 3.14.2 to the observed 3.12.14.
+
 ## stage1-t13-open-source-reuse-registry - 2026-09-05
 
 - Added a machine-readable third-party candidate registry and `THIRD_PARTY.md` with five pinned official project references, verified OSI license links, dependency impact and explicit decisions.
-- Selected only the Frictionless Data Package/export-validation feature for bounded T14 evaluation; NOMAD is reference-only, GEMD and MLflow are deferred, and Great Expectations is rejected for the current Python 3.14 runtime and overlapping scope.
+- Selected only the Frictionless Data Package/export-validation feature for bounded T14 evaluation; NOMAD is reference-only, GEMD and MLflow are deferred, and Great Expectations is rejected for overlapping scope and maintenance cost. T14 later corrected the recorded Workbench runtime to Python 3.12.14.
 - Added fail-closed registry tests to reject unknown licenses, floating versions, multiple eligible candidates and any claim that T13 imported code.
 - Installed, downloaded and copied no third-party code; existing scientific and privacy gates remain unchanged.
 

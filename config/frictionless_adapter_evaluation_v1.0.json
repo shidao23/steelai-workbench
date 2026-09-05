@@ -1,0 +1,67 @@
+{
+  "evaluation_id": "SteelAI-Frictionless-Adapter-Evaluation-v1.0",
+  "schema_version": "1.0",
+  "evaluated_at": "2026-09-05",
+  "result": "adopted_optional",
+  "component": {
+    "name": "frictionless",
+    "version": "5.19.0",
+    "license_spdx": "MIT",
+    "source_ref": "43a63e0",
+    "wheel": "frictionless-5.19.0-py3-none-any.whl",
+    "wheel_sha256": "81436b94a950b1a5cf83e953921e64dc888c00f51400f783ea0aa824319a6d67"
+  },
+  "runtime": {
+    "os": "Windows x64",
+    "python": "CPython 3.12.14",
+    "pip": "25.0.1",
+    "network_used_by_adapter": false,
+    "real_data_used": false
+  },
+  "dependency_cost": {
+    "installed_packages_total": 40,
+    "transitive_packages": 39,
+    "direct_dependencies": 19,
+    "downloaded_wheels_total_bytes": 8361624,
+    "isolated_environment_total_bytes": 54926137,
+    "lock_scope": "CPython 3.12 Windows x64"
+  },
+  "performance": {
+    "fixture": "six public synthetic CSV resources with 19 total rows",
+    "iterations": 30,
+    "native_median_ms": 1.691,
+    "native_min_ms": 1.601,
+    "native_max_ms": 2.943,
+    "adapter_end_to_end_median_ms": 36.033,
+    "adapter_end_to_end_min_ms": 34.614,
+    "adapter_end_to_end_max_ms": 42.905,
+    "median_overhead_ms": 34.342,
+    "median_slowdown_ratio": 21.31
+  },
+  "value": {
+    "added": [
+      "standard tabular Data Package descriptor",
+      "independent field, primary-key and ordinary foreign-key validation",
+      "portable machine-readable public graduation package"
+    ],
+    "not_replaced": [
+      "native graduation contract",
+      "typed subject identity and scientific rules",
+      "QC, provenance, approval or append-only intake gates"
+    ]
+  },
+  "integration": {
+    "required_by_core": false,
+    "main_requirements_modified": false,
+    "synthetic_only": true,
+    "lock_file": "requirements-frictionless-win-py312.lock",
+    "adapter_module": "steelai/frictionless_adapter.py",
+    "descriptor": "data/examples/graduation_contract_v1/datapackage.json",
+    "license_record": "third_party/frictionless-5.19.0/LICENSE.md"
+  },
+  "removal": {
+    "core_data_migration_required": false,
+    "core_configuration_change_required": false,
+    "method": "Remove the optional environment and T14 adapter artifacts; requirements.txt and the native quality gate continue unchanged."
+  }
+}

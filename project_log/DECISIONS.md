@@ -1,11 +1,19 @@
 # Decisions
 
+## 2026-09-05 · Adopt Frictionless only as an optional public-package adapter
+
+- Adopt Frictionless `5.19.0` for one bounded interoperability feature: describe and independently validate the public synthetic graduation-v1 package.
+- Keep it out of `requirements.txt`: 40 installed packages and roughly 54.9 MB of isolated environment cost are excessive for a core dependency but acceptable for an optional graduation demonstration.
+- Keep conditional subject identity, scientific units/statistics, provenance, approval and append-only intake under SteelAI's native validators.
+- Require the exact Windows CPython 3.12 hash lock and retain the MIT license. Removing the adapter requires no data migration or core configuration change.
+- Correct the earlier runtime observation: Workbench uses CPython 3.12.14. Great Expectations remains rejected for overlap and maintenance cost, not Python incompatibility.
+
 ## 2026-09-05 · Select one bounded open-source feature for T14 evaluation
 
 - Decision: evaluate only Frictionless `5.19.0` as an optional Data Package descriptor and independent public-export validator in T14.
 - It may describe and validate the public graduation package, but it cannot replace SteelAI's frozen data contract, QC, approvals or append-only import gate.
 - NOMAD `1.4.3` is architecture reference only; GEMD `2.2.4` and MLflow `3.16.0` are deferred until a concrete interoperability or scale need exists.
-- Great Expectations `1.21.0` is rejected now because its official package requires Python below 3.14 while this project uses 3.14.2, and its validation scope overlaps existing controls.
+- Great Expectations `1.21.0` remains rejected because its validation scope overlaps existing controls and does not justify its maintenance cost; T14 verified Workbench actually uses Python 3.12.14.
 - T13 imports no code. T14 still requires isolated installation measurement, exact package/hash pinning, license retention, synthetic-only tests and proof that the core works when the adapter is absent.
 
 ## 2026-09-05 · Freeze graduation core data contract v1

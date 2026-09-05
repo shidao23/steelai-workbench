@@ -4,7 +4,7 @@
 
 核对日期：2026-09-05
 
-任务：T13（只做调研与决策，不安装、不复制代码）
+任务：T13 建立登记；T14 已完成一个可选适配器（第三方代码不复制入仓库）
 
 机器可读登记位于 `config/third_party_candidates_v1.0.json`，并由本地质量门禁检查。
 
@@ -21,27 +21,21 @@
 
 | 候选小功能 | 官方版本与源码 | 许可证 | 本机/依赖成本 | 决策 |
 | --- | --- | --- | --- | --- |
-| Frictionless Data Package 描述与独立验证报告 | `frictionless-py 5.19.0`, `43a63e0` | MIT | 支持 Python 3.14；依赖规模待 T14 实测 | **进入 T14 评估**，仅做可选公开导出适配器 |
+| Frictionless Data Package 描述与独立验证报告 | `frictionless-py 5.19.0`, `43a63e0` | MIT | CPython 3.12.14 已验证；共 40 个安装包 | **T14 已采用**，仅做可选公开导出适配器 |
 | NOMAD 材料 schema / ELN / FAIR 工作流概念 | `NOMAD 1.4.3`, `0e2fecd` | Apache-2.0 | 完整平台需要数据库、搜索、Worker 和 Web 部署 | 仅作架构参考，不部署、不复制 |
 | GEMD 材料—工艺—测量关系导出 | `gemd-python 2.2.4`, `af4336f` | Apache-2.0 | 中等；与 graduation-v1 身份模型重叠 | 延后，出现真实互操作需求再评估 |
-| Great Expectations 验证文档/规则集 | `1.21.0`, `eb0faa5…` | Apache-2.0 | 官方 PyPI 要求 Python `<3.14`，且与现有 QC 重复 | 当前拒绝 |
+| Great Expectations 验证文档/规则集 | `1.21.0`, `eb0faa5…` | Apache-2.0 | 兼容当前 Python 3.12，但与现有 QC 重复 | 当前拒绝 |
 | MLflow 运行/产物追踪 | `3.16.0`, `998f710` | Apache-2.0 | 新增追踪运行时和存储模型；当前 manifest 已够用 | 延后到实验规模明显增长后 |
 
-## T14 唯一入选项
+## T14 实施结果
 
-候选：`frictionless-data-package`。
+采用项：`frictionless-data-package`。
 
 只允许评估以下最小功能：从 graduation-v1 的公开合成表生成标准 Data Package 描述，并用独立验证报告校验包结构。它不能替代现有 Python 契约、QC、人工批准或入库门禁。
 
-T14 的继续条件：
+T14 已在两个隔离环境完成普通安装和哈希锁定重装，只使用 `SYN-` 合成示例。Frictionless 本体及 39 个传递依赖共 40 个包，没有加入主 `requirements.txt`；MIT 许可证、wheel 哈希、性能对照和移除方法均已保存。未安装组件时原生质量门禁照常通过。
 
-1. 在隔离环境验证 Python 3.14 安装与实际传递依赖数量。
-2. 固定 `frictionless==5.19.0` 和安装包哈希，保存 MIT 许可证/归属记录。
-3. 只使用 `SYN-` 合成示例做测试，不把真实数据发往网络。
-4. 对比“无适配器”和“有适配器”的可移植性收益、运行时间与维护成本。
-5. 关闭或未安装该组件时，核心质量门禁与毕业演示仍正常工作。
-
-T13 不等于批准 T14 实施；这里只确定唯一、边界明确的候选。
+实测和使用说明见 [T14 Frictionless 可选适配器](docs/T14_FRICTIONLESS_ADAPTER.md)。
 
 ## 官方核对链接
 

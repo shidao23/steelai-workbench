@@ -38,6 +38,8 @@ def validate_third_party_registry(path: Path = REGISTRY_PATH) -> dict[str, Any]:
         add("Unexpected third-party registry_id.")
     if registry.get("schema_version") != "1.0" or registry.get("stage") != "T13_governance_only":
         add("T13 registry must use schema v1.0 and governance-only stage.")
+    if registry.get("project_python") != "3.12.14":
+        add("Registry must reflect the verified Workbench CPython 3.12.14 runtime.")
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(registry.get("reviewed_at", ""))):
         add("Registry review date is missing or invalid.")
 
@@ -95,8 +97,9 @@ def validate_third_party_registry(path: Path = REGISTRY_PATH) -> dict[str, Any]:
     if selected != ["frictionless-data-package"]:
         add("T13 must select exactly the bounded Frictionless Data Package evaluation for T14.")
     gx = next((item for item in candidates if item.get("candidate_id") == "great-expectations-validation"), {})
-    if gx.get("decision") != "rejected_now" or "<3.14" not in str(gx.get("runtime_fit", "")):
-        add("Great Expectations must record the current Python 3.14 incompatibility and rejection.")
+    gx_basis = " ".join((str(gx.get("dependency_impact", "")), str(gx.get("decision_reason", ""))))
+    if gx.get("decision") != "rejected_now" or "overlap" not in gx_basis:
+        add("Great Expectations must record overlap and maintenance cost as the current rejection basis.")
 
     return {
         "schema_version": "1.0",

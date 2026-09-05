@@ -36,3 +36,23 @@ jobs:
 
       - name: Run the full offline test suite
         run: python -m unittest discover -s tests -v
+
+  optional-frictionless-adapter:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-frictionless-win-py312.lock
+
+      - name: Install hash-locked optional adapter
+        run: python -m pip install --require-hashes -r requirements-frictionless-win-py312.lock
+
+      - name: Validate installed and disabled adapter paths
+        run: python -m unittest tests.test_frictionless_adapter -v

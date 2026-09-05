@@ -45,12 +45,13 @@ class ThirdPartyRegistryTests(unittest.TestCase):
         self.assertEqual(report["status"], "failed")
         self.assertIn("T13 must not import third-party code", " ".join(report["problems"]))
 
-    def test_rejected_python_incompatibility_and_large_system_boundaries_are_recorded(self):
+    def test_rejected_overlap_and_large_system_boundaries_are_recorded(self):
         registry = load_third_party_registry()
         candidates = {item["candidate_id"]: item for item in registry["candidates"]}
         gx = candidates["great-expectations-validation"]
         self.assertEqual(gx["decision"], "rejected_now")
-        self.assertIn("<3.14", gx["runtime_fit"])
+        self.assertIn("CPython 3.12.14", gx["runtime_fit"])
+        self.assertIn("overlap", gx["dependency_impact"])
         self.assertEqual(candidates["nomad-schema-eln-reference"]["decision"], "reference_only")
         self.assertEqual(candidates["mlflow-run-tracking"]["decision"], "deferred")
         self.assertTrue(all(item["official_repo"].startswith("https://") for item in candidates.values()))

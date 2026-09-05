@@ -67,6 +67,7 @@ class ResearchDataContractTests(unittest.TestCase):
         self.assertEqual(result["status"], "passed")
         self.assertTrue(result["checks"]["privacy_contract"])
         self.assertTrue(result["checks"]["graduation_data_contract"])
+        self.assertTrue(result["checks"]["frictionless_optional_adapter"])
         self.assertTrue(result["checks"]["third_party_registry"])
 
 

@@ -1,0 +1,410 @@
+{
+  "profile": "tabular-data-package",
+  "name": "steelai-graduation-core-v1",
+  "title": "SteelAI Graduation Core v1 public synthetic package",
+  "description": "Portable structural description of the public synthetic tensile example. SteelAI's frozen native contract remains authoritative for conditional subject identity, units, statistics, provenance and scientific rules.",
+  "version": "1.0.0",
+  "resources": [
+    {
+      "profile": "tabular-data-resource",
+      "name": "materials",
+      "type": "table",
+      "path": "materials.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "material_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "material_name",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "material_status",
+            "type": "string",
+            "constraints": {
+              "required": true,
+              "enum": [
+                "verified",
+                "provisional_unverified",
+                "synthetic_fixture"
+              ]
+            }
+          },
+          {
+            "name": "notes",
+            "type": "string"
+          }
+        ],
+        "primaryKey": "material_id"
+      }
+    },
+    {
+      "profile": "tabular-data-resource",
+      "name": "heats",
+      "type": "table",
+      "path": "heats.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "heat_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "material_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "heat_status",
+            "type": "string",
+            "constraints": {
+              "required": true,
+              "enum": [
+                "verified",
+                "provisional_unverified",
+                "synthetic_fixture"
+              ]
+            }
+          },
+          {
+            "name": "notes",
+            "type": "string"
+          }
+        ],
+        "primaryKey": "heat_id",
+        "foreignKeys": [
+          {
+            "fields": "material_id",
+            "reference": {
+              "resource": "materials",
+              "fields": "material_id"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "profile": "tabular-data-resource",
+      "name": "samples",
+      "type": "table",
+      "path": "samples.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "sample_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "material_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "heat_id",
+            "type": "string"
+          },
+          {
+            "name": "condition_label",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "sample_status",
+            "type": "string",
+            "constraints": {
+              "required": true,
+              "enum": [
+                "verified",
+                "provisional_unverified",
+                "synthetic_fixture"
+              ]
+            }
+          },
+          {
+            "name": "notes",
+            "type": "string"
+          }
+        ],
+        "primaryKey": "sample_id",
+        "foreignKeys": [
+          {
+            "fields": "material_id",
+            "reference": {
+              "resource": "materials",
+              "fields": "material_id"
+            }
+          },
+          {
+            "fields": "heat_id",
+            "reference": {
+              "resource": "heats",
+              "fields": "heat_id"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "profile": "tabular-data-resource",
+      "name": "specimens",
+      "type": "table",
+      "path": "specimens.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "specimen_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "sample_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "specimen_type",
+            "type": "string",
+            "constraints": {
+              "required": true,
+              "enum": [
+                "tensile"
+              ]
+            }
+          },
+          {
+            "name": "specimen_status",
+            "type": "string",
+            "constraints": {
+              "required": true,
+              "enum": [
+                "verified",
+                "provisional_unverified",
+                "synthetic_fixture"
+              ]
+            }
+          },
+          {
+            "name": "notes",
+            "type": "string"
+          }
+        ],
+        "primaryKey": "specimen_id",
+        "foreignKeys": [
+          {
+            "fields": "sample_id",
+            "reference": {
+              "resource": "samples",
+              "fields": "sample_id"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "profile": "tabular-data-resource",
+      "name": "reports",
+      "type": "table",
+      "path": "reports.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "report_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "report_type",
+            "type": "string",
+            "constraints": {
+              "required": true,
+              "enum": [
+                "tensile_result_table",
+                "tensile_summary"
+              ]
+            }
+          },
+          {
+            "name": "source_status",
+            "type": "string",
+            "constraints": {
+              "required": true,
+              "enum": [
+                "instrument_export",
+                "verified_from_source",
+                "manual_extraction_verified",
+                "synthetic_fixture"
+              ]
+            }
+          },
+          {
+            "name": "source_sha256",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "notes",
+            "type": "string"
+          }
+        ],
+        "primaryKey": "report_id"
+      }
+    },
+    {
+      "profile": "tabular-data-resource",
+      "name": "observations",
+      "type": "table",
+      "path": "observations.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "observation_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "report_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "subject_type",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "subject_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "quantity",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "value",
+            "type": "number",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "unit",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "statistic_type",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "replicate_count",
+            "type": "integer"
+          },
+          {
+            "name": "source_status",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "source_record_id",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "source_field",
+            "type": "string",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "notes",
+            "type": "string"
+          }
+        ],
+        "primaryKey": "observation_id",
+        "foreignKeys": [
+          {
+            "fields": "report_id",
+            "reference": {
+              "resource": "reports",
+              "fields": "report_id"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
