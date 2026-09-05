@@ -1,5 +1,12 @@
 # Changelog
 
+## stage1-t12-graduation-data-contract - 2026-09-05
+
+- Froze `SteelAI-Graduation-Core-v1.0` for the personal graduation MVP, limited to specimen-level tensile YS, UTS and elongation.
+- Added machine-readable material/heat/sample/specimen/report/observation relationships, public synthetic examples and closed validation in the local quality gate.
+- Separated specimen observations from reported summaries and explicitly deferred curve points, image fields and EBSD pixels as non-specimen objects.
+- Documented non-destructive migration from existing summary/observation tables and SteelData without activating a real-data migration or committing T10 staging.
+
 ## stage1-t11-real-format-regressions - 2026-09-05
 
 - Recorded SteelData's public synthetic regression coverage for Chinese/English headers, blank rows, worksheet selection, profile ambiguity, unit conflicts, duplicates and bad values.

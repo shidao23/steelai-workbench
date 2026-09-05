@@ -1,0 +1,3 @@
+report_id,report_type,source_status,source_sha256,notes
+SYN-REPORT-IND,tensile_result_table,synthetic_fixture,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fake digest for public fixture
+SYN-REPORT-SUM,tensile_summary,synthetic_fixture,bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fake digest for public fixture

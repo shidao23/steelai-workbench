@@ -1,0 +1,4 @@
+specimen_id,sample_id,specimen_type,specimen_status,notes
+SYN-T12-01,SYN-SAMPLE-DQ,tensile,synthetic_fixture,public fixture
+SYN-T12-02,SYN-SAMPLE-DQ,tensile,synthetic_fixture,public fixture
+SYN-T12-03,SYN-SAMPLE-DQ,tensile,synthetic_fixture,public fixture

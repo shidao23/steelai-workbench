@@ -1,0 +1,2 @@
+sample_id,material_id,heat_id,condition_label,sample_status,notes
+SYN-SAMPLE-DQ,SYN-MAT-01,SYN-HEAT-01,synthetic direct quench,synthetic_fixture,not a real research condition

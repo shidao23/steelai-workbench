@@ -1,5 +1,14 @@
 # Decisions
 
+## 2026-09-05 · Freeze graduation core data contract v1
+
+- Decision: freeze `SteelAI-Graduation-Core-v1.0` as the personal graduation MVP contract for specimen-level tensile YS, UTS and elongation.
+- Material design, heat, research sample/condition, physical specimen, source report and scalar observation have separate IDs and explicit parent relationships.
+- A specimen observation is `individual`; report-level mean/SD/min/max is a `sample_summary` with an explicit replicate count and never creates specimen rows.
+- Curve points, image fields, detected image objects and EBSD pixels remain nested/deferred objects and cannot be used as independent specimens.
+- Existing B/R tables and the T10 local staging package are not migrated or committed by this decision. Activation requires a separate reviewed migration with backup and acceptance evidence.
+- Adding quantities may use a reviewed minor version; changing identity, keys, statistical meaning or existing units requires a major version.
+
 ## 2026-08-22 · Local research sessions before broader orchestration
 
 - Decision: make a resumable local research session the unit of daily work before introducing multi-agent orchestration or a heavier experiment platform.

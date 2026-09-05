@@ -66,6 +66,7 @@ class ResearchDataContractTests(unittest.TestCase):
         result = run_quality_gate()
         self.assertEqual(result["status"], "passed")
         self.assertTrue(result["checks"]["privacy_contract"])
+        self.assertTrue(result["checks"]["graduation_data_contract"])
 
 
 if __name__ == "__main__":

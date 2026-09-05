@@ -1,0 +1,12 @@
+observation_id,report_id,subject_type,subject_id,quantity,value,unit,statistic_type,replicate_count,source_status,source_record_id,source_field,notes
+SYN-OBS-001,SYN-REPORT-IND,specimen,SYN-T12-01,ys_mpa,690,MPa,individual,1,synthetic_fixture,SYN-ROW-01,ys_mpa,public fixture
+SYN-OBS-002,SYN-REPORT-IND,specimen,SYN-T12-01,uts_mpa,900,MPa,individual,1,synthetic_fixture,SYN-ROW-01,uts_mpa,public fixture
+SYN-OBS-003,SYN-REPORT-IND,specimen,SYN-T12-01,elongation_pct,17,%,individual,1,synthetic_fixture,SYN-ROW-01,el_pct,public fixture
+SYN-OBS-004,SYN-REPORT-IND,specimen,SYN-T12-02,ys_mpa,705,MPa,individual,1,synthetic_fixture,SYN-ROW-02,ys_mpa,public fixture
+SYN-OBS-005,SYN-REPORT-IND,specimen,SYN-T12-02,uts_mpa,920,MPa,individual,1,synthetic_fixture,SYN-ROW-02,uts_mpa,public fixture
+SYN-OBS-006,SYN-REPORT-IND,specimen,SYN-T12-02,elongation_pct,16,%,individual,1,synthetic_fixture,SYN-ROW-02,el_pct,public fixture
+SYN-OBS-007,SYN-REPORT-IND,specimen,SYN-T12-03,ys_mpa,715,MPa,individual,1,synthetic_fixture,SYN-ROW-03,ys_mpa,public fixture
+SYN-OBS-008,SYN-REPORT-IND,specimen,SYN-T12-03,uts_mpa,935,MPa,individual,1,synthetic_fixture,SYN-ROW-03,uts_mpa,public fixture
+SYN-OBS-009,SYN-REPORT-IND,specimen,SYN-T12-03,elongation_pct,15,%,individual,1,synthetic_fixture,SYN-ROW-03,el_pct,public fixture
+SYN-OBS-010,SYN-REPORT-SUM,sample_summary,SYN-SAMPLE-DQ,ys_mpa,703.3,MPa,reported_mean,3,synthetic_fixture,SYN-SUMMARY-01,ys_mean_mpa,reported value not an independent specimen
+SYN-OBS-011,SYN-REPORT-SUM,sample_summary,SYN-SAMPLE-DQ,ys_mpa,12.6,MPa,reported_sd,3,synthetic_fixture,SYN-SUMMARY-01,ys_std_mpa,reported statistic not an independent specimen

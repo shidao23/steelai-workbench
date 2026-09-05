@@ -1,0 +1,166 @@
+{
+  "contract_id": "SteelAI-Graduation-Core-v1.0",
+  "schema_version": "1.0",
+  "status": "frozen",
+  "scope": {
+    "purpose": "personal_graduation_mvp",
+    "included_domain": "tensile_specimen_results",
+    "included_quantities": [
+      "ys_mpa",
+      "uts_mpa",
+      "elongation_pct"
+    ],
+    "missing_value_rule": "blank_is_missing_not_zero",
+    "write_rule": "validate_then_append_never_overwrite",
+    "real_source_rule": "external_read_only_not_committed"
+  },
+  "identity_roles": {
+    "material_id": "material design or grade; not a physical replicate",
+    "heat_id": "independently melted heat; may be blank when not verified",
+    "sample_id": "research condition shared by tables; not a physical replicate",
+    "specimen_id": "one physical test specimen",
+    "report_id": "one source report or values-only export; not a specimen",
+    "observation_id": "one recorded value with one quantity and unit"
+  },
+  "tables": {
+    "materials": {
+      "path": "data/examples/graduation_contract_v1/materials.csv",
+      "primary_key": ["material_id"],
+      "required_fields": ["material_id", "material_name", "material_status"],
+      "optional_fields": ["notes"],
+      "allowed_values": {
+        "material_status": ["verified", "provisional_unverified", "synthetic_fixture"]
+      }
+    },
+    "heats": {
+      "path": "data/examples/graduation_contract_v1/heats.csv",
+      "primary_key": ["heat_id"],
+      "required_fields": ["heat_id", "material_id", "heat_status"],
+      "optional_fields": ["notes"],
+      "allowed_values": {
+        "heat_status": ["verified", "provisional_unverified", "synthetic_fixture"]
+      }
+    },
+    "samples": {
+      "path": "data/examples/graduation_contract_v1/samples.csv",
+      "primary_key": ["sample_id"],
+      "required_fields": ["sample_id", "material_id", "heat_id", "condition_label", "sample_status"],
+      "optional_fields": ["notes"],
+      "nullable_fields": ["heat_id"],
+      "allowed_values": {
+        "sample_status": ["verified", "provisional_unverified", "synthetic_fixture"]
+      }
+    },
+    "specimens": {
+      "path": "data/examples/graduation_contract_v1/specimens.csv",
+      "primary_key": ["specimen_id"],
+      "required_fields": ["specimen_id", "sample_id", "specimen_type", "specimen_status"],
+      "optional_fields": ["notes"],
+      "allowed_values": {
+        "specimen_type": ["tensile"],
+        "specimen_status": ["verified", "provisional_unverified", "synthetic_fixture"]
+      }
+    },
+    "reports": {
+      "path": "data/examples/graduation_contract_v1/reports.csv",
+      "primary_key": ["report_id"],
+      "required_fields": ["report_id", "report_type", "source_status", "source_sha256"],
+      "optional_fields": ["notes"],
+      "allowed_values": {
+        "report_type": ["tensile_result_table", "tensile_summary"],
+        "source_status": ["instrument_export", "verified_from_source", "manual_extraction_verified", "synthetic_fixture"]
+      }
+    },
+    "observations": {
+      "path": "data/examples/graduation_contract_v1/observations.csv",
+      "primary_key": ["observation_id"],
+      "required_fields": [
+        "observation_id",
+        "report_id",
+        "subject_type",
+        "subject_id",
+        "quantity",
+        "value",
+        "unit",
+        "statistic_type",
+        "replicate_count",
+        "source_status",
+        "source_record_id",
+        "source_field"
+      ],
+      "optional_fields": ["notes"],
+      "nullable_fields": ["replicate_count"],
+      "numeric_fields": ["value"]
+    }
+  },
+  "relationships": [
+    {"from": "heats.material_id", "to": "materials.material_id", "cardinality": "many_to_one"},
+    {"from": "samples.material_id", "to": "materials.material_id", "cardinality": "many_to_one"},
+    {"from": "samples.heat_id", "to": "heats.heat_id", "cardinality": "many_to_one_nullable"},
+    {"from": "specimens.sample_id", "to": "samples.sample_id", "cardinality": "many_to_one"},
+    {"from": "observations.report_id", "to": "reports.report_id", "cardinality": "many_to_one"},
+    {"from": "observations.subject_id", "to": "specimens.specimen_id_or_samples.sample_id", "cardinality": "many_to_one_typed"}
+  ],
+  "observation_rules": {
+    "quantity_units": {
+      "ys_mpa": "MPa",
+      "uts_mpa": "MPa",
+      "elongation_pct": "%"
+    },
+    "allowed_source_statuses": ["instrument_export", "verified_from_source", "manual_extraction_verified", "synthetic_fixture"],
+    "subject_types": {
+      "specimen": {
+        "registry": "specimens",
+        "allowed_statistics": ["individual"],
+        "replicate_count": "blank_or_one"
+      },
+      "sample_summary": {
+        "registry": "samples",
+        "allowed_statistics": ["reported_mean", "reported_sd", "reported_min", "reported_max"],
+        "replicate_count": "positive_integer_required"
+      }
+    },
+    "source_status_must_match_report": true,
+    "source_record_and_field_required": true
+  },
+  "deferred_object_roles": {
+    "curve_series": "signal container; not a specimen and not a property value",
+    "curve_point": "ordered point nested in a curve series; never an independent specimen",
+    "image_asset": "image file or derived image object; not a specimen",
+    "image_field": "field of view nested within a specimen; not an independent specimen",
+    "ebsd_pixel": "pixel nested within an EBSD map; never an independent specimen"
+  },
+  "migration_rules": [
+    {
+      "source": "data/processed/property_observations.csv",
+      "target": "observations",
+      "rule": "migrate only after specimen and report registration; preserve sample/specimen/property/value/unit/source status and do not overwrite"
+    },
+    {
+      "source": "data/processed/properties.csv",
+      "target": "observations",
+      "rule": "wide summary fields become sample_summary rows only with explicit statistic and replicate_count; never manufacture specimen rows"
+    },
+    {
+      "source": "SteelData tensile table",
+      "target": "observations",
+      "rule": "one source record maps to three specimen observations after explicit sample mapping, specimen registration and report registration; batch_id is not inferred as heat_id"
+    },
+    {
+      "source": "SteelData tensile_curve signal",
+      "target": "deferred curve contract",
+      "rule": "preserve ordered curve points separately; never infer YS or UTS without an approved method and geometry"
+    },
+    {
+      "source": "image or EBSD data",
+      "target": "deferred image contract",
+      "rule": "image fields, detected objects and pixels remain nested objects and never become specimen replicates"
+    }
+  ],
+  "versioning": {
+    "major_change": "identity meaning, primary key, subject/statistic semantics or existing unit meaning changes",
+    "minor_change": "backward-compatible optional field or reviewed quantity addition",
+    "patch_change": "wording or example correction with no validation behavior change",
+    "activation_rule": "no real-data migration or writer switch without separate review, backup and acceptance record"
+  }
+}

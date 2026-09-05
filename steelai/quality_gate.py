@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from steelai.agent_evaluation import benchmark_contract
+from steelai.graduation_data_contract import validate_graduation_contract
 from steelai.physics import validate_model_registry
 from steelai.research_data_contract import validate_research_data_contract
 from steelai.research_session import validate_session_contract
@@ -11,6 +12,7 @@ from steelai.settings import load_settings
 
 def run_quality_gate() -> dict:
     data_contract = validate_research_data_contract()
+    graduation_contract = validate_graduation_contract()
     physics_registry = validate_model_registry()
     research_sessions = validate_session_contract()
     agent_benchmark = benchmark_contract()
@@ -26,13 +28,14 @@ def run_quality_gate() -> dict:
     }
     checks = {
         "research_data_contract": data_contract.get("contract_status") == "passed",
+        "graduation_data_contract": graduation_contract.get("status") == "passed",
         "physics_model_registry": physics_registry.get("status") == "passed",
         "research_session_contract": research_sessions.get("status") == "passed",
         "agent_benchmark_contract": agent_benchmark.get("status") == "passed",
         "privacy_contract": all(privacy_checks.values()),
     }
     return {
-        "schema_version": "1.2",
+        "schema_version": "1.3",
         "status": "passed" if all(checks.values()) else "failed",
         "checks": checks,
         "privacy_checks": privacy_checks,
@@ -40,6 +43,11 @@ def run_quality_gate() -> dict:
             "contract_id": data_contract.get("contract_id"),
             "problems": data_contract.get("problems", []),
             "scientific_readiness": data_contract.get("scientific_readiness", {}),
+        },
+        "graduation_data_contract": {
+            "contract_id": graduation_contract.get("contract_id"),
+            "contract_sha256": graduation_contract.get("contract_sha256"),
+            "problems": graduation_contract.get("problems", []),
         },
         "physics_model_registry": physics_registry,
         "research_session_contract": research_sessions,

@@ -1,0 +1,2 @@
+heat_id,material_id,heat_status,notes
+SYN-HEAT-01,SYN-MAT-01,synthetic_fixture,not a real heat
