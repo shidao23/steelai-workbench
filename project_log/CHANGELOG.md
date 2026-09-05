@@ -1,5 +1,12 @@
 # Changelog
 
+## stage1-t13-open-source-reuse-registry - 2026-09-05
+
+- Added a machine-readable third-party candidate registry and `THIRD_PARTY.md` with five pinned official project references, verified OSI license links, dependency impact and explicit decisions.
+- Selected only the Frictionless Data Package/export-validation feature for bounded T14 evaluation; NOMAD is reference-only, GEMD and MLflow are deferred, and Great Expectations is rejected for the current Python 3.14 runtime and overlapping scope.
+- Added fail-closed registry tests to reject unknown licenses, floating versions, multiple eligible candidates and any claim that T13 imported code.
+- Installed, downloaded and copied no third-party code; existing scientific and privacy gates remain unchanged.
+
 ## stage1-t12-graduation-data-contract - 2026-09-05
 
 - Froze `SteelAI-Graduation-Core-v1.0` for the personal graduation MVP, limited to specimen-level tensile YS, UTS and elongation.

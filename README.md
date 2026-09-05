@@ -10,6 +10,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 
 - [当前能力与旧入口状态](docs/CURRENT_CAPABILITIES.md)
 - [毕业主线数据契约 v1](docs/GRADUATION_DATA_CONTRACT_V1.md)
+- [第三方开源复用登记](THIRD_PARTY.md)
 - [隐私与版本边界](docs/PRIVACY_BOUNDARY.md)
 - [阶段零测试基线](docs/BASELINE_2026-09-04.md)
 - [开发任务看板](TASKS.md)

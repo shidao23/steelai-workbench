@@ -1,5 +1,13 @@
 # Decisions
 
+## 2026-09-05 · Select one bounded open-source feature for T14 evaluation
+
+- Decision: evaluate only Frictionless `5.19.0` as an optional Data Package descriptor and independent public-export validator in T14.
+- It may describe and validate the public graduation package, but it cannot replace SteelAI's frozen data contract, QC, approvals or append-only import gate.
+- NOMAD `1.4.3` is architecture reference only; GEMD `2.2.4` and MLflow `3.16.0` are deferred until a concrete interoperability or scale need exists.
+- Great Expectations `1.21.0` is rejected now because its official package requires Python below 3.14 while this project uses 3.14.2, and its validation scope overlaps existing controls.
+- T13 imports no code. T14 still requires isolated installation measurement, exact package/hash pinning, license retention, synthetic-only tests and proof that the core works when the adapter is absent.
+
 ## 2026-09-05 · Freeze graduation core data contract v1
 
 - Decision: freeze `SteelAI-Graduation-Core-v1.0` as the personal graduation MVP contract for specimen-level tensile YS, UTS and elongation.
