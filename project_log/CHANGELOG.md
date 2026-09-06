@@ -1,5 +1,12 @@
 # Changelog
 
+## stage2-t22-steeldata-human-review - 2026-09-06
+
+- Added a single-item SteelData review area to the existing Workbench data-quality page, showing source integrity, mapping/unit evidence, uncertainties, risks, configuration diff and content digests.
+- Required an explicitly entered human reviewer, note and decision-specific confirmation for approval or rejection; no batch-approval action exists.
+- Called SteelData through fixed CLI verbs with expected revision and suggestion digest so stale pages and repeated submissions fail closed.
+- Saved proposal, approval and human-decision digests separately while leaving approved execution and processed-data writes to T23.
+
 ## stage2-t21-mapping-suggestion-contract - 2026-09-06
 
 - Added the Workbench-side DSH procedure for SteelData's source-bound, structured mapping suggestion contract and controlled candidate/needs-human/unsupported states.

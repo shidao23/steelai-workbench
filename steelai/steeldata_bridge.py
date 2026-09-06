@@ -384,6 +384,29 @@ class SteelDataClient:
     def doctor(self) -> dict:
         return self._call(["doctor"])
 
+    def list_suggestions(self) -> list[dict]:
+        return self._call(["suggestion-list", "--workspace", str(self.project)]).get("suggestions", [])
+
+    def show_suggestion(self, suggestion_id: str) -> dict:
+        return self._call([
+            "suggestion-show", "--workspace", str(self.project),
+            "--suggestion-id", suggestion_id,
+        ])
+
+    def review_suggestion(self, suggestion: dict, decision: str, reviewer: str, note: str) -> dict:
+        if decision not in {"approve", "reject"}:
+            raise ValueError("审批决定必须是 approve 或 reject。")
+        if not reviewer.strip() or not note.strip():
+            raise ValueError("审批人和审批说明不能为空。")
+        return self._call([
+            "suggestion-review", "--workspace", str(self.project),
+            "--suggestion-id", str(suggestion["suggestion_id"]),
+            "--decision", decision,
+            "--expected-revision", str(suggestion["revision"]),
+            "--expected-sha256", str(suggestion["suggestion_sha256"]),
+            "--reviewer", reviewer.strip(), "--note", note.strip(),
+        ])
+
     def run(self, input_dir: str, approval_files: list[str]) -> dict:
         root = Path(input_dir).resolve()
         if not input_dir.strip() or not root.is_dir() or not approval_files:

@@ -277,6 +277,24 @@ class ClientTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "180"):
                 client.doctor()
 
+    def test_suggestion_review_uses_fixed_single_item_cli_contract(self):
+        client = SteelDataClient(ROOT.parent / "SteelData")
+        suggestion = {"suggestion_id": "review-one", "revision": 2, "suggestion_sha256": "a" * 64}
+        with patch.object(client, "_call", side_effect=[
+            {"suggestions": [suggestion]},
+            {**suggestion, "status": "needs_human"},
+            {"suggestion_id": "review-one", "status": "approved"},
+        ]) as call:
+            self.assertEqual(client.list_suggestions(), [suggestion])
+            client.show_suggestion("review-one")
+            client.review_suggestion(suggestion, "approve", " Researcher ", " Checked units. ")
+        review_args = call.call_args_list[2].args[0]
+        self.assertEqual(review_args.count("--suggestion-id"), 1)
+        self.assertIn("review-one", review_args)
+        self.assertIn("2", review_args)
+        self.assertIn("a" * 64, review_args)
+        self.assertEqual(review_args[-2:], ["--note", "Checked units."])
+
 
 class PanelTests(unittest.TestCase):
     def test_valid_package_renders_mapping_without_default_sample(self):
@@ -311,6 +329,50 @@ class PanelTests(unittest.TestCase):
             app.button(key="sd_load").click().run()
             self.assertFalse(app.exception, str(app.exception))
             self.assertTrue(app.button(key="sd_blocked_commit").disabled)
+
+    def test_t22_review_requires_human_fields_and_approves_only_one_loaded_digest(self):
+        from streamlit.testing.v1 import AppTest
+        row = {
+            "suggestion_id": "review-one", "source_file": "source.csv", "domain": "tensile",
+            "status": "needs_human", "revision": 2, "suggestion_sha256": "a" * 64,
+            "uncertainty_count": 1,
+        }
+        view = {
+            **row, "source_sha256": "b" * 64, "source_current_sha256": "b" * 64,
+            "source_matches": True, "rationale": "header evidence", "profile_sha256": "c" * 64,
+            "field_mappings": [{
+                "source": "YS", "target": "ys_mpa", "dtype": "number",
+                "source_unit": "MPa", "target_unit": "MPa",
+                "evidence": ["header_unit"], "confidence": 1, "alternatives": [],
+            }],
+            "uncertainties": [{"field": "ys_mpa", "code": "unit_uncertain", "detail": "check", "alternatives": []}],
+            "profile_diff": [{"path": "columns", "change": "added", "approved_value": None, "suggested_value": ["YS"]}],
+            "diff_baseline": "new_profile", "risks": [{"code": "unit_uncertain", "severity": "warning", "message": "check"}],
+            "can_review": True, "can_approve": True, "can_reject": True,
+        }
+        result = {
+            "suggestion_id": "review-one", "status": "approved", "revision": 3,
+            "suggestion_sha256": "a" * 64, "profile_sha256": "c" * 64,
+            "approval_record_sha256": "d" * 64, "review_record_sha256": "e" * 64,
+        }
+        with patch.object(SteelDataClient, "availability", return_value={"ready": True, "project": "test"}), patch.object(
+            SteelDataClient, "list_suggestions", return_value=[row]), patch.object(
+            SteelDataClient, "show_suggestion", return_value=view), patch.object(
+            SteelDataClient, "review_suggestion", return_value=result) as review, patch(
+            "steelai.views.steeldata_panel.record_event"):
+            app = AppTest.from_file(str(ROOT / "steelai/views/data_quality_panel.py"), default_timeout=20).run()
+            app.button(key="sd_suggestion_refresh").click().run()
+            app.button(key="sd_suggestion_load").click().run()
+            self.assertFalse(app.exception, str(app.exception))
+            self.assertEqual(app.text_input(key="sd_suggestion_reviewer_review-one").value, "")
+            self.assertTrue(app.button(key="sd_suggestion_approve_review-one").disabled)
+            app.text_input(key="sd_suggestion_reviewer_review-one").set_value("Researcher A")
+            app.text_area(key="sd_suggestion_note_review-one").set_value("Checked source, fields, units and digest.")
+            app.checkbox(key="sd_suggestion_approve_confirm_review-one").check().run()
+            app.button(key="sd_suggestion_approve_review-one").click().run()
+        self.assertFalse(app.exception, str(app.exception))
+        review.assert_called_once()
+        self.assertEqual(review.call_args.args[1], "approve")
 
 
 if __name__ == "__main__":

@@ -16,6 +16,124 @@ def _reset_selection_review() -> None:
     st.session_state.pop("sd_inspection", None)
 
 
+def _render_suggestion_review(client: SteelDataClient, ready: bool) -> None:
+    st.write("映射建议人工审批")
+    st.caption("逐条查看来源、字段与单位证据、风险、配置差异和内容摘要。这里不提供批量批准，审批人必须由你填写。")
+    if st.button("刷新待审建议", key="sd_suggestion_refresh", disabled=not ready):
+        try:
+            st.session_state["sd_suggestion_rows"] = client.list_suggestions()
+            st.session_state.pop("sd_suggestion_view", None)
+        except (ValueError, OSError) as exc:
+            st.error(str(exc))
+    rows = st.session_state.get("sd_suggestion_rows")
+    if rows is None:
+        st.caption("点击刷新后才读取建议；打开页面不会自动执行任何审批操作。")
+        return
+    if not rows:
+        st.info("当前没有映射建议。先由受限建议模式生成候选，再回到这里逐条审批。")
+        return
+    labels = {
+        row["suggestion_id"]: f"{row['suggestion_id']} · {row['source_file']} · {row['status']} · r{row['revision']}"
+        for row in rows
+    }
+    suggestion_id = st.selectbox(
+        "选择一条建议", list(labels), format_func=labels.get, key="sd_suggestion_id",
+    )
+    if st.button("加载该建议的审批证据", key="sd_suggestion_load"):
+        try:
+            st.session_state["sd_suggestion_view"] = client.show_suggestion(suggestion_id)
+        except (ValueError, OSError) as exc:
+            st.error(str(exc))
+    view = st.session_state.get("sd_suggestion_view")
+    if not view or view.get("suggestion_id") != suggestion_id:
+        return
+
+    source_status = "摘要一致" if view["source_matches"] else "缺失或已变化"
+    st.write(f"来源：`{view['source_file']}` · 领域：`{view.get('domain') or '未识别'}` · 状态：`{view['status']}` · 修订：`r{view['revision']}`")
+    st.write("源文件核验：" + source_status)
+    st.caption("建议摘要（批准绑定对象）")
+    st.code(view["suggestion_sha256"], language=None)
+    st.caption("建议配置摘要（字段与单位配置）")
+    st.code(view.get("profile_sha256") or "无可批准配置", language=None)
+    if view.get("rationale"):
+        st.write("建议理由：" + view["rationale"])
+
+    mappings = [{
+        "来源字段": item["source"], "目标字段": item["target"], "类型": item["dtype"],
+        "来源单位": item.get("source_unit"), "目标单位": item.get("target_unit"),
+        "证据": "、".join(item.get("evidence", [])), "置信度": item.get("confidence"),
+        "备选": "、".join(item.get("alternatives", [])),
+    } for item in view.get("field_mappings", [])]
+    st.write("字段映射与单位证据")
+    if mappings:
+        st.dataframe(pd.DataFrame(mappings), hide_index=True, width="stretch")
+    else:
+        st.warning("没有可预览的字段映射。")
+
+    st.write("与最近批准配置的差异" if view.get("diff_baseline") == "previous_approval" else "首次配置预览（全部为新增项）")
+    if view.get("profile_diff"):
+        st.dataframe(pd.DataFrame(view["profile_diff"]), hide_index=True, width="stretch")
+    else:
+        st.caption("与最近批准配置无差异。")
+    st.write("风险与不确定性")
+    if view.get("risks"):
+        for risk in view["risks"]:
+            message = f"{risk['code']}：{risk['message']}"
+            st.error(message) if risk["severity"] == "error" else st.warning(message)
+    else:
+        st.success("未记录结构化不确定性；仍需人工核对来源、字段含义和单位。")
+
+    if not view.get("can_review"):
+        st.info("该状态不能再次审批；请刷新列表查看最新状态。")
+        return
+    reviewer = st.text_input("审批人（必须由你填写）", key=f"sd_suggestion_reviewer_{suggestion_id}")
+    note = st.text_area("审批说明（写明核对内容或驳回理由）", key=f"sd_suggestion_note_{suggestion_id}")
+    approve_confirm = st.checkbox(
+        "我已核对来源、字段、单位证据、风险、配置差异和两项摘要，批准这一条建议。",
+        key=f"sd_suggestion_approve_confirm_{suggestion_id}",
+    )
+    reject_confirm = st.checkbox(
+        "我确认驳回这一条建议，并已在说明中写明理由。",
+        key=f"sd_suggestion_reject_confirm_{suggestion_id}",
+    )
+    left, right = st.columns(2)
+    approve = left.button(
+        "批准这一条建议", type="primary", key=f"sd_suggestion_approve_{suggestion_id}",
+        disabled=not (view.get("can_approve") and approve_confirm and reviewer.strip() and note.strip()),
+    )
+    reject = right.button(
+        "驳回这一条建议", key=f"sd_suggestion_reject_{suggestion_id}",
+        disabled=not (view.get("can_reject") and reject_confirm and reviewer.strip() and note.strip()),
+    )
+    if approve or reject:
+        try:
+            result = client.review_suggestion(view, "approve" if approve else "reject", reviewer, note)
+        except (ValueError, OSError, KeyError) as exc:
+            st.error("审批未写入；请刷新后重新核对：" + str(exc))
+        else:
+            decision_text = "批准" if result["status"] == "approved" else "驳回"
+            st.success(f"已{decision_text} {result['suggestion_id']}，当前状态 {result['status']}。")
+            st.caption("审批决定记录摘要")
+            st.code(result["review_record_sha256"], language=None)
+            if result.get("approval_record_sha256"):
+                st.caption("批准文件摘要（与建议摘要分别保存）")
+                st.code(result["approval_record_sha256"], language=None)
+            try:
+                record_event(
+                    "human_review", f"SteelData 映射建议{decision_text}",
+                    f"人工逐条{decision_text}映射建议 {result['suggestion_id']}。",
+                    evidence={key: result.get(key) for key in (
+                        "suggestion_id", "status", "revision", "suggestion_sha256",
+                        "profile_sha256", "approval_record_sha256", "review_record_sha256",
+                    )},
+                    tags=["steeldata", "human-in-the-loop", "mapping-review"],
+                )
+            except OSError:
+                st.warning("SteelData 审批记录已保存，但 Workbench 事件日志未写入；不要重复点击。")
+            st.session_state.pop("sd_suggestion_view", None)
+            st.session_state.pop("sd_suggestion_rows", None)
+
+
 def render_steeldata_panel(contract: dict) -> None:
     st.subheader("SteelData · 原始表标准化接入")
     st.caption("原始表 → SteelData 独立运行 → 完整性与 QC 检查 → 人工对应样品 → 原有入库闸门。")
@@ -32,6 +150,9 @@ def render_steeldata_panel(contract: dict) -> None:
                     st.json(client.doctor())
             except (ValueError, OSError) as exc:
                 st.error(str(exc))
+    with st.expander("映射建议人工审批（T22）", expanded=True):
+        _render_suggestion_review(client, availability["ready"])
+    st.divider()
     mode = st.radio("输入方式", ["读取已有结果包", "运行原始数据批次", "合成演示（禁止入库）"],
                     horizontal=True, key="sd_mode")
     selected_run = None

@@ -14,6 +14,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 - [T14 Frictionless 可选适配器](docs/T14_FRICTIONLESS_ADAPTER.md)
 - [T20 DSH × SteelData v0.2 预览接入](docs/T20_DSH_STEELDATA_V02.md)
 - [T21 映射建议契约与状态机](docs/T21_MAPPING_SUGGESTION_STATE.md)
+- [T22 SteelData 映射建议人工审批](docs/T22_STEELDATA_HUMAN_REVIEW.md)
 - [隐私与版本边界](docs/PRIVACY_BOUNDARY.md)
 - [阶段零测试基线](docs/BASELINE_2026-09-04.md)
 - [开发任务看板](TASKS.md)
