@@ -13,6 +13,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 - [第三方开源复用登记](THIRD_PARTY.md)
 - [T14 Frictionless 可选适配器](docs/T14_FRICTIONLESS_ADAPTER.md)
 - [T20 DSH × SteelData v0.2 预览接入](docs/T20_DSH_STEELDATA_V02.md)
+- [T21 映射建议契约与状态机](docs/T21_MAPPING_SUGGESTION_STATE.md)
 - [隐私与版本边界](docs/PRIVACY_BOUNDARY.md)
 - [阶段零测试基线](docs/BASELINE_2026-09-04.md)
 - [开发任务看板](TASKS.md)
@@ -152,9 +153,10 @@ Research Agent只开放样品、Physics Card、既有EBSD、AutoDimple和证据�
 ## DeepSeek Harness 旁路接入
 
 DSH 不替换 SteelAI 或 SteelData 的确定性核心。项目通过本地 stdio MCP 桥接，
-把上述七个已审计只读工具注册为 `mcp__steelai__*`；T20 又以独立 Python 环境
-注册 SteelData v0.2 preview-only 服务，只开放 status、相对文件列表和脱敏预览。
-两个桥都不提供审批、批次执行或任意 Shell 工具，也不接收 DeepSeek API Key。
+把上述七个已审计只读工具注册为 `mcp__steelai__*`；T20 以独立 Python 环境
+注册 SteelData v0.2 预览服务，T21 增加一个只能保存结构化建议元数据的工具。
+两个桥都不提供审批、批次执行或任意 Shell 工具，也不接收 DeepSeek API Key；
+建议记录不能直接成为批准配置。
 
 双击 `Start_SteelAI_DSH.cmd` 可从隔离的 `dsh_workspace/` 启动；详细边界和
 首个验证提示见 `dsh_workspace/README.md`。启动脚本默认把 DSH 会话设为

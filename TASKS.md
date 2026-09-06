@@ -31,6 +31,7 @@
 | T13 | 建立开源复用登记与决策记录 | P1 | Done | T12 | THIRD_PARTY、5 项候选矩阵、许可证链接、固定引用与关闭式登记测试 |
 | T14 | 接入一个高价值开源小功能 | P2 | Done | T13 | Frictionless 可选适配器、哈希锁、MIT 许可证、独立验证与性能/移除记录 |
 | T20 | 让 DSH 收敛到 SteelData v0.2 核心 | P0 | Done | T13 | 双 DSH 注册、preview-only 工具白名单、CLI/MCP 同摘要、迁移与回滚记录 |
+| T21 | 定义映射建议契约与状态机 | P0 | Done | T20 | 结构化字段/单位/不确定性、受控状态、哈希修订、错误码和角色门禁 |
 
 ## 已完成任务 T10
 
@@ -79,3 +80,11 @@
 验收结果：DSH 只获得 status、list_inputs、preview_profile 三个 SteelData 工具；实际 stdio 测试证明 MCP 脱敏摘要与 CLI `summary` 完全一致，不返回秘密试样号或本机路径。本机两份 DSH 补丁均通过配置解析，旧 SteelData 补丁已保留供回滚。
 
 边界：T20 没有审批工具、批次执行工具或任意 Shell 工具，不改变现有 SteelAI 入库门禁和科研数据。映射提案、审批 UI、获准执行分别留给 T21、T22、T23。
+
+## 已完成任务 T21
+
+完成情况：SteelData 定义并实现映射建议 Pydantic 契约、状态机、内容哈希、修订事件和本地持久化；Workbench DSH 增加 `steeldata-mapping` 操作规程并切到 suggest 模式。
+
+验收结果：Agent 只能产生 candidate、needs_human 或 unsupported。未知 domain 可显式为空；歧义字段和单位必须进入 uncertainties；Agent 批准、未批准执行、非法转换、过期修订和内容篡改均关闭式失败。建议工具的嵌套 schema 和真实 stdio 持久化已测试。
+
+边界：建议记录不是批准配置，不会运行 SteelData 或写入 Workbench。T22 负责人工 approved/rejected 界面；T23 负责批准后的锁、幂等执行和 append-only 接入。

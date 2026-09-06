@@ -2,6 +2,8 @@
 
 状态：Done。代码、公开注册示例、迁移测试和本机补丁切换均已完成；迁移前 SteelData 补丁保留为本机回滚文件。
 
+后续状态：T21 已在不改变本页 T20 验收边界的前提下新增建议元数据工具，并把当前 DSH 配置切到 suggest 模式。pre-T21 补丁仍可恢复本页的三工具 preview 模式。
+
 Workbench 原有 `mcp__steelai__*` 七个科研只读工具保持不变。T20 在 DSH 隔离工作区增加独立的 `steeldata_v2` 服务注册示例，它使用 SteelData 自己的 Python 环境和 `--mode preview`，不把 SteelData 安装进 Workbench 环境。
 
 DSH 可见的 SteelData 工具严格为：

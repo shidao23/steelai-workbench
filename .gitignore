@@ -36,6 +36,7 @@ project_log/events.jsonl
 dsh_workspace/node_modules/
 dsh_workspace/results/*
 dsh_workspace/.dsh/cordis.patch.yml
+dsh_workspace/.dsh/cordis.patch.pre-t21.yml
 
 # Open Model Lab: reproducible code is tracked; large local runtimes and weights are not.
 model_lab/micro_sam/.venv-micro-sam/

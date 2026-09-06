@@ -1,5 +1,12 @@
 # Changelog
 
+## stage2-t21-mapping-suggestion-contract - 2026-09-06
+
+- Added the Workbench-side DSH procedure for SteelData's source-bound, structured mapping suggestion contract and controlled candidate/needs-human/unsupported states.
+- Switched the local and example DSH registration from preview to suggest mode while keeping research data writes, approval, execution and arbitrary shell tools unavailable.
+- Recorded the content-hash/revision boundary that T22 must verify and preserved a local pre-T21 patch for rollback to T20 preview mode.
+- Added no approval UI, batch execution or Workbench data write.
+
 ## stage2-t20-dsh-steeldata-v02-preview - 2026-09-06
 
 - Kept the seven-tool SteelAI research bridge and added a separately registered SteelData v0.2 preview-only MCP using SteelData's own Python environment.
