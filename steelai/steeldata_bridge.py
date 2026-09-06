@@ -147,6 +147,26 @@ def inspect_run(run_dir: str | Path) -> Inspection:
     if len(artifacts) > 6000:
         raise ValueError("结果文件过多，请拆分批次")
     needed = {"qc.json"}
+    execution = manifest.get("execution")
+    if execution is not None:
+        if (not isinstance(execution, dict) or execution.get("schema_version") != 1
+                or set(execution) != {
+                    "schema_version", "suggestion_id", "suggestion_sha256",
+                    "approval_record_sha256", "review_record_sha256", "idempotency_key",
+                    "attempt", "audit_files",
+                }
+                or not isinstance(execution.get("audit_files"), dict)
+                or set(execution["audit_files"]) != {"suggestion", "review", "execution_request"}):
+            raise ValueError("执行审计链格式无效")
+        for name, expected_path in {
+            "suggestion": "audit/suggestion.json",
+            "review": "audit/review.json",
+            "execution_request": "audit/execution_request.json",
+        }.items():
+            entry = execution["audit_files"].get(name)
+            if not isinstance(entry, dict) or entry.get("path") != expected_path:
+                raise ValueError("执行审计文件引用无效")
+            needed.add(expected_path)
     files = manifest.get("files", [])
     if (not isinstance(files, list) or not files or not all(isinstance(f, dict) for f in files)
             or not isinstance(manifest.get("counts"), dict) or not isinstance(manifest.get("run_id"), str)):
@@ -172,6 +192,57 @@ def inspect_run(run_dir: str | Path) -> Inspection:
             buffers[name] = payload
     qc = _json(buffers["qc.json"])
     blockers, warnings, datasets = [], [], []
+    execution_evidence = None
+    if execution is not None:
+        suggestion_record = _json(buffers["audit/suggestion.json"])
+        review_record = _json(buffers["audit/review.json"])
+        execution_request = _json(buffers["audit/execution_request.json"])
+        suggested = suggestion_record.get("suggestion")
+        if not isinstance(suggested, dict) or suggestion_record.get("suggestion_sha256") != _digest(suggested):
+            raise ValueError("映射建议记录摘要无效")
+        if set(execution_request) != {
+            "schema_version", "trigger", "actor", "suggestion_id", "suggestion_sha256",
+            "source_file", "source_sha256", "idempotency_key", "attempt", "requested_at",
+        }:
+            raise ValueError("执行请求包含未登记字段")
+        expected_idempotency = _digest({
+            "suggestion_sha256": suggestion_record.get("suggestion_sha256"),
+            "approval_record_sha256": execution.get("approval_record_sha256"),
+            "review_record_sha256": execution.get("review_record_sha256"),
+            "source_sha256": suggested.get("source_sha256"),
+        })
+        checks = (
+            execution.get("suggestion_id") == suggested.get("suggestion_id"),
+            execution.get("suggestion_sha256") == suggestion_record.get("suggestion_sha256"),
+            execution.get("suggestion_id") == review_record.get("suggestion_id"),
+            execution.get("suggestion_sha256") == review_record.get("suggestion_sha256"),
+            execution.get("review_record_sha256") == _digest(review_record),
+            execution.get("audit_files", {}).get("suggestion", {}).get("sha256") == _digest(suggestion_record),
+            execution.get("audit_files", {}).get("review", {}).get("sha256") == _digest(review_record),
+            execution.get("audit_files", {}).get("execution_request", {}).get("sha256") == _digest(execution_request),
+            execution_request.get("trigger") == "human_approval",
+            execution_request.get("actor") == "system",
+            execution_request.get("suggestion_id") == execution.get("suggestion_id"),
+            execution_request.get("suggestion_sha256") == execution.get("suggestion_sha256"),
+            execution_request.get("idempotency_key") == execution.get("idempotency_key"),
+            execution_request.get("attempt") == execution.get("attempt"),
+            isinstance(execution.get("attempt"), int) and execution.get("attempt") >= 1,
+            execution_request.get("source_file") == suggested.get("source_file"),
+            execution_request.get("source_sha256") == suggested.get("source_sha256"),
+            any(info.get("source_file") == suggested.get("source_file")
+                and info.get("source_sha256") == suggested.get("source_sha256") for info in files),
+            execution.get("idempotency_key") == expected_idempotency,
+            review_record.get("decision") == "approved",
+            bool(str(review_record.get("reviewer", "")).strip()),
+            bool(str(review_record.get("note", "")).strip()),
+        )
+        if not all(checks):
+            raise ValueError("建议、人工审批与执行请求的审计链不一致")
+        execution_evidence = {
+            "suggestion": suggestion_record,
+            "review": review_record,
+            "request": execution_request,
+        }
     if manifest.get("synthetic") is not False:
         blockers.append("合成演示数据（或缺少 synthetic=false 声明）只能预览，不能进入真实 processed。")
     if manifest.get("processing_status") != "complete":
@@ -200,6 +271,19 @@ def inspect_run(run_dir: str | Path) -> Inspection:
                 or not str(approval.get("reviewer", "")).strip()
                 or not str(approval.get("note", "")).strip()):
             blockers.append("真实导入必须使用有审核人和说明的 human 批准记录。")
+        if execution is not None:
+            if (
+                entry.get("suggestion_id") != execution.get("suggestion_id")
+                or entry.get("suggestion_sha256") != execution.get("suggestion_sha256")
+                or entry.get("approval_record_sha256") != execution.get("approval_record_sha256")
+                or approval.get("suggestion_id") != execution.get("suggestion_id")
+                or approval.get("suggestion_sha256") != execution.get("suggestion_sha256")
+                or execution_evidence["review"].get("approval_record_sha256") != entry.get("approval_record_sha256")
+                or execution_evidence["review"].get("approval_record") != f"approved_v2/{execution['suggestion_id']}.json"
+                or execution_evidence["review"].get("profile_sha256") != entry.get("profile_sha256")
+                or _digest(execution_evidence["suggestion"]["suggestion"].get("proposed_profile")) != entry.get("profile_sha256")
+            ):
+                raise ValueError("批准记录未绑定当前建议与执行审计链")
         approvals[entry["profile_id"]] = profile
     if not approvals:
         blockers.append("缺少明确的模板批准记录。")
@@ -405,6 +489,19 @@ class SteelDataClient:
             "--expected-revision", str(suggestion["revision"]),
             "--expected-sha256", str(suggestion["suggestion_sha256"]),
             "--reviewer", reviewer.strip(), "--note", note.strip(),
+        ])
+
+    def suggestion_execution_status(self, suggestion_id: str) -> dict:
+        return self._call([
+            "suggestion-execution-status", "--workspace", str(self.project),
+            "--suggestion-id", suggestion_id,
+        ])
+
+    def execute_suggestion(self, suggestion_id: str, expected_sha256: str) -> dict:
+        return self._call([
+            "suggestion-execute", "--workspace", str(self.project),
+            "--suggestion-id", suggestion_id,
+            "--expected-sha256", expected_sha256,
         ])
 
     def run(self, input_dir: str, approval_files: list[str]) -> dict:

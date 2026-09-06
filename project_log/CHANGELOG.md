@@ -1,5 +1,12 @@
 # Changelog
 
+## stage2-t23-approved-execution-intake - 2026-09-06
+
+- Connected a successful single-item human approval to SteelData's hash-bound execution command and exposed status, safe retry/recovery and completed-result reload in the existing panel.
+- Verified the embedded suggestion, human review and system execution-request audit chain before exposing result records to Workbench.
+- Routed verified results through the existing explicit specimen-to-sample mapping, source-status selection and append-only intake gate; no processed row is written automatically.
+- Retained source-origin deduplication across changed sample IDs, primary-key no-overwrite behavior and DSH/Agent denial of approval and execution.
+
 ## stage2-t22-steeldata-human-review - 2026-09-06
 
 - Added a single-item SteelData review area to the existing Workbench data-quality page, showing source integrity, mapping/unit evidence, uncertainties, risks, configuration diff and content digests.

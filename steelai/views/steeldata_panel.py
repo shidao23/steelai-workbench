@@ -16,6 +16,26 @@ def _reset_selection_review() -> None:
     st.session_state.pop("sd_inspection", None)
 
 
+def _execute_and_load(client: SteelDataClient, suggestion_id: str, suggestion_sha256: str) -> dict:
+    with st.spinner("正在执行已批准建议并校验完整结果包…"):
+        result = client.execute_suggestion(suggestion_id, suggestion_sha256)
+        inspection = inspect_run(result["run_dir"])
+    st.session_state["sd_inspection"] = inspection
+    try:
+        record_event(
+            "controlled_execution", "SteelData 执行已批准建议",
+            f"执行映射建议 {suggestion_id}；结果进入现有人工样品对应和仅追加闸门。",
+            evidence={key: result.get(key) for key in (
+                "suggestion_id", "suggestion_sha256", "execution_status", "attempt",
+                "idempotency_key", "run_id", "result_reference", "manifest_sha256", "reused", "recovered",
+            )},
+            tags=["steeldata", "approved-execution", "idempotent", "portfolio-evidence"],
+        )
+    except OSError:
+        st.warning("结果已经执行并校验，但 Workbench 事件日志未写入；可按结果引用继续，不要重复入库。")
+    return result
+
+
 def _render_suggestion_review(client: SteelDataClient, ready: bool) -> None:
     st.write("映射建议人工审批")
     st.caption("逐条查看来源、字段与单位证据、风险、配置差异和内容摘要。这里不提供批量批准，审批人必须由你填写。")
@@ -41,7 +61,9 @@ def _render_suggestion_review(client: SteelDataClient, ready: bool) -> None:
     )
     if st.button("加载该建议的审批证据", key="sd_suggestion_load"):
         try:
-            st.session_state["sd_suggestion_view"] = client.show_suggestion(suggestion_id)
+            detail = client.show_suggestion(suggestion_id)
+            detail["execution"] = client.suggestion_execution_status(suggestion_id)
+            st.session_state["sd_suggestion_view"] = detail
         except (ValueError, OSError) as exc:
             st.error(str(exc))
     view = st.session_state.get("sd_suggestion_view")
@@ -82,6 +104,35 @@ def _render_suggestion_review(client: SteelDataClient, ready: bool) -> None:
             st.error(message) if risk["severity"] == "error" else st.warning(message)
     else:
         st.success("未记录结构化不确定性；仍需人工核对来源、字段含义和单位。")
+
+    execution = view.get("execution", {})
+    execution_status = execution.get("execution_status", "not_started")
+    if view["status"] in {"approved", "executing", "executed", "failed"} or execution_status != "not_started":
+        st.write("批准后执行状态")
+        st.write(f"执行：`{execution_status}` · 尝试次数：`{execution.get('attempts', execution.get('attempt', 0))}`")
+        if execution.get("result_reference"):
+            st.caption("结果引用：" + execution["result_reference"])
+        if execution.get("idempotency_key"):
+            st.caption("幂等键")
+            st.code(execution["idempotency_key"], language=None)
+        if execution_status == "failed" and execution.get("error_message"):
+            st.warning(execution["error_message"])
+        if execution_status == "completed":
+            if st.button("重新校验并载入该结果", key=f"sd_execution_load_{suggestion_id}"):
+                try:
+                    st.session_state["sd_inspection"] = inspect_run(execution["run_dir"])
+                    st.success("已载入原完成结果，没有重新执行或重复写入。")
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    st.error("结果完整性校验失败：" + str(exc))
+        elif view["status"] in {"approved", "executing", "failed"}:
+            label = "安全恢复或重试" if execution_status in {"running", "failed"} else "执行这一条已批准建议"
+            if st.button(label, key=f"sd_execution_run_{suggestion_id}"):
+                try:
+                    result = _execute_and_load(client, suggestion_id, view["suggestion_sha256"])
+                    st.success(f"执行完成：{result['run_id']}；将继续经过下方人工对应和仅追加闸门。")
+                    view["execution"] = result
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    st.error("执行未完成；批准记录仍保留，可刷新后安全重试：" + str(exc))
 
     if not view.get("can_review"):
         st.info("该状态不能再次审批；请刷新列表查看最新状态。")
@@ -130,6 +181,14 @@ def _render_suggestion_review(client: SteelDataClient, ready: bool) -> None:
                 )
             except OSError:
                 st.warning("SteelData 审批记录已保存，但 Workbench 事件日志未写入；不要重复点击。")
+            if result["status"] == "approved":
+                try:
+                    execution_result = _execute_and_load(
+                        client, result["suggestion_id"], result["suggestion_sha256"],
+                    )
+                    st.success(f"已执行获准建议：{execution_result['run_id']}。结果仍需在下方确认样品对应后才能入库。")
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    st.warning("批准已经保存，但本次执行未完成。刷新建议后可安全恢复或重试：" + str(exc))
             st.session_state.pop("sd_suggestion_view", None)
             st.session_state.pop("sd_suggestion_rows", None)
 

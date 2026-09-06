@@ -6,7 +6,7 @@
 
 ## 当前状态与项目治理
 
-SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接入”两个入口。SteelData v0.2 通过独立 Python 环境、CLI 与结果契约接入拉伸逐试样观测；成分和曲线仍只预览。DSH 是只读旁路，不替代确定性数据处理，也没有写入或审批权限。
+SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接入”两个入口。SteelData v0.2 通过独立 Python 环境、CLI 与结果契约接入拉伸逐试样观测；成分和曲线仍只预览。T23 已接通人工批准后的受控执行，但正式长表仍要用户核对样品对应并确认追加。DSH 是只读/建议旁路，不替代确定性数据处理，也没有审批、执行或写入权限。
 
 - [当前能力与旧入口状态](docs/CURRENT_CAPABILITIES.md)
 - [毕业主线数据契约 v1](docs/GRADUATION_DATA_CONTRACT_V1.md)
@@ -15,6 +15,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 - [T20 DSH × SteelData v0.2 预览接入](docs/T20_DSH_STEELDATA_V02.md)
 - [T21 映射建议契约与状态机](docs/T21_MAPPING_SUGGESTION_STATE.md)
 - [T22 SteelData 映射建议人工审批](docs/T22_STEELDATA_HUMAN_REVIEW.md)
+- [T23 人工批准后的执行与接入](docs/T23_APPROVED_EXECUTION.md)
 - [隐私与版本边界](docs/PRIVACY_BOUNDARY.md)
 - [阶段零测试基线](docs/BASELINE_2026-09-04.md)
 - [开发任务看板](TASKS.md)
@@ -80,6 +81,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 - 首版接通拉伸结果 → `property_observations.csv`，一条试样记录变成 YS、UTS、EL 三条观测；必须人工对应 `sample_id`，保留原 `specimen_id`。
 - 合成数据、partial/failed、QC failed/needs_review、未知/重复样品和不明确单位不能入库。成分与曲线仅预览，尚不转入长表。
 - 两路共用最终入库闸门，提交前重检并加写入锁；保存接入审计和逐单元格来源，不自动覆盖旧性能摘要、生成统计结论或改动 DSH。
+- 人工批准单条映射建议后可自动执行 SteelData；执行状态、幂等键、尝试记录和审批审计链均可核验。执行完成不会自动写 `data/processed/`。
 - 阶段一 T10 已用一批人工批准的脱敏 DQ 结果验证 6 个试样到 18 条性能观测的完整预检；本地暂存状态为 `not_committed`，正式 `property_observations.csv` 仍需另行确认。
 
 操作步骤、字段对应、代码分工和扩展边界见 [docs/STEELDATA_INTEGRATION.md](docs/STEELDATA_INTEGRATION.md)。

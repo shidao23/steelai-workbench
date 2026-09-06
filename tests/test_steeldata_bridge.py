@@ -64,6 +64,88 @@ def result_fixture(root, *, synthetic=False):
     return manifest
 
 
+def attach_execution_audit(root, manifest):
+    """Add a synthetic T23 chain that has the same digest bindings as SteelData."""
+    approval_path = root / "approvals/test-tensile.json"
+    approval = json.loads(approval_path.read_text(encoding="utf-8"))
+    suggestion = {
+        "suggestion_id": "execute-one",
+        "source_file": "fixture.csv",
+        "source_sha256": manifest["files"][0]["source_sha256"],
+        "proposed_profile": approval["profile"],
+    }
+    suggestion_sha256 = _digest(suggestion)
+    suggestion_record = {
+        "schema_version": 1,
+        "suggestion": suggestion,
+        "suggestion_sha256": suggestion_sha256,
+        "status": "executing",
+        "revision": 3,
+    }
+    approval.update({
+        "suggestion_id": "execute-one",
+        "suggestion_sha256": suggestion_sha256,
+        "suggestion_revision": 2,
+    })
+    write_json(approval_path, approval)
+    approval_sha256 = _digest(approval)
+    review_record = {
+        "schema_version": 1,
+        "suggestion_id": "execute-one",
+        "suggestion_sha256": suggestion_sha256,
+        "decision": "approved",
+        "reviewer": "automated-test-only",
+        "note": "synthetic audit-chain fixture",
+        "profile_sha256": approval["profile_sha256"],
+        "approval_record": "approved_v2/execute-one.json",
+        "approval_record_sha256": approval_sha256,
+    }
+    review_sha256 = _digest(review_record)
+    idempotency_key = _digest({
+        "suggestion_sha256": suggestion_sha256,
+        "approval_record_sha256": approval_sha256,
+        "review_record_sha256": review_sha256,
+        "source_sha256": suggestion["source_sha256"],
+    })
+    request = {
+        "schema_version": 1,
+        "trigger": "human_approval",
+        "actor": "system",
+        "suggestion_id": "execute-one",
+        "suggestion_sha256": suggestion_sha256,
+        "source_file": suggestion["source_file"],
+        "source_sha256": suggestion["source_sha256"],
+        "idempotency_key": idempotency_key,
+        "attempt": 1,
+        "requested_at": "test",
+    }
+    write_json(root / "audit/suggestion.json", suggestion_record)
+    write_json(root / "audit/review.json", review_record)
+    write_json(root / "audit/execution_request.json", request)
+    manifest["approvals"][0].update({
+        "suggestion_id": "execute-one",
+        "suggestion_sha256": suggestion_sha256,
+        "suggestion_revision": 2,
+        "approval_record_sha256": approval_sha256,
+    })
+    manifest["execution"] = {
+        "schema_version": 1,
+        "suggestion_id": "execute-one",
+        "suggestion_sha256": suggestion_sha256,
+        "approval_record_sha256": approval_sha256,
+        "review_record_sha256": review_sha256,
+        "idempotency_key": idempotency_key,
+        "attempt": 1,
+        "audit_files": {
+            "suggestion": {"path": "audit/suggestion.json", "sha256": _digest(suggestion_record)},
+            "review": {"path": "audit/review.json", "sha256": _digest(review_record)},
+            "execution_request": {"path": "audit/execution_request.json", "sha256": _digest(request)},
+        },
+    }
+    seal(root, manifest)
+    return suggestion_record, review_record, request
+
+
 class BridgeTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -173,6 +255,22 @@ class BridgeTests(unittest.TestCase):
         write_json(path, approval)
         seal(self.run, self.manifest)
         with self.assertRaises(ValueError):
+            inspect_run(self.run)
+
+    def test_t23_execution_audit_chain_is_verified(self):
+        attach_execution_audit(self.run, self.manifest)
+        inspection = inspect_run(self.run)
+        self.assertTrue(inspection.transferable)
+        self.assertEqual(inspection.manifest["execution"]["suggestion_id"], "execute-one")
+
+    def test_t23_resealed_but_changed_review_is_rejected(self):
+        attach_execution_audit(self.run, self.manifest)
+        review_path = self.run / "audit/review.json"
+        review = json.loads(review_path.read_text(encoding="utf-8"))
+        review["decision"] = "rejected"
+        write_json(review_path, review)
+        seal(self.run, self.manifest)
+        with self.assertRaisesRegex(ValueError, "审计链"):
             inspect_run(self.run)
 
     def test_unknown_domain_is_inspect_only(self):
@@ -295,6 +393,21 @@ class ClientTests(unittest.TestCase):
         self.assertIn("a" * 64, review_args)
         self.assertEqual(review_args[-2:], ["--note", "Checked units."])
 
+    def test_t23_execution_uses_fixed_hash_bound_cli_contract(self):
+        client = SteelDataClient(ROOT.parent / "SteelData")
+        with patch.object(client, "_call", side_effect=[
+            {"suggestion_id": "review-one", "execution_status": "not_started"},
+            {"suggestion_id": "review-one", "execution_status": "completed"},
+        ]) as call:
+            client.suggestion_execution_status("review-one")
+            client.execute_suggestion("review-one", "a" * 64)
+        status_args = call.call_args_list[0].args[0]
+        execute_args = call.call_args_list[1].args[0]
+        self.assertEqual(status_args.count("--suggestion-id"), 1)
+        self.assertEqual(execute_args.count("--suggestion-id"), 1)
+        self.assertEqual(execute_args.count("--expected-sha256"), 1)
+        self.assertEqual(execute_args[-1], "a" * 64)
+
 
 class PanelTests(unittest.TestCase):
     def test_valid_package_renders_mapping_without_default_sample(self):
@@ -355,10 +468,20 @@ class PanelTests(unittest.TestCase):
             "suggestion_sha256": "a" * 64, "profile_sha256": "c" * 64,
             "approval_record_sha256": "d" * 64, "review_record_sha256": "e" * 64,
         }
+        execution_status = {
+            "suggestion_id": "review-one", "suggestion_status": "needs_human",
+            "execution_status": "not_started", "attempts": 0,
+        }
+        execution_result = {
+            "suggestion_id": "review-one", "suggestion_sha256": "a" * 64,
+            "execution_status": "completed", "run_id": "run-test",
+        }
         with patch.object(SteelDataClient, "availability", return_value={"ready": True, "project": "test"}), patch.object(
             SteelDataClient, "list_suggestions", return_value=[row]), patch.object(
             SteelDataClient, "show_suggestion", return_value=view), patch.object(
+            SteelDataClient, "suggestion_execution_status", return_value=execution_status), patch.object(
             SteelDataClient, "review_suggestion", return_value=result) as review, patch(
+            "steelai.views.steeldata_panel._execute_and_load", return_value=execution_result) as execute, patch(
             "steelai.views.steeldata_panel.record_event"):
             app = AppTest.from_file(str(ROOT / "steelai/views/data_quality_panel.py"), default_timeout=20).run()
             app.button(key="sd_suggestion_refresh").click().run()
@@ -373,6 +496,8 @@ class PanelTests(unittest.TestCase):
         self.assertFalse(app.exception, str(app.exception))
         review.assert_called_once()
         self.assertEqual(review.call_args.args[1], "approve")
+        execute.assert_called_once()
+        self.assertEqual(execute.call_args.args[1:], ("review-one", "a" * 64))
 
 
 if __name__ == "__main__":
