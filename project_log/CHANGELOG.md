@@ -1,5 +1,12 @@
 # Changelog
 
+## stage2-t20-dsh-steeldata-v02-preview - 2026-09-06
+
+- Kept the seven-tool SteelAI research bridge and added a separately registered SteelData v0.2 preview-only MCP using SteelData's own Python environment.
+- Restricted the DSH-facing SteelData catalog to status, relative input listing and redacted profile preview; no approval, batch execution or arbitrary shell tool is exposed.
+- Verified both local DSH patches compose successfully and recorded rollback without changing the Workbench intake gate or research data.
+- Documented the Harness/Skill/MCP/Python-core responsibility split and deferred proposal state, approval UI and approved execution to T21-T23.
+
 ## stage1-t14-frictionless-optional-adapter - 2026-09-05
 
 - Added a lazy, synthetic-only Frictionless 5.19.0 adapter for the graduation-v1 Tabular Data Package descriptor and independent structural validation.

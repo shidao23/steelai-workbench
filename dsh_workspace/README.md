@@ -1,7 +1,8 @@
 # SteelAI × DeepSeek Harness 旁路工作区
 
 此目录是 DSH 的隔离工作区，不存放原始实验文件或 processed 表。DSH 通过本地
-stdio MCP 子进程调用 SteelAI 已审计的结构化只读工具。
+stdio MCP 子进程调用 SteelAI 已审计的结构化只读工具，并可选调用 SteelData v0.2
+的 preview-only MCP；两个服务都不向 DSH 提供审批、批次执行或任意 Shell 工具。
 
 ## 启动
 
@@ -30,6 +31,11 @@ SteelAI 全量测试与 MCP 握手测试，确认补丁结构没有发生破坏�
 - `writes_allowed = false`
 - `raw_files_allowed = false`
 - `api_key_required = false`
+
+按 T20 在本机补丁中启用 SteelData 示例后，还会出现 `mcp__steeldata_v2__*`。
+它的 `status` 必须显示 `mode=preview`、`writes_allowed=false`，工具目录必须只有
+`status`、`list_inputs`、`preview_profile`。公开示例已更新；2026-09-06 用户启动
+T20 后，本机被 Git 忽略的 `cordis.patch.yml` 已切换并通过 DSH 配置解析。
 
 ## 数据边界
 

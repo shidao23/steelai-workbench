@@ -1,6 +1,6 @@
 # SteelAI Workbench MVP
 
-一个面向耐磨钢课题的本地科研 AI 工作台：Python 负责可复现的数据处理与物理计算，GPT 只负责在证据约束下组织自然语言报告。生活管理不在本项目范围内，继续放在 Notion。
+一个面向耐磨钢课题的本地科研 AI 工作台：Python 负责可复现的数据处理与物理计算，云端模型只负责在证据约束下组织自然语言报告。生活管理不在本项目范围内，继续放在 Notion。
 
 本机真实资料路径只保存在被 Git 忽略的 `config/settings.toml` 中，仓库只保留 `config/settings.example.toml`。B/R processed 摘要仍来自 v0.1 已核对研究笔记并受其证据边界约束；阶段一 T10 另外完成了一批脱敏 DQ 逐试样拉伸结果的结果包、重放和暂存预检，但尚未提交正式长表。T11 已在 SteelData 中把可公开的真实格式特征转成合成回归测试。T12 已冻结个人毕业主线数据契约 v1，明确材料、炉次、研究条件、物理试样、报告和逐值观测的关系；现有入库门禁不变。
 
@@ -12,6 +12,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 - [毕业主线数据契约 v1](docs/GRADUATION_DATA_CONTRACT_V1.md)
 - [第三方开源复用登记](THIRD_PARTY.md)
 - [T14 Frictionless 可选适配器](docs/T14_FRICTIONLESS_ADAPTER.md)
+- [T20 DSH × SteelData v0.2 预览接入](docs/T20_DSH_STEELDATA_V02.md)
 - [隐私与版本边界](docs/PRIVACY_BOUNDARY.md)
 - [阶段零测试基线](docs/BASELINE_2026-09-04.md)
 - [开发任务看板](TASKS.md)
@@ -150,9 +151,10 @@ Research Agent只开放样品、Physics Card、既有EBSD、AutoDimple和证据�
 
 ## DeepSeek Harness 旁路接入
 
-DSH 不替换 SteelAI 的确定性科研核心。项目通过本地 stdio MCP 桥接，把上述七个
-已审计只读工具注册为 `mcp__steelai__*`，并在输出端再次阻断绝对路径及原始
-CTF/TIF/TIFF 文件名。桥接进程不需要、也不会接收 DeepSeek API Key。
+DSH 不替换 SteelAI 或 SteelData 的确定性核心。项目通过本地 stdio MCP 桥接，
+把上述七个已审计只读工具注册为 `mcp__steelai__*`；T20 又以独立 Python 环境
+注册 SteelData v0.2 preview-only 服务，只开放 status、相对文件列表和脱敏预览。
+两个桥都不提供审批、批次执行或任意 Shell 工具，也不接收 DeepSeek API Key。
 
 双击 `Start_SteelAI_DSH.cmd` 可从隔离的 `dsh_workspace/` 启动；详细边界和
 首个验证提示见 `dsh_workspace/README.md`。启动脚本默认把 DSH 会话设为

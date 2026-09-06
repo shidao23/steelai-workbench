@@ -1,6 +1,6 @@
 # SteelAI Workbench 开发任务看板
 
-更新日期：2026-09-05
+更新日期：2026-09-06
 
 ## 状态定义
 
@@ -30,6 +30,7 @@
 | T12 | 冻结毕业主线数据契约 | P0 | Done | T10 | graduation-v1 机器契约、字段说明、合成示例、迁移规则与边界测试 |
 | T13 | 建立开源复用登记与决策记录 | P1 | Done | T12 | THIRD_PARTY、5 项候选矩阵、许可证链接、固定引用与关闭式登记测试 |
 | T14 | 接入一个高价值开源小功能 | P2 | Done | T13 | Frictionless 可选适配器、哈希锁、MIT 许可证、独立验证与性能/移除记录 |
+| T20 | 让 DSH 收敛到 SteelData v0.2 核心 | P0 | Done | T13 | 双 DSH 注册、preview-only 工具白名单、CLI/MCP 同摘要、迁移与回滚记录 |
 
 ## 已完成任务 T10
 
@@ -70,3 +71,11 @@
 验收结果：40 个安装包全部固定版本和 Windows CPython 3.12 wheel 哈希；MIT 许可证和来源可追踪。隔离环境集成测试通过，未安装组件时原生质量门禁仍通过。30 次性能对照中原生中位数 1.691 ms，适配器端到端 36.033 ms。
 
 边界：不上传数据、不处理真实资料、不替代按类型试样关系、单位、统计、来源或入库规则。Frictionless 未进入主 `requirements.txt`，移除不需要迁移数据或修改核心配置。
+
+## 已完成任务 T20
+
+完成情况：Workbench DSH 保留原有 SteelAI 科研只读桥，同时以 SteelData 自己的 Python 环境注册 `steeldata_v2` preview-only 服务；SteelData 独立 DSH 也从旧 standardizer 切到同一 v0.2 入口。
+
+验收结果：DSH 只获得 status、list_inputs、preview_profile 三个 SteelData 工具；实际 stdio 测试证明 MCP 脱敏摘要与 CLI `summary` 完全一致，不返回秘密试样号或本机路径。本机两份 DSH 补丁均通过配置解析，旧 SteelData 补丁已保留供回滚。
+
+边界：T20 没有审批工具、批次执行工具或任意 Shell 工具，不改变现有 SteelAI 入库门禁和科研数据。映射提案、审批 UI、获准执行分别留给 T21、T22、T23。

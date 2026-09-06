@@ -21,5 +21,9 @@ physics cards, EBSD, AutoDimple, or the scientific evidence boundary.
 7. If the MCP bridge is unavailable, report that condition. Never bypass it by reading
    raw files or asking the user to upload confidential research data.
 
+For a user-requested SteelData structural preview, use only the separately registered
+`mcp__steeldata_v2__status`, `list_inputs`, and `preview_profile` tools. Require preview
+mode, report counts/codes rather than raw rows, and stop without approval or execution.
+
 Answer in Chinese with confirmed facts, current judgment, evidence limits, and next
 actions clearly separated.

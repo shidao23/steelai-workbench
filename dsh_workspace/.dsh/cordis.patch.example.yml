@@ -23,3 +23,15 @@
           PYTHONUTF8: '1'
           PYTHONIOENCODING: 'utf-8'
         searchTimeoutMs: 30000
+    - id: mcp-steeldata-v02-preview
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: steeldata_v2
+        transport: stdio
+        command: '<SteelData项目目录>\.venv\Scripts\python.exe'
+        args: ['-B', '-m', 'steeldata.mcp_server', '--workspace', '<SteelData项目目录>', '--mode', 'preview']
+        cwd: '<SteelData项目目录>'
+        env:
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: 'utf-8'
+        searchTimeoutMs: 30000
