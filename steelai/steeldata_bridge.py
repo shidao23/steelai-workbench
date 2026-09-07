@@ -504,6 +504,15 @@ class SteelDataClient:
             "--expected-sha256", expected_sha256,
         ])
 
+    def intake_evaluation_contract(self) -> dict:
+        return self._call(["intake-eval-contract"])
+
+    def run_intake_reference_evaluation(self) -> dict:
+        return self._call([
+            "intake-eval-reference", "--output",
+            str(self.project / "output" / "intake_agent_evaluations"),
+        ])
+
     def run(self, input_dir: str, approval_files: list[str]) -> dict:
         root = Path(input_dir).resolve()
         if not input_dir.strip() or not root.is_dir() or not approval_files:

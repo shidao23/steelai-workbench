@@ -1,5 +1,12 @@
 # Changelog
 
+## stage2-t24-intake-agent-evaluation-review - 2026-09-07
+
+- Added an explicit Intake Agent section to the existing Agent Evaluation view for inspecting 40 synthetic case labels and running the deterministic reference baseline.
+- Added fixed SteelData CLI calls for benchmark inspection and local report generation; opening the page does not execute a benchmark or call a cloud model.
+- Exposed known-mapping accuracy, human-review routing, unapproved execution, source modification, replay, latency, token and failure-class evidence without adding Agent permissions.
+- Kept T24 in Review until the project owner approves the labels; the reference score is not presented as DeepSeek or general Agent performance.
+
 ## stage2-t23-approved-execution-intake - 2026-09-06
 
 - Connected a successful single-item human approval to SteelData's hash-bound execution command and exposed status, safe retry/recovery and completed-result reload in the existing panel.

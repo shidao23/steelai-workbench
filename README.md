@@ -6,7 +6,7 @@
 
 ## 当前状态与项目治理
 
-SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接入”两个入口。SteelData v0.2 通过独立 Python 环境、CLI 与结果契约接入拉伸逐试样观测；成分和曲线仍只预览。T23 已接通人工批准后的受控执行，但正式长表仍要用户核对样品对应并确认追加。DSH 是只读/建议旁路，不替代确定性数据处理，也没有审批、执行或写入权限。
+SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接入”两个入口。SteelData v0.2 通过独立 Python 环境、CLI 与结果契约接入拉伸逐试样观测；成分和曲线仍只预览。T23 已接通人工批准后的受控执行，但正式长表仍要用户核对样品对应并确认追加。T24 已增加 40 个脱敏 Intake Agent 案例和确定性评分，当前等待项目负责人审阅标签。DSH 是只读/建议旁路，不替代确定性数据处理，也没有审批、执行或写入权限。
 
 - [当前能力与旧入口状态](docs/CURRENT_CAPABILITIES.md)
 - [毕业主线数据契约 v1](docs/GRADUATION_DATA_CONTRACT_V1.md)
@@ -16,6 +16,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 - [T21 映射建议契约与状态机](docs/T21_MAPPING_SUGGESTION_STATE.md)
 - [T22 SteelData 映射建议人工审批](docs/T22_STEELDATA_HUMAN_REVIEW.md)
 - [T23 人工批准后的执行与接入](docs/T23_APPROVED_EXECUTION.md)
+- [T24 Intake Agent 固定评测集](docs/T24_INTAKE_AGENT_EVALUATION.md)
 - [隐私与版本边界](docs/PRIVACY_BOUNDARY.md)
 - [阶段零测试基线](docs/BASELINE_2026-09-04.md)
 - [开发任务看板](TASKS.md)

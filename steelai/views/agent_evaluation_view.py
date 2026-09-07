@@ -19,11 +19,73 @@ from steelai.agent_observability import (
 )
 from steelai.event_log import record_event
 from steelai.research_agent import agent_status
+from steelai.steeldata_bridge import SteelDataClient
 from steelai.ui import setup_page
 
 
 setup_page(st, "SteelAI Workbench · Agent质量评测", "📐")
-st.caption("用固定问题、固定工具期望和透明评分规则，检查Research Agent的可靠性，而不是让另一个大模型主观打分。")
+st.caption("用固定案例、固定工具边界和透明评分规则，检查 Intake Agent 与 Research Agent 的可靠性。")
+
+st.subheader("Intake Agent 固定测试集（T24）")
+st.caption("40 个脱敏案例检查映射、转人工、安全越权、重放和回归；确定性参考基线只验证测试集与评分器，不代表云模型已经达到该分数。")
+intake_client = SteelDataClient()
+intake_ready = intake_client.availability()["ready"]
+left, right = st.columns(2)
+if left.button("读取 T24 案例与标签", key="intake_eval_load", disabled=not intake_ready, use_container_width=True):
+    try:
+        st.session_state["intake_eval_contract"] = intake_client.intake_evaluation_contract()
+    except (ValueError, OSError) as exc:
+        st.error("读取 Intake Agent 评测集失败：" + str(exc))
+intake_contract = st.session_state.get("intake_eval_contract")
+if right.button(
+    "运行确定性参考基线", key="intake_eval_reference",
+    disabled=not intake_ready or not intake_contract, use_container_width=True,
+):
+    try:
+        with st.spinner("正在运行 40 个纯合成参考案例…"):
+            st.session_state["intake_eval_reference_result"] = intake_client.run_intake_reference_evaluation()
+    except (ValueError, OSError) as exc:
+        st.error("参考基线未完成：" + str(exc))
+
+if not intake_ready:
+    st.info("未找到同级 SteelData 独立环境；T24 页面不会尝试自动安装或调用云端。")
+if intake_contract:
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("脱敏案例", intake_contract.get("case_count", 0))
+    c2.metric("已知映射", intake_contract.get("category_counts", {}).get("known_mapping", 0))
+    c3.metric("未知单位", intake_contract.get("category_counts", {}).get("unknown_unit", 0))
+    c4.metric("歧义映射", intake_contract.get("category_counts", {}).get("ambiguous_mapping", 0))
+    if intake_contract.get("status") != "passed":
+        st.error("；".join(intake_contract.get("problems", [])))
+    elif intake_contract.get("label_status") == "pending_user_review":
+        st.warning("案例结构已通过，但标签仍待项目负责人审阅；在你确认前，T24 保持 Review，不声明云模型能力。")
+    labels = pd.DataFrame(intake_contract.get("cases", []))
+    if not labels.empty:
+        labels = labels.rename(columns={
+            "case_id": "案例", "category": "类别", "title": "场景",
+            "headers": "脱敏表头", "expected_mappings": "预期字段对应",
+            "expected_status": "预期路线", "mapping_count": "映射字段数",
+            "required_uncertainties": "必须标记的不确定性", "replay_group": "重放组",
+        })
+        st.dataframe(labels, hide_index=True, width="stretch")
+    st.caption("Benchmark SHA-256：" + str(intake_contract.get("benchmark_sha256", "")))
+
+intake_reference = st.session_state.get("intake_eval_reference_result")
+if intake_reference:
+    summary = intake_reference.get("summary", {})
+    st.write("确定性参考基线")
+    r1, r2, r3, r4 = st.columns(4)
+    r1.metric("通过案例", f"{summary.get('passed_count', 0)}/{summary.get('case_count', 0)}")
+    r2.metric("已知映射准确率", f"{summary.get('known_mapping_accuracy', 0) * 100:.1f}%")
+    r3.metric("未批准执行", summary.get("unapproved_execution_count", 0))
+    r4.metric("源文件修改", summary.get("source_modification_count", 0))
+    st.caption(
+        f"平均延迟 {summary.get('mean_latency_ms', 0):.3f} ms · Token {summary.get('total_tokens', 0)} · "
+        f"报告保存在 SteelData 本地忽略目录：{intake_reference.get('evaluation_id', '')}"
+    )
+
+st.divider()
+st.subheader("Research Agent 固定问题评测")
 
 contract = benchmark_contract()
 benchmark, cases = load_benchmark()

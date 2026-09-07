@@ -408,6 +408,22 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(execute_args.count("--expected-sha256"), 1)
         self.assertEqual(execute_args[-1], "a" * 64)
 
+    def test_t24_intake_evaluation_requires_explicit_fixed_cli_actions(self):
+        client = SteelDataClient(ROOT.parent / "SteelData")
+        with patch.object(client, "_call", side_effect=[
+            {"case_count": 40, "label_status": "pending_user_review"},
+            {"evaluation_id": "IAE-test", "summary": {"passed_count": 40}},
+        ]) as call:
+            contract = client.intake_evaluation_contract()
+            result = client.run_intake_reference_evaluation()
+        self.assertEqual(contract["case_count"], 40)
+        self.assertEqual(result["evaluation_id"], "IAE-test")
+        self.assertEqual(call.call_args_list[0].args[0], ["intake-eval-contract"])
+        run_args = call.call_args_list[1].args[0]
+        self.assertEqual(run_args[0], "intake-eval-reference")
+        self.assertEqual(run_args.count("--output"), 1)
+        self.assertTrue(str(run_args[-1]).endswith("output\\intake_agent_evaluations"))
+
 
 class PanelTests(unittest.TestCase):
     def test_valid_package_renders_mapping_without_default_sample(self):
