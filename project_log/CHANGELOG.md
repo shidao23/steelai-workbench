@@ -1,5 +1,11 @@
 # Changelog
 
+## stage2-t24-label-approval - 2026-09-07
+
+- Recorded project-owner acceptance of the 40 sanitized Intake Agent v0.1 labels and moved T24 from Review to Done.
+- Preserved the 95% known-mapping threshold, mandatory human routing for unknown units and ambiguity, and all existing Agent permission limits.
+- Label approval does not represent a DeepSeek or other cloud-model baseline; live model evaluation remains a separate explicit action.
+
 ## stage2-t24-intake-agent-evaluation-review - 2026-09-07
 
 - Added an explicit Intake Agent section to the existing Agent Evaluation view for inspecting 40 synthetic case labels and running the deterministic reference baseline.

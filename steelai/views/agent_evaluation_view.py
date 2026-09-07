@@ -59,6 +59,8 @@ if intake_contract:
         st.error("；".join(intake_contract.get("problems", [])))
     elif intake_contract.get("label_status") == "pending_user_review":
         st.warning("案例结构已通过，但标签仍待项目负责人审阅；在你确认前，T24 保持 Review，不声明云模型能力。")
+    elif intake_contract.get("label_status") == "approved":
+        st.success("T24 v0.1 案例标签已获项目负责人确认；参考基线仍不代表云模型成绩。")
     labels = pd.DataFrame(intake_contract.get("cases", []))
     if not labels.empty:
         labels = labels.rename(columns={
