@@ -38,8 +38,21 @@ BATCH_PLOT = BATCH_ROOT / "br_metric_boxplots_v0.1.png"
 BATCH_REPORT = BATCH_ROOT / "B_vs_R_AutoDimple_preliminary_report_v0.1.md"
 
 
-setup_page(st, "Open Model Lab · 开源高级模型实验室", "🧪")
-st.caption("开源模型先在隔离环境和小样本上验证；只有通过人工复核的结果才能进入正式科研数据。")
+def _render_acceptance_boundary() -> None:
+    with st.expander("科研验收边界"):
+        st.markdown(
+            """
+            - 原始 TIF 保持只读；模型输出进入独立试验目录。
+            - B/R 使用相同倍率、像素标定、裁剪与提示规则。
+            - 先由人定义目标类别，模型不能自行发明类别。
+            - 至少抽取 3 张图复核漏分、错分和修正时间，并保留失败案例。
+            - 只有通过复核的参数才可写入正式微观组织数据。
+            """
+        )
+
+
+setup_page(st, "模型实验室", "🧪")
+st.caption("模型结果与正式科研数据保持隔离；先选择当前关注内容，只有人工复核通过后才能接纳结果。")
 
 gpu = gpu_status()
 runtime = micro_sam_status()
@@ -54,16 +67,21 @@ if runtime.get("conda_environment_ready"):
         f"z5py {runtime.get('z5py', '已安装')} · CUDA {runtime.get('cuda_runtime', '已启用')}"
     )
 
-st.subheader("候选模型登记册")
-registry = pd.DataFrame(model_statuses())
-st.dataframe(
-    registry[["model", "task", "license", "readiness", "local_status"]],
-    width="stretch",
-    hide_index=True,
+focus = st.selectbox(
+    "当前查看内容",
+    ["B/R 初步结果", "人工复核", "环境与试验集", "全部技术详情"],
+    help="一次只展示一类工作，避免把模型状态、复核任务和试验结果混在同一长页面。",
 )
-st.info("重型模型继续使用独立环境。主工作台只读取状态和结果文件，因此不会被模型依赖拖慢或破坏。")
+with st.expander("查看候选模型登记册与环境说明"):
+    registry = pd.DataFrame(model_statuses())
+    st.dataframe(
+        registry[["model", "task", "license", "readiness", "local_status"]],
+        width="stretch",
+        hide_index=True,
+    )
+    st.info("重型模型继续使用独立环境。主工作台只读取状态和结果文件，不会被模型依赖拖慢或破坏。")
 
-if REVIEW30_SEED.exists() and REVIEW30_TABLE.exists() and REVIEW30_MAP.exists():
+if focus in {"人工复核", "全部技术详情"} and REVIEW30_SEED.exists() and REVIEW30_TABLE.exists() and REVIEW30_MAP.exists():
     st.subheader("Review30 人工复核")
     st.success("已从自动候选中抽取 30 个对象：覆盖全图，并平衡小、中、大三档尺寸。")
     st.image(str(REVIEW30_MAP), caption="B-DQ-1-06 · Review30 编号位置图（当前仍是未复核候选）")
@@ -114,7 +132,7 @@ if REVIEW30_SEED.exists() and REVIEW30_TABLE.exists() and REVIEW30_MAP.exists():
     st.code(str(REVIEW30_REVIEWED), language=None)
     st.warning("不要覆盖 seed 文件；只有人工确认后的 reviewed 文件才能用于韧窝尺寸统计。")
 
-if AUTO_STANDARD_PATH.exists():
+if focus in {"B/R 初步结果", "全部技术详情"} and AUTO_STANDARD_PATH.exists():
     auto_standard = json.loads(AUTO_STANDARD_PATH.read_text(encoding="utf-8"))
     calibration = auto_standard["calibration"]
     policy = auto_standard["automatic_policy"]
@@ -136,7 +154,7 @@ if AUTO_STANDARD_PATH.exists():
         "系统采用保守的22/30总体比例，不虚构那3个对象的身份。"
     )
 
-if BATCH_COMPARISON.exists() and BATCH_SUMMARY.exists():
+if focus in {"B/R 初步结果", "全部技术详情"} and BATCH_COMPARISON.exists() and BATCH_SUMMARY.exists():
     batch_comparison = json.loads(BATCH_COMPARISON.read_text(encoding="utf-8"))
     batch_metrics = batch_comparison["metrics"]
     st.subheader("B/R 十张1000×断口图自动对比")
@@ -159,7 +177,7 @@ if BATCH_COMPARISON.exists() and BATCH_SUMMARY.exists():
     )
 
 report = smoke_test_report()
-if report.get("results"):
+if focus in {"环境与试验集", "全部技术详情"} and report.get("results"):
     st.subheader("首轮 GPU 技术测试")
     a, b, c = st.columns(3)
     a.metric("模型", report.get("model", "SAM"))
@@ -191,6 +209,10 @@ if report.get("results"):
         "R: D:\\SteelAI-Tools\\annotations\\R-DQ-1-03.zarr",
         language=None,
     )
+
+if focus not in {"环境与试验集", "全部技术详情"}:
+    _render_acceptance_boundary()
+    st.stop()
 
 st.subheader("B/R DQ 冲击断口试验集")
 settings = load_settings()
@@ -241,13 +263,4 @@ else:
                 )
                 st.success(f"试验清单已保存：{manifest_path}")
 
-st.subheader("科研验收边界")
-st.markdown(
-    """
-    - 原始 TIF 保持只读；模型输出进入独立试验目录。
-    - B/R 使用相同倍率、像素标定、裁剪与提示规则。
-    - 先由人定义目标类别：韧窝、孔洞、夹杂或解理区，模型不能自行发明类别。
-    - 至少抽取 3 张图复核漏分、错分和修正时间，并保留失败案例。
-    - 只有通过复核的面积分数、尺寸分布等参数才可写入 `microstructure.csv`。
-    """
-)
+_render_acceptance_boundary()

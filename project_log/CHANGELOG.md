@@ -1,5 +1,12 @@
 # Changelog
 
+## workspace-navigation-and-data-comparison-redesign - 2026-09-08
+
+- Replaced crowded horizontal submodule pills with one consistent current-function selector plus plain-language purpose guidance across the four technical workspaces.
+- Renamed user-facing module labels in Chinese while keeping existing view files, calculations, review gates and stored data unchanged.
+- Rebuilt the B/R comparison landing view around four descriptive performance differences, sample cards and vertically organized Chinese field tables; missing values remain explicit and are never treated as zero.
+- Added a focused model-lab content selector so B/R results, Review30 work and environment/pilot details no longer render as one long mixed page.
+
 ## dashboard-research-cockpit-redesign - 2026-09-08
 
 - Reframed the research overview as a graduation-project cockpit with a clear project statement, primary actions, system snapshot and four-stage evidence pipeline.

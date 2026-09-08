@@ -10,7 +10,7 @@ from steelai.steelstats_bridge import SteelStatsClient, run_statistics_from_stee
 from steelai.ui import setup_page
 
 
-setup_page(st, "SteelStats 可追溯统计", "📈")
+setup_page(st, "可追溯统计", "📈")
 st.caption("选择已完成的 SteelData 结果包，经人工确认试样对应和统计方法后，调用独立 SteelStats 环境生成描述统计报告。")
 
 client = SteelStatsClient()

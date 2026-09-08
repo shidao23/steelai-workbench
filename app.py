@@ -17,6 +17,6 @@ navigation = st.navigation([
     st.Page("pages/2_研究助手.py", title="研究助手", icon="🧠"),
     st.Page("pages/3_组织与证据.py", title="组织与证据", icon="🔬"),
     st.Page("pages/4_模型与自动化.py", title="模型与自动化", icon="⚙️"),
-    st.Page("pages/5_Career_Portfolio.py", title="Career Portfolio", icon="💼"),
+    st.Page("pages/5_Career_Portfolio.py", title="成果与作品集", icon="💼"),
 ])
 navigation.run()

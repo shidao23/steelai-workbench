@@ -16,7 +16,7 @@ from steelai.automation import (
 from steelai.ui import setup_page
 
 
-setup_page(st, "SteelAI Workbench · 自动化中心", "⚙️")
+setup_page(st, "任务与结果", "⚙️")
 st.caption("统一启动模型任务、查看运行状态、读取结构化结果；原始实验文件保持只读。")
 
 st.subheader("系统运行链")

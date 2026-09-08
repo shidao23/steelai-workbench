@@ -19,7 +19,7 @@ from steelai.physics import (
 from steelai.ui import demo_warning, setup_page
 
 
-setup_page(st, "Physics Engine", "⚙️")
+setup_page(st, "物理计算", "⚙️")
 samples = read_rows("samples")
 compositions = read_rows("composition")
 demo_warning(st, samples)

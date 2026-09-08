@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from html import escape
+
 
 def setup_page(st, title: str, icon: str = "🧪", *, show_title: bool = True) -> None:
     embedded = bool(st.session_state.get("_steelai_embedded_view", False))
@@ -46,6 +48,17 @@ def setup_page(st, title: str, icon: str = "🧪", *, show_title: bool = True) -
       div[data-testid="stLinkButton"] a {border-radius:12px; min-height:44px; font-weight:700;}
       div[data-testid="stButton"] button {border-radius:12px; min-height:44px; font-weight:700;}
       div[data-testid="stExpander"] {border:1px solid #dce4ef; border-radius:14px; background:rgba(255,255,255,.72);}
+      [data-testid="stDataFrame"] {border:1px solid #dce4ef; border-radius:14px; overflow:hidden; background:#fff;}
+      [data-testid="stForm"] {background:rgba(255,255,255,.78); border:1px solid #dce4ef; border-radius:16px; padding:18px;}
+      [data-testid="stTabs"] [data-baseweb="tab-list"] {gap:.4rem; border-bottom:1px solid #dce4ef;}
+      [data-testid="stTabs"] button[role="tab"] {padding:.65rem .85rem;}
+      .workspace-head {padding:8px 0 18px; border-bottom:1px solid #dce4ef; margin-bottom:16px;}
+      .workspace-kicker {color:#0f766e; font-size:.75rem; font-weight:800; letter-spacing:.09em; text-transform:uppercase; margin-bottom:7px;}
+      .workspace-title {color:#0b1f3a; font-size:2.05rem; font-weight:800; letter-spacing:-.03em; line-height:1.18; margin-bottom:9px;}
+      .workspace-copy {color:#64748b; font-size:.98rem; line-height:1.65; max-width:800px;}
+      .module-note {height:100%; min-height:76px; padding:12px 15px; border-radius:14px; background:#eef5ff; border:1px solid #dbeafe; color:#475569; font-size:.88rem; line-height:1.55;}
+      .module-note strong {display:block; color:#123c73; font-size:.95rem; margin-bottom:2px;}
+      .comparison-note {padding:12px 15px; border-left:3px solid #0ea5a8; background:#f0fdfa; color:#335b61; border-radius:0 12px 12px 0; margin:.35rem 0 1rem;}
     </style>
     """, unsafe_allow_html=True)
     if not show_title:
@@ -54,6 +67,37 @@ def setup_page(st, title: str, icon: str = "🧪", *, show_title: bool = True) -
         st.subheader(title.split("·")[-1].strip())
     else:
         st.title(title)
+
+
+def workspace_header(st, *, kicker: str, title: str, description: str) -> None:
+    """Render a consistent, compact heading for top-level workspaces."""
+    st.markdown(
+        '<section class="workspace-head">'
+        f'<div class="workspace-kicker">{escape(kicker)}</div>'
+        f'<div class="workspace-title">{escape(title)}</div>'
+        f'<div class="workspace-copy">{escape(description)}</div>'
+        '</section>',
+        unsafe_allow_html=True,
+    )
+
+
+def module_selector(st, modules: dict[str, tuple[str, str]], *, key: str) -> str:
+    """Select one clearly named module and show its purpose beside the control."""
+    labels = list(modules)
+    if st.session_state.get(key) not in labels:
+        st.session_state[key] = labels[0]
+    left, right = st.columns([1, 2.1], vertical_alignment="bottom")
+    with left:
+        selected = st.selectbox("当前功能", labels, key=key)
+    short_title, description = modules[selected]
+    with right:
+        st.markdown(
+            '<div class="module-note">'
+            f'<strong>{escape(short_title)}</strong>{escape(description)}'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    return selected
 
 
 def demo_warning(st, rows: list[dict]) -> None:

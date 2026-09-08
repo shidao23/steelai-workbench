@@ -23,7 +23,7 @@ from steelai.ui import setup_page
 from steelai.views.steeldata_panel import render_steeldata_panel
 
 
-setup_page(st, "科研数据质量与扩展准备", "🧱")
+setup_page(st, "数据接入与质控", "🧱")
 st.caption("检查成分—工艺—组织—性能—物理实测的结构完整性；只报告缺口，不用0或模型输出填补未知实验值。")
 
 report = validate_research_data_contract()

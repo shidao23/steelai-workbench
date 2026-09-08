@@ -13,7 +13,7 @@ from steelai.research_session import attach_run, load_session
 from steelai.ui import setup_page
 
 
-setup_page(st, "SteelAI Workbench · 端到端研究任务", "🧭")
+setup_page(st, "研究任务", "🧭")
 st.caption("把数据检查、Physics、SEM、双尺度EBSD、证据门控和可选Agent综合串成一次可复现研究运行。")
 
 status = agent_status()

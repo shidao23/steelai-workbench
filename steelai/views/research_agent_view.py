@@ -16,7 +16,7 @@ from steelai.research_agent import (
 from steelai.ui import setup_page
 
 
-setup_page(st, "SteelAI Workbench · Research Agent", "🤖")
+setup_page(st, "证据约束智能助手", "🤖")
 st.caption("单Agent科研协调层：只读取结构化证据，调用现有确定性模块，并留下可审计工具轨迹。")
 
 status = agent_status()

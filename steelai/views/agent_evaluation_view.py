@@ -23,7 +23,7 @@ from steelai.steeldata_bridge import SteelDataClient
 from steelai.ui import setup_page
 
 
-setup_page(st, "SteelAI Workbench · Agent质量评测", "📐")
+setup_page(st, "智能助手评测", "📐")
 st.caption("用固定案例、固定工具边界和透明评分规则，检查 Intake Agent 与 Research Agent 的可靠性。")
 
 st.subheader("Intake Agent 固定测试集（T24）")
