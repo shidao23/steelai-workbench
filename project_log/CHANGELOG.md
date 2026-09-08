@@ -1,5 +1,11 @@
 # Changelog
 
+## dashboard-research-cockpit-redesign - 2026-09-08
+
+- Reframed the research overview as a graduation-project cockpit with a clear project statement, primary actions, system snapshot and four-stage evidence pipeline.
+- Promoted the two current B/R research objects and daily next steps while moving raw tables, completeness checks and local paths into collapsed technical details.
+- Added a direct, state-safe entry from the overview to the accepted T40 flagship demo and refreshed shared visual styling without changing research data or calculation behavior.
+
 ## stage4-t40-owner-acceptance - 2026-09-08
 
 - Recorded the project owner's explicit “T40 验收通过” after viewing the live flagship page.
