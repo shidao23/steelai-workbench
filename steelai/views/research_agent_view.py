@@ -13,7 +13,7 @@ from steelai.research_agent import (
     agent_status,
     run_research_agent,
 )
-from steelai.ui import setup_page
+from steelai.ui import next_step_buttons, setup_page
 
 
 setup_page(st, "证据约束智能助手", "🤖")
@@ -134,4 +134,14 @@ st.markdown(
     "- 经验公式结果必须标记为模型估算，相关性不能写成因果。\n"
     "- 当前不开放自动改数据、自动跑模型和自动写入结论的权限。"
     "\n- 含本地路径或原始CTF/TIF文件名的问题会在API调用前被阻断。"
+)
+
+next_step_buttons(
+    st,
+    [
+        {"label": "进入证据验证", "state": {"research_module_selector": "证据验证"}},
+        {"label": "检查助手评测", "state": {"research_module_selector": "助手评测"}},
+    ],
+    key_prefix="research_agent",
+    note="助手回答不能直接成为结论；先验证证据，再检查固定评测中的权限与失败模式。",
 )

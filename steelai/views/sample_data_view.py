@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from steelai.data import read_rows, sample_bundle
-from steelai.ui import demo_warning, setup_page
+from steelai.ui import demo_warning, next_step_buttons, setup_page
 
 
 FIELD_LABELS = {
@@ -133,3 +133,13 @@ with tabs[5]:
     st.dataframe(pd.concat(changed, ignore_index=True) if changed else pd.DataFrame(), width="stretch", hide_index=True)
 
 st.caption("数据状态说明：来源核验表示字段可追溯到当前研究记录，不等于完成实验方法学复核。")
+
+next_step_buttons(
+    st,
+    [
+        {"label": "进入物理计算", "state": {"data_module_selector": "物理计算"}},
+        {"label": "检查数据质量", "state": {"data_module_selector": "数据接入与质控"}},
+    ],
+    key_prefix="sample_compare",
+    note="确认样品差异后，可以继续做经验公式计算，或先检查字段、单位与来源。",
+)

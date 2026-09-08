@@ -19,7 +19,7 @@ from steelai.data_intake import (
     validate_intake_csv,
 )
 from steelai.event_log import record_event
-from steelai.ui import setup_page
+from steelai.ui import next_step_buttons, setup_page
 from steelai.views.steeldata_panel import render_steeldata_panel
 
 
@@ -203,3 +203,13 @@ with intake_tab:
 
 with steeldata_tab:
     render_steeldata_panel(contract)
+
+next_step_buttons(
+    st,
+    [
+        {"label": "生成可追溯统计", "state": {"data_module_selector": "可追溯统计"}},
+        {"label": "返回样品比较", "state": {"data_module_selector": "样品比较"}},
+    ],
+    key_prefix="data_quality",
+    note="只有通过人工审核和质量门禁的数据，才应进入组级描述统计。",
+)

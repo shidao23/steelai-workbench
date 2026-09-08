@@ -12,6 +12,7 @@ workspace_header(
     kicker="RESEARCH ASSISTANT",
     title="研究助手",
     description="围绕一个科研问题组织任务、证据、人工决定和结果；智能助手只在已授权的证据边界内工作。",
+    workflow=("建立会话", "运行任务", "整理证据", "验证结论"),
 )
 modules = {
     "科研会话": ("日常科研主线", "保存研究问题、阶段进度、发现和下一步行动。"),
@@ -21,13 +22,20 @@ modules = {
     "旗舰演示": ("毕业作品演示", "重放已经验收的 T40 合成数据全链路。"),
     "证据验证": ("结论边界检查", "核对证据等级、冲突、限制与可说/不可说的结论。"),
 }
-requested = st.query_params.get("module")
+requested_section = {
+    "session": "科研会话",
+    "case": "研究任务",
+    "agent": "智能助手",
+    "evaluation": "助手评测",
+    "flagship": "旗舰演示",
+    "validation": "证据验证",
+}.get(st.query_params.get("module"))
 if "research_module_selector" not in st.session_state:
-    st.session_state["research_module_selector"] = (
-        "旗舰演示" if requested == "flagship" else "科研会话"
-    )
-elif requested == "flagship":
-    st.session_state["research_module_selector"] = "旗舰演示"
+    st.session_state["research_module_selector"] = requested_section or "科研会话"
+elif requested_section:
+    st.session_state["research_module_selector"] = requested_section
+if requested_section:
+    st.query_params.clear()
 section = module_selector(st, modules, key="research_module_selector")
 view = {
     "科研会话": "research_session_view.py",

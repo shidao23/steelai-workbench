@@ -6,7 +6,7 @@ import streamlit as st
 
 from steelai.data import append_row, evidence_path_status, read_rows
 from steelai.event_log import record_event
-from steelai.ui import setup_page
+from steelai.ui import next_step_buttons, setup_page
 
 setup_page(st, "证据与微观组织索引", "🗂️")
 st.caption("只登记绝对路径与人工提取参数，不复制原始 OM/SEM/EBSD/XRD 文件。")
@@ -57,3 +57,16 @@ if submitted:
         st.rerun()
 
 st.info("下一阶段建议：先补齐 sample_id、成像模态、倍率/标尺、取样位置、处理软件、参数提取方法和复核状态，再考虑图像 AI。")
+
+next_step_buttons(
+    st,
+    [
+        {"label": "进入 EBSD 分析", "state": {"evidence_module_selector": "EBSD 分析"}},
+        {
+            "label": "检查数据质量",
+            "url": "/数据与物理?module=quality",
+        },
+    ],
+    key_prefix="evidence_index",
+    note="来源、样品和方法信息登记完整后，再进入组织分析或数据质量检查。",
+)

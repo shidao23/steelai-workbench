@@ -1,5 +1,12 @@
 # Changelog
 
+## unified-complex-page-flow-and-next-actions - 2026-09-08
+
+- Added consistent workspace workflow strips and a shared four-part complex-page structure cue: current state, primary action, result and technical details.
+- Added contextual next-step actions across data, physics, QC, statistics, research, evidence, model and automation views.
+- Implemented safe same-page module callbacks plus explicit cross-workspace deep links, including statistics-to-validation, evidence-to-QC and model-to-validation routes.
+- Browser-tested the full data path from sample comparison through physics and QC to statistics, then across to evidence validation without a Streamlit state error.
+
 ## workspace-navigation-and-data-comparison-redesign - 2026-09-08
 
 - Replaced crowded horizontal submodule pills with one consistent current-function selector plus plain-language purpose guidance across the four technical workspaces.

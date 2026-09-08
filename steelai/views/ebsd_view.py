@@ -33,7 +33,7 @@ from steelai.ebsd import (
     read_highres_pair_status,
 )
 from steelai.ebsd_comparison import compare_ctf_headers
-from steelai.ui import setup_page
+from steelai.ui import next_step_buttons, setup_page
 
 
 setup_page(st, "SteelAI Workbench · EBSD分析", "🧭")
@@ -316,4 +316,17 @@ with st.expander("MATLAB/MTEX运行日志"):
 
 st.warning(
     "当前统计对象是按3°阈值重构的BCC取向晶粒，不应直接称为马氏体block、packet或原奥氏体晶粒。"
+)
+
+next_step_buttons(
+    st,
+    [
+        {
+            "label": "进入证据验证",
+            "url": "/研究助手?module=validation",
+        },
+        {"label": "返回证据索引", "state": {"evidence_module_selector": "证据索引"}},
+    ],
+    key_prefix="ebsd",
+    note="组织分析结果需要与证据等级和取样限制一起进入结论验证。",
 )

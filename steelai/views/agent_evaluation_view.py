@@ -20,7 +20,7 @@ from steelai.agent_observability import (
 from steelai.event_log import record_event
 from steelai.research_agent import agent_status
 from steelai.steeldata_bridge import SteelDataClient
-from steelai.ui import setup_page
+from steelai.ui import next_step_buttons, setup_page
 
 
 setup_page(st, "智能助手评测", "📐")
@@ -321,3 +321,13 @@ if saved and saved.get("summary"):
 
 st.divider()
 st.caption("评测分数用于定位失败模式，不代表通用智能水平；重要科研结论仍需专家复核和独立实验支持。")
+
+next_step_buttons(
+    st,
+    [
+        {"label": "查看旗舰演示", "state": {"research_module_selector": "旗舰演示"}},
+        {"label": "返回智能助手", "state": {"research_module_selector": "智能助手"}},
+    ],
+    key_prefix="agent_evaluation",
+    note="确认可靠性边界后，可以用旗舰演示展示完整成功链路和受控失败链路。",
+)

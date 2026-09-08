@@ -12,6 +12,7 @@ workspace_header(
     kicker="DATA & PHYSICS",
     title="数据与物理",
     description="从样品对比进入确定性计算、数据质控与可追溯统计；所有结果都保留来源和适用边界。",
+    workflow=("样品比较", "物理计算", "数据质控", "统计报告"),
 )
 modules = {
     "样品比较": ("比较 B/R 样品", "先看两个样品的关键性能，再按成分、工艺、组织和性能查看明细。"),
@@ -19,6 +20,15 @@ modules = {
     "数据接入与质控": ("数据门禁", "检查字段、单位和来源，只有人工批准后才允许进入标准化数据。"),
     "可追溯统计": ("组级统计报告", "从已核验的逐试样记录生成可复核、可重放的描述统计。"),
 }
+requested_section = {
+    "samples": "样品比较",
+    "physics": "物理计算",
+    "quality": "数据接入与质控",
+    "statistics": "可追溯统计",
+}.get(st.query_params.get("module"))
+if requested_section:
+    st.session_state["data_module_selector"] = requested_section
+    st.query_params.clear()
 section = module_selector(st, modules, key="data_module_selector")
 render_view({
     "样品比较": "sample_data_view.py",

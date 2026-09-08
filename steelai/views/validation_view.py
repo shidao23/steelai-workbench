@@ -10,7 +10,7 @@ from steelai.evidence_validation import (
     validation_summary,
 )
 from steelai.paths import REPORTS
-from steelai.ui import setup_page
+from steelai.ui import next_step_buttons, setup_page
 
 
 setup_page(st, "SteelAI Workbench · 证据与验证中心", "🧩")
@@ -130,3 +130,13 @@ if st.button("保存报告并登记为项目证据", use_container_width=True):
         tags=["evidence", "validation", "scientific-guardrail", "career-evidence"],
     )
     st.success(f"已保存：{artifact.name}；事件ID：{event['event_id']}")
+
+next_step_buttons(
+    st,
+    [
+        {"label": "进入成果与作品集", "url": "/Career_Portfolio"},
+        {"label": "返回科研会话", "state": {"research_module_selector": "科研会话"}},
+    ],
+    key_prefix="validation",
+    note="证据边界确认后，可以沉淀答辩与求职材料，或回到科研会话补充缺口。",
+)

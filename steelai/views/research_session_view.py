@@ -26,7 +26,7 @@ from steelai.research_session import (
     validate_session_contract,
     workflow_templates,
 )
-from steelai.ui import setup_page
+from steelai.ui import next_step_buttons, setup_page
 
 
 setup_page(st, "科研会话与日常工作流", "🗂️")
@@ -221,3 +221,13 @@ with context_tab:
         mime="application/json",
     )
     st.caption("会话只保存结构化科研记录和相对运行引用；原始文件继续由外部只读目录与证据索引管理。")
+
+next_step_buttons(
+    st,
+    [
+        {"label": "进入研究任务", "state": {"research_module_selector": "研究任务"}},
+        {"label": "使用智能助手", "state": {"research_module_selector": "智能助手"}},
+    ],
+    key_prefix="research_session",
+    note="会话范围确认后，可以运行端到端任务，或让智能助手整理当前结构化证据。",
+)

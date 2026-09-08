@@ -20,7 +20,7 @@ from steelai.model_lab import (
     tif_preview,
 )
 from steelai.settings import load_settings
-from steelai.ui import setup_page
+from steelai.ui import next_step_buttons, setup_page
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -49,6 +49,21 @@ def _render_acceptance_boundary() -> None:
             - 只有通过复核的参数才可写入正式微观组织数据。
             """
         )
+
+
+def _render_next_steps() -> None:
+    next_step_buttons(
+        st,
+        [
+            {"label": "查看任务与结果", "state": {"model_module_selector": "任务与结果"}},
+            {
+                "label": "进入证据验证",
+                "url": "/研究助手?module=validation",
+            },
+        ],
+        key_prefix="model_lab",
+        note="模型输出先查看任务记录并完成人工复核；只有接纳后的结果才能进入证据验证。",
+    )
 
 
 setup_page(st, "模型实验室", "🧪")
@@ -212,6 +227,7 @@ if focus in {"环境与试验集", "全部技术详情"} and report.get("results
 
 if focus not in {"环境与试验集", "全部技术详情"}:
     _render_acceptance_boundary()
+    _render_next_steps()
     st.stop()
 
 st.subheader("B/R DQ 冲击断口试验集")
@@ -264,3 +280,4 @@ else:
                 st.success(f"试验清单已保存：{manifest_path}")
 
 _render_acceptance_boundary()
+_render_next_steps()

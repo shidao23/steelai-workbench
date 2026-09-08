@@ -7,7 +7,7 @@ import streamlit as st
 
 from steelai.steeldata_bridge import inspect_run, mapping_rows
 from steelai.steelstats_bridge import SteelStatsClient, run_statistics_from_steeldata
-from steelai.ui import setup_page
+from steelai.ui import next_step_buttons, setup_page
 
 
 setup_page(st, "可追溯统计", "📈")
@@ -105,3 +105,16 @@ if result is not None:
         st.json(result)
 
 st.info("边界：只做描述统计，不做显著性检验；不自动删异常值或补缺失值；不把统计结果写回 SteelData 或原始观测列。")
+
+next_step_buttons(
+    st,
+    [
+        {
+            "label": "进入证据验证",
+            "url": "/研究助手?module=validation",
+        },
+        {"label": "返回数据质控", "state": {"data_module_selector": "数据接入与质控"}},
+    ],
+    key_prefix="steelstats",
+    note="统计报告生成后，继续检查证据等级、限制和允许表述的结论。",
+)

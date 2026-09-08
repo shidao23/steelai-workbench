@@ -16,7 +16,7 @@ from steelai.physics import (
     validate_model_registry,
     version_comparison_markdown,
 )
-from steelai.ui import demo_warning, setup_page
+from steelai.ui import demo_warning, next_step_buttons, setup_page
 
 
 setup_page(st, "物理计算", "⚙️")
@@ -143,3 +143,13 @@ with experiment_tab:
         "残差约定：模型值 − 实验值。实验值、模型值和残差保持独立字段；当前界面只读，不写回、不拟合，"
         "也不会用校正结果覆盖原始公式。"
     )
+
+next_step_buttons(
+    st,
+    [
+        {"label": "进入数据接入与质控", "state": {"data_module_selector": "数据接入与质控"}},
+        {"label": "返回样品比较", "state": {"data_module_selector": "样品比较"}},
+    ],
+    key_prefix="physics",
+    note="物理计算完成后，先核对实验观测与数据门禁，再决定是否进入正式统计。",
+)

@@ -10,7 +10,7 @@ from steelai.event_log import record_event
 from steelai.research_agent import agent_status
 from steelai.research_case import DEFAULT_QUESTION, ResearchCaseRequest, run_research_case
 from steelai.research_session import attach_run, load_session
-from steelai.ui import setup_page
+from steelai.ui import next_step_buttons, setup_page
 
 
 setup_page(st, "研究任务", "🧭")
@@ -142,3 +142,13 @@ if saved:
 
 st.divider()
 st.caption("隐私边界：禁止发送原始图片、CTF/TIF、本地文件路径和论文原文；1–14号实验不进入本流程。")
+
+next_step_buttons(
+    st,
+    [
+        {"label": "验证研究结论", "state": {"research_module_selector": "证据验证"}},
+        {"label": "查看旗舰演示", "state": {"research_module_selector": "旗舰演示"}},
+    ],
+    key_prefix="research_case",
+    note="任务完成后先验证证据边界；答辩准备时可进入已经冻结的旗舰演示。",
+)

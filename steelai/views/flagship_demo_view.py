@@ -10,6 +10,7 @@ from steelai.flagship_demo import MANIFEST_NAME, run_flagship_demo, verify_flags
 from steelai.paths import OUTPUTS
 from steelai.steeldata_bridge import SteelDataClient
 from steelai.steelstats_bridge import SteelStatsClient
+from steelai.ui import next_step_buttons, setup_page
 
 
 OUTPUT_ROOT = OUTPUTS / "flagship_demo"
@@ -25,7 +26,7 @@ def _latest_verified() -> tuple[Path, dict] | None:
     return None
 
 
-st.title("T40 · 端到端旗舰演示")
+setup_page(st, "T40 · 端到端旗舰演示", "🏁")
 st.caption("公开合成拉伸数据 · 可重放 · 全链路留痕 · 不调用本地 AI")
 st.info("演示中的人工批准是明确标记的冻结合成决定夹具，不代表真实实验审核。")
 
@@ -66,3 +67,16 @@ else:
     st.error("失败链路已验证：YS 未知单位 → needs_human → 未批准执行被拒绝 → 无结果。")
     st.code(package.name, language=None)
     st.markdown((package / "steelai_interpretation.md").read_text(encoding="utf-8"))
+
+next_step_buttons(
+    st,
+    [
+        {
+            "label": "查看可追溯统计",
+            "url": "/数据与物理?module=statistics",
+        },
+        {"label": "进入证据验证", "state": {"research_module_selector": "证据验证"}},
+    ],
+    key_prefix="flagship",
+    note="演示结束后，可以查看统计模块的正式边界，或继续检查允许表述的研究结论。",
+)

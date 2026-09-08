@@ -12,6 +12,7 @@ workspace_header(
     kicker="MICROSTRUCTURE & EVIDENCE",
     title="组织与证据",
     description="登记显微与衍射证据的位置、样品身份、分析方法和人工复核状态，不复制或修改原始文件。",
+    workflow=("登记来源", "组织分析", "人工复核", "进入结论"),
 )
 modules = {
     "证据索引": ("原始证据登记", "把 OM、SEM、EBSD、XRD 文件与样品、描述和人工参数关联。"),

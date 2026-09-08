@@ -59,17 +59,49 @@ def setup_page(st, title: str, icon: str = "🧪", *, show_title: bool = True) -
       .module-note {height:100%; min-height:76px; padding:12px 15px; border-radius:14px; background:#eef5ff; border:1px solid #dbeafe; color:#475569; font-size:.88rem; line-height:1.55;}
       .module-note strong {display:block; color:#123c73; font-size:.95rem; margin-bottom:2px;}
       .comparison-note {padding:12px 15px; border-left:3px solid #0ea5a8; background:#f0fdfa; color:#335b61; border-radius:0 12px 12px 0; margin:.35rem 0 1rem;}
+      .workflow-strip {display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:-2px 0 18px; color:#64748b; font-size:.8rem;}
+      .workflow-step {padding:6px 10px; border-radius:999px; background:#fff; border:1px solid #dce4ef;}
+      .workflow-arrow {color:#94a3b8;}
+      .feature-head {display:flex; align-items:center; justify-content:space-between; gap:12px; margin:24px 0 8px;}
+      .feature-title {color:#0b1f3a; font-size:1.35rem; font-weight:780; letter-spacing:-.02em;}
+      .feature-label {color:#0f766e; background:#ecfdf5; border:1px solid #c7f3df; border-radius:999px; padding:5px 9px; font-size:.72rem; font-weight:750;}
+      .feature-structure {display:flex; gap:7px; flex-wrap:wrap; color:#64748b; font-size:.75rem; margin:-2px 0 14px;}
+      .feature-structure span {padding:4px 8px; border-radius:8px; background:#f8fafc; border:1px solid #e2e8f0;}
+      .next-panel {margin-top:28px; padding:18px 20px 8px; border-radius:18px; background:linear-gradient(135deg,#eef5ff,#f0fdfa); border:1px solid #d6e6f5;}
+      .next-kicker {color:#2563eb; font-size:.72rem; font-weight:800; letter-spacing:.09em; text-transform:uppercase;}
+      .next-title {color:#0b1f3a; font-size:1.15rem; font-weight:780; margin:4px 0 2px;}
+      .next-copy {color:#64748b; font-size:.86rem; margin-bottom:10px;}
+      .next-link {display:flex; align-items:center; justify-content:center; min-height:44px; padding:8px 14px; border-radius:12px; border:1px solid #d4dce8; background:#fff; color:#0b1f3a !important; font-weight:700; text-decoration:none !important;}
+      .next-link:hover {border-color:#93b5dc; background:#f8fbff;}
+      .next-link-primary {background:#0f5f73; border-color:#0f5f73; color:#fff !important;}
+      .next-link-primary:hover {background:#0d5061; border-color:#0d5061;}
     </style>
     """, unsafe_allow_html=True)
     if not show_title:
         return
     if embedded:
-        st.subheader(title.split("·")[-1].strip())
+        st.markdown(
+            '<div class="feature-head">'
+            f'<div class="feature-title">{escape(title.split("·")[-1].strip())}</div>'
+            '<span class="feature-label">当前模块</span>'
+            '</div>'
+            '<div class="feature-structure">'
+            '<span>1 当前状态</span><span>2 主要操作</span><span>3 结果</span><span>4 技术详情</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
     else:
         st.title(title)
 
 
-def workspace_header(st, *, kicker: str, title: str, description: str) -> None:
+def workspace_header(
+    st,
+    *,
+    kicker: str,
+    title: str,
+    description: str,
+    workflow: tuple[str, ...] = (),
+) -> None:
     """Render a consistent, compact heading for top-level workspaces."""
     st.markdown(
         '<section class="workspace-head">'
@@ -79,6 +111,13 @@ def workspace_header(st, *, kicker: str, title: str, description: str) -> None:
         '</section>',
         unsafe_allow_html=True,
     )
+    if workflow:
+        parts = []
+        for index, label in enumerate(workflow):
+            if index:
+                parts.append('<span class="workflow-arrow">→</span>')
+            parts.append(f'<span class="workflow-step">{escape(label)}</span>')
+        st.markdown('<div class="workflow-strip">' + "".join(parts) + '</div>', unsafe_allow_html=True)
 
 
 def module_selector(st, modules: dict[str, tuple[str, str]], *, key: str) -> str:
@@ -98,6 +137,47 @@ def module_selector(st, modules: dict[str, tuple[str, str]], *, key: str) -> str
             unsafe_allow_html=True,
         )
     return selected
+
+
+def next_step_buttons(
+    st,
+    actions: list[dict[str, object]],
+    *,
+    key_prefix: str,
+    note: str = "根据当前结果继续，不需要返回侧栏重新寻找入口。",
+) -> None:
+    """Render consistent cross-module next-step buttons."""
+    st.markdown(
+        '<div class="next-panel">'
+        '<div class="next-kicker">NEXT STEP</div>'
+        '<div class="next-title">下一步做什么</div>'
+        f'<div class="next-copy">{escape(note)}</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    def activate(action: dict[str, object]) -> None:
+        for state_key, state_value in dict(action.get("state", {})).items():
+            st.session_state[str(state_key)] = state_value
+
+    columns = st.columns(len(actions))
+    for index, (column, action) in enumerate(zip(columns, actions, strict=True)):
+        label = str(action["label"])
+        url = action.get("url")
+        if url:
+            link_class = "next-link next-link-primary" if index == 0 else "next-link"
+            column.markdown(
+                f'<a class="{link_class}" href="{escape(str(url), quote=True)}" target="_self">{escape(label)}</a>',
+                unsafe_allow_html=True,
+            )
+            continue
+        column.button(
+            label,
+            key=f"{key_prefix}_next_{index}",
+            type="primary" if index == 0 else "secondary",
+            width="stretch",
+            on_click=activate,
+            args=(action,),
+        )
 
 
 def demo_warning(st, rows: list[dict]) -> None:
