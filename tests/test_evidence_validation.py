@@ -55,7 +55,8 @@ class EvidenceValidationTests(unittest.TestCase):
     def test_mechanical_claim_does_not_overstate_significance(self):
         claims = {item.claim_id: item for item in build_claim_register(self.low, self.high, self.auto)}
         impact = claims["C-MECH-002"]
-        self.assertIn("-20.3%", impact.allowed_wording)
+        self.assertIn("冲击功", impact.allowed_wording)
+        self.assertIn("报告均值下降", impact.allowed_wording)
         self.assertIn("统计显著", impact.prohibited_wording)
         self.assertEqual(impact.status, "supported_with_caveat")
 

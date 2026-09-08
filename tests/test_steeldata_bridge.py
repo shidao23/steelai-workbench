@@ -432,7 +432,7 @@ class PanelTests(unittest.TestCase):
             run = Path(temp) / "run"
             result_fixture(run)
             app = AppTest.from_file(str(ROOT / "steelai/views/data_quality_panel.py"), default_timeout=20).run()
-            app.text_input(key="sd_run_path").set_value(str(run))
+            app.text_input(key="sd_run_path").set_value(str(run)).run()
             app.button(key="sd_load").click().run()
             self.assertFalse(app.exception, str(app.exception))
             inspection = app.session_state["sd_inspection"]
@@ -454,7 +454,7 @@ class PanelTests(unittest.TestCase):
             run = Path(temp) / "run"
             result_fixture(run, synthetic=True)
             app = AppTest.from_file(str(ROOT / "steelai/views/data_quality_panel.py"), default_timeout=20).run()
-            app.text_input(key="sd_run_path").set_value(str(run))
+            app.text_input(key="sd_run_path").set_value(str(run)).run()
             app.button(key="sd_load").click().run()
             self.assertFalse(app.exception, str(app.exception))
             self.assertTrue(app.button(key="sd_blocked_commit").disabled)

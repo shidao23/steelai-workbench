@@ -248,7 +248,7 @@ class SteelStatsViewTests(unittest.TestCase):
                 app = AppTest.from_file(
                     str(ROOT / "steelai" / "views" / "steelstats_view.py"), default_timeout=20,
                 ).run()
-                app.text_input(key="ss_run_path").set_value(str(run))
+                app.text_input(key="ss_run_path").set_value(str(run)).run()
                 app.button(key="ss_load").click().run()
         self.assertFalse(app.exception, str(app.exception))
         self.assertTrue(any(item.label == "研究样品 sample_id" for item in app.text_input))

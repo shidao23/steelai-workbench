@@ -1,5 +1,14 @@
 # Changelog
 
+## stage4-t41-public-repository-candidate - 2026-09-08
+
+- Added a fail-closed audit for the Git-tracked public candidate, covering local user paths, common secrets, private runtime areas, research sessions and model-weight formats.
+- Added the MIT license, README badges and architecture overview, cross-platform clean-install instructions, explicit known limitations and a frozen T41 release-candidate checklist.
+- Added the public audit to the deterministic quality gate and regression suite; kept all real data, local outputs, approvals and personal sessions outside the public candidate.
+- Added a cross-platform public-workspace bootstrap that copies only tracked synthetic fixtures and refuses to overwrite different local data, replacing CI-specific shell copy commands.
+- Removed hidden clean-clone test dependencies on local settings, sibling-module availability and private processed values; pinned the four direct runtime dependencies to the versions used for clean-install acceptance.
+- Recorded T42 and T43 as owner-canceled rather than incomplete; no remote repository was created and no GitHub push occurred.
+
 ## unified-complex-page-flow-and-next-actions - 2026-09-08
 
 - Added consistent workspace workflow strips and a shared four-part complex-page structure cue: current state, primary action, result and technical details.

@@ -9,7 +9,7 @@
 | 内容 | 路径或模式 | 原因 |
 | --- | --- | --- |
 | 真实研究表与索引 | `data/processed/`、`data/index/` | 可能包含未公开数值、样品关系、原始文件名和路径 |
-| 运行结果 | `outputs/`、`project_log/events.jsonl` | 报告、审计和事件可能含未公开研究信息 |
+| 运行结果 | `outputs/`、`project_log/events.jsonl`、`project_log/research_sessions/` | 报告、审计、会话和事件可能含未公开研究信息 |
 | 本机配置 | `config/settings.toml`、`.streamlit/secrets.toml` | 包含绝对路径或密钥；只跟踪示例配置 |
 | 真实 intake 区 | `raw_data/`、`inbox*/`、`approved_mappings/`、`approved_v2/` | 包含原始输入、人工批准或字段映射 |
 | DSH 本地状态 | `dsh_workspace/node_modules/`、`dsh_workspace/results/` | 本地依赖、会话和生成结果 |
@@ -22,8 +22,8 @@
 
 ```powershell
 git status --short --ignored
-git grep -n -I -E "(API[_-]?KEY|SECRET|TOKEN|D:/Desktop|D:\\\\Desktop)"
+python -m steelai.public_release_audit
 git diff --cached --name-only
 ```
 
-发现真实路径、原始文件名、凭据、模型权重或未公开结果时停止提交。阶段零不创建远程仓库，也不执行 `git push`。
+审计范围是 Git 跟踪的公开候选树；本地未跟踪文件仍必须由负责人逐项确认。任何 finding 都会返回失败，不能凭“看起来没问题”跳过。发现真实路径、原始文件名、凭据、模型权重或未公开结果时停止提交。本任务不执行 `git push`。

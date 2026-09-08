@@ -35,7 +35,18 @@ class FakeChatCompletions:
 
 class ResearchAgentTests(unittest.TestCase):
     def test_status_is_offline_without_key(self):
-        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": ""}):
+        settings = {
+            "ai": {
+                "enabled": True,
+                "provider": "deepseek",
+                "model": "deepseek-v4-flash",
+                "api_key_env": "DEEPSEEK_API_KEY",
+                "base_url": "https://api.deepseek.com/beta",
+            }
+        }
+        with patch("steelai.research_agent.load_settings", return_value=settings), patch.dict(
+            os.environ, {"DEEPSEEK_API_KEY": ""}
+        ):
             status = agent_status()
         self.assertFalse(status.ready)
         self.assertEqual(status.state, "offline_missing_key")

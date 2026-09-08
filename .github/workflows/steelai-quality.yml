@@ -26,10 +26,10 @@ jobs:
         run: python -m pip install -r requirements.txt
 
       - name: Prepare synthetic public CI fixtures
-        run: |
-          mkdir -p data/processed data/index
-          cp data/examples/processed/*.csv data/processed/
-          cp data/examples/index/evidence_index.csv data/index/evidence_index.csv
+        run: python -m steelai.public_workspace
+
+      - name: Audit the Git-tracked public candidate
+        run: python -m steelai.public_release_audit
 
       - name: Validate scientific data, Agent benchmark and privacy contracts
         run: python -m steelai.quality_gate

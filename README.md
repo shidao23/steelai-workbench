@@ -1,5 +1,9 @@
 # SteelAI Workbench MVP
 
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](docs/INSTALL.md)
+[![offline tests](https://img.shields.io/badge/offline_tests-passing-brightgreen)](.github/workflows/steelai-quality.yml)
+[![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 一个面向耐磨钢课题的本地科研 AI 工作台：Python 负责可复现的数据处理与物理计算，云端模型只负责在证据约束下组织自然语言报告。生活管理不在本项目范围内，继续放在 Notion。
 
 本机真实资料路径只保存在被 Git 忽略的 `config/settings.toml` 中，仓库只保留 `config/settings.example.toml`。B/R processed 摘要仍来自 v0.1 已核对研究笔记并受其证据边界约束；阶段一 T10 另外完成了一批脱敏 DQ 逐试样拉伸结果的结果包、重放和暂存预检，但尚未提交正式长表。T11 已在 SteelData 中把可公开的真实格式特征转成合成回归测试。T12 已冻结个人毕业主线数据契约 v1，明确材料、炉次、研究条件、物理试样、报告和逐值观测的关系；现有入库门禁不变。
@@ -19,6 +23,10 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 - [T24 Intake Agent 固定评测集](docs/T24_INTAKE_AGENT_EVALUATION.md)
 - [T33 SteelStats 模块接入](docs/T33_STEELSTATS_INTEGRATION.md)
 - [T40 端到端旗舰演示](docs/T40_FLAGSHIP_DEMO.md)
+- [系统架构](docs/ARCHITECTURE.md)
+- [从零安装](docs/INSTALL.md)
+- [已知限制](docs/KNOWN_LIMITATIONS.md)
+- [T41 公开仓库候选说明](docs/T41_PUBLIC_REPOSITORY_CANDIDATE.md)
 - [隐私与版本边界](docs/PRIVACY_BOUNDARY.md)
 - [阶段零测试基线](docs/BASELINE_2026-09-04.md)
 - [开发任务看板](TASKS.md)
@@ -38,6 +46,22 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 底层功能视图保留独立代码和测试，但不再占用侧栏入口。
 
 四个技术工作区统一显示领域工作路径；每个复杂功能页按“当前状态 → 主要操作 → 结果 → 技术详情”组织，并在页尾提供与当前结果相匹配的“下一步”按钮。跨工作区入口使用显式模块链接，避免跳转后落到错误功能。
+
+## 架构概览
+
+```mermaid
+flowchart LR
+    A[公开合成输入] --> B[Intake Agent 建议]
+    B --> C{人工审批}
+    C -->|批准| D[SteelData 标准化与 QC]
+    C -->|拒绝或不确定| X[停止并保留审计记录]
+    D --> E[SteelAI 仅追加数据闸门]
+    E --> F[SteelStats 描述统计]
+    F --> G[Research Agent 受限解释]
+    G --> H[可追溯报告与失败证据]
+```
+
+核心原则是 AI 只建议、人工保留决定权、确定性代码执行并留下可验证证据。详细职责和数据边界见 [系统架构](docs/ARCHITECTURE.md)。
 
 ## Research Case Pipeline v0.7
 
@@ -153,6 +177,8 @@ python -m pip install -r requirements.txt
 streamlit run app.py
 ```
 
+完整 Windows、macOS 和 Linux 从零安装及公开候选自检步骤见 [安装说明](docs/INSTALL.md)。当前范围、外部模块依赖和不能宣称的能力见 [已知限制](docs/KNOWN_LIMITATIONS.md)。
+
 如果电脑上没有 `py`，将第一行换成已安装 Python 3.11+ 的完整路径。
 
 应用核心不依赖网络。Research Agent默认使用DeepSeek API。请在Windows用户环境变量中配置：
@@ -211,4 +237,10 @@ CSV 以 `sample_id` 为关联键。空值留空，不要用 0 代替“未测”
 python -m unittest discover -s tests -v
 ```
 
-核心测试不需要外部API；GitHub CI使用合成数据运行同一套质量门禁。
+核心测试不需要外部API；GitHub CI使用合成数据运行同一套质量门禁。发布前另运行：
+
+```powershell
+python -m steelai.public_release_audit
+```
+
+该命令只审计 Git 将要公开的候选内容，并对本机绝对路径、常见密钥、真实运行区、个人科研会话和模型权重关闭式失败。
