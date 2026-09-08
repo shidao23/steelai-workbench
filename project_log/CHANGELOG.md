@@ -1,5 +1,12 @@
 # Changelog
 
+## stage3-t33-steelstats-integration - 2026-09-08
+
+- Added a “可追溯统计” Workbench view that verifies a SteelData tensile result package and requires explicit specimen-to-sample mapping, method version and human inclusion approval.
+- Added an isolated SteelStats client that uses only the sibling module's declared `report` and `verify-report` CLI, with a scrubbed environment, fixed arguments, no shared Python imports and no cloud call.
+- Added append-only T30 input-bundle preparation, result/QC display, independent report verification and fail-closed handling for invalid source packages, duplicate specimens, missing review data, module errors and output-path violations.
+- Added a real cross-project subprocess test proving that report generation leaves every SteelData source-package file digest unchanged.
+
 ## stage2-t24-label-approval - 2026-09-07
 
 - Recorded project-owner acceptance of the 40 sanitized Intake Agent v0.1 labels and moved T24 from Review to Done.

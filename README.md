@@ -6,7 +6,7 @@
 
 ## 当前状态与项目治理
 
-SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接入”两个入口。SteelData v0.2 通过独立 Python 环境、CLI 与结果契约接入拉伸逐试样观测；成分和曲线仍只预览。T23 已接通人工批准后的受控执行，但正式长表仍要用户核对样品对应并确认追加。T24 的 40 个脱敏 Intake Agent 案例标签已获确认并冻结；参考分数仍不代表云模型能力。DSH 是只读/建议旁路，不替代确定性数据处理，也没有审批、执行或写入权限。
+SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接入”两个入口。SteelData v0.2 通过独立 Python 环境、CLI 与结果契约接入拉伸逐试样观测；成分和曲线仍只预览。T23 已接通人工批准后的受控执行，但正式长表仍要用户核对样品对应并确认追加。T24 的 40 个脱敏 Intake Agent 案例标签已获确认并冻结；参考分数仍不代表云模型能力。T33 已接通独立 SteelStats：用户人工确认统计身份后可生成可追溯描述统计报告，结果不回写 SteelData。DSH 是只读/建议旁路，不替代确定性数据处理，也没有审批、执行或写入权限。
 
 - [当前能力与旧入口状态](docs/CURRENT_CAPABILITIES.md)
 - [毕业主线数据契约 v1](docs/GRADUATION_DATA_CONTRACT_V1.md)
@@ -17,6 +17,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 - [T22 SteelData 映射建议人工审批](docs/T22_STEELDATA_HUMAN_REVIEW.md)
 - [T23 人工批准后的执行与接入](docs/T23_APPROVED_EXECUTION.md)
 - [T24 Intake Agent 固定评测集](docs/T24_INTAKE_AGENT_EVALUATION.md)
+- [T33 SteelStats 模块接入](docs/T33_STEELSTATS_INTEGRATION.md)
 - [隐私与版本边界](docs/PRIVACY_BOUNDARY.md)
 - [阶段零测试基线](docs/BASELINE_2026-09-04.md)
 - [开发任务看板](TASKS.md)
@@ -27,7 +28,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 侧栏保留六个主入口，专业功能通过页面顶部的横向子模块切换：
 
 1. 科研总览
-2. 数据与物理（样品/B-R对比、Physics Engine、数据质量与扩展准备）
+2. 数据与物理（样品/B-R对比、Physics Engine、数据质量与扩展准备、可追溯统计）
 3. 研究助手（端到端研究任务、Research Agent、Agent评测、证据验证）
 4. 组织与证据（证据索引、EBSD/MTEX）
 5. 模型与自动化（Open Model Lab、任务与结果）
@@ -102,6 +103,12 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 导入闸门会拦截缺少必要列或必要值、非有限数值、重复主键、现有记录冲突、未登记样品、超出B/R范围、未知列和非法`measurement_type`。系统不覆盖已有主键，不把空白改成0，不复制上传的原始文件，也不调用DeepSeek。成功写入会在`outputs/data_intake/<intake_id>/`生成规范化暂存表、校验Manifest和提交结果，并在项目事件日志中形成可追溯记录。
 
 编号规则明确区分材料、炉次、工艺批次、研究样品、物理试样、图像视场、观测值和模型运行。视场嵌套于试样，不能冒充独立试样；无法核实的编号必须保留为待核验状态。
+
+## SteelStats 模块接入 v0.12
+
+入口：**数据与物理 → 可追溯统计**。Workbench 先校验完整 SteelData 结果包，再要求用户逐一确认试样到研究样品的对应、填写实验方法版本和人工审核身份。只有这些条件齐全，才会生成冻结的 SteelStats T30 输入包。
+
+SteelStats 保持同级独立项目和独立 `.venv`。Workbench 不导入其内部 Python 代码，只调用 `steelstats.module.json` 声明的固定 `report` 与 `verify-report` 命令。报告生成后页面显示来源 QC、统计状态与完整性复核；任何失败都不会写回 SteelData、`data/processed/` 或原始观测。
 
 ## Physics Model Registry v0.12
 
