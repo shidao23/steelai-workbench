@@ -29,6 +29,7 @@ ADAPTER_VERSION = "1.0"
 PROPERTIES = (("ys_mpa", "ys_mpa", "MPa"), ("uts_mpa", "uts_mpa", "MPa"),
               ("el_pct", "elongation_pct", "%"))
 SOURCE_STATUSES = ("instrument_export", "verified_from_source", "manual_extraction_verified")
+SYNTHETIC_PREVIEW_BLOCKER = "合成演示数据（或缺少 synthetic=false 声明）只能预览，不能进入真实 processed。"
 MAX_ARTIFACT = 128 * 1024 * 1024
 MAX_PACKAGE = 512 * 1024 * 1024
 
@@ -244,7 +245,7 @@ def inspect_run(run_dir: str | Path) -> Inspection:
             "request": execution_request,
         }
     if manifest.get("synthetic") is not False:
-        blockers.append("合成演示数据（或缺少 synthetic=false 声明）只能预览，不能进入真实 processed。")
+        blockers.append(SYNTHETIC_PREVIEW_BLOCKER)
     if manifest.get("processing_status") != "complete":
         blockers.append("批次尚未全部处理完成；请在 SteelData 修复或明确拆分后重新运行。")
     if manifest.get("qc_status") not in {"passed", "warning"} or qc.get("status") != manifest.get("qc_status"):
@@ -462,7 +463,9 @@ class SteelDataClient:
         except ValueError as exc:
             raise ValueError("SteelData 未返回有效 JSON：" + completed.stderr[-1200:]) from exc
         if completed.returncode not in accepted:
-            raise ValueError(payload.get("message", f"SteelData 退出码 {completed.returncode}"))
+            code = str(payload.get("error", "steeldata_error"))
+            message = str(payload.get("message", f"SteelData 退出码 {completed.returncode}"))
+            raise ValueError(f"{code}: {message}")
         return payload
 
     def doctor(self) -> dict:
@@ -471,19 +474,30 @@ class SteelDataClient:
     def list_suggestions(self) -> list[dict]:
         return self._call(["suggestion-list", "--workspace", str(self.project)]).get("suggestions", [])
 
-    def show_suggestion(self, suggestion_id: str) -> dict:
+    def show_suggestion(self, suggestion_id: str, *, workspace: Path | None = None) -> dict:
+        workspace = Path(workspace or self.project).resolve()
         return self._call([
-            "suggestion-show", "--workspace", str(self.project),
+            "suggestion-show", "--workspace", str(workspace),
             "--suggestion-id", suggestion_id,
         ])
 
-    def review_suggestion(self, suggestion: dict, decision: str, reviewer: str, note: str) -> dict:
+    def submit_suggestion(self, workspace: Path, payload_file: Path) -> dict:
+        return self._call([
+            "suggestion-create", "--workspace", str(Path(workspace).resolve()),
+            "--payload", str(Path(payload_file).resolve()),
+        ])
+
+    def review_suggestion(
+        self, suggestion: dict, decision: str, reviewer: str, note: str, *,
+        workspace: Path | None = None,
+    ) -> dict:
         if decision not in {"approve", "reject"}:
             raise ValueError("审批决定必须是 approve 或 reject。")
         if not reviewer.strip() or not note.strip():
             raise ValueError("审批人和审批说明不能为空。")
+        workspace = Path(workspace or self.project).resolve()
         return self._call([
-            "suggestion-review", "--workspace", str(self.project),
+            "suggestion-review", "--workspace", str(workspace),
             "--suggestion-id", str(suggestion["suggestion_id"]),
             "--decision", decision,
             "--expected-revision", str(suggestion["revision"]),
@@ -491,18 +505,26 @@ class SteelDataClient:
             "--reviewer", reviewer.strip(), "--note", note.strip(),
         ])
 
-    def suggestion_execution_status(self, suggestion_id: str) -> dict:
+    def suggestion_execution_status(self, suggestion_id: str, *, workspace: Path | None = None) -> dict:
+        workspace = Path(workspace or self.project).resolve()
         return self._call([
-            "suggestion-execution-status", "--workspace", str(self.project),
+            "suggestion-execution-status", "--workspace", str(workspace),
             "--suggestion-id", suggestion_id,
         ])
 
-    def execute_suggestion(self, suggestion_id: str, expected_sha256: str) -> dict:
-        return self._call([
-            "suggestion-execute", "--workspace", str(self.project),
+    def execute_suggestion(
+        self, suggestion_id: str, expected_sha256: str, *, synthetic_demo: bool = False,
+        workspace: Path | None = None,
+    ) -> dict:
+        workspace = Path(workspace or self.project).resolve()
+        args = [
+            "suggestion-execute", "--workspace", str(workspace),
             "--suggestion-id", suggestion_id,
             "--expected-sha256", expected_sha256,
-        ])
+        ]
+        if synthetic_demo:
+            args.append("--synthetic-demo")
+        return self._call(args)
 
     def intake_evaluation_contract(self) -> dict:
         return self._call(["intake-eval-contract"])

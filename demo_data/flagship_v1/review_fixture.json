@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "fixture_id": "t40-public-synthetic-human-decision-v1",
+  "synthetic_only": true,
+  "reviewer": "T40-DEMO-HUMAN-REVIEW-FIXTURE",
+  "note": "Frozen public synthetic decision fixture for the T40 showcase; this is not a real laboratory approval.",
+  "reviewed_at": "2026-09-08T12:00:00+08:00",
+  "method_version": "tensile-iso6892-1@1.0.0",
+  "sample_bindings": {
+    "SYN-B-DQ-01": "SYN-SAMPLE-B",
+    "SYN-B-DQ-02": "SYN-SAMPLE-B",
+    "SYN-B-DQ-03": "SYN-SAMPLE-B",
+    "SYN-R-DQ-01": "SYN-SAMPLE-R",
+    "SYN-R-DQ-02": "SYN-SAMPLE-R",
+    "SYN-R-DQ-03": "SYN-SAMPLE-R"
+  }
+}

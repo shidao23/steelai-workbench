@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "suggestion_id": "t40-syn-success-v1",
+  "source_file": "flagship_v1/SYN-T40-tensile.csv",
+  "source_sha256": "58d0579797430c639b4229a6d7015f612a94af16ca40f9fd1f04c0f1b5e2870c",
+  "domain": "tensile",
+  "proposed_profile": {
+    "schema_version": 1,
+    "profile_id": "t40-syn-tensile-v1",
+    "domain": "tensile",
+    "layout": "flat",
+    "description": "Frozen public synthetic T40 tensile fixture with explicit units.",
+    "columns": [
+      {"source": "Specimen", "target": "specimen_id", "dtype": "text"},
+      {"source": "Batch", "target": "batch_id", "dtype": "text"},
+      {"source": "Process", "target": "process", "dtype": "text"},
+      {"source": "YS (MPa)", "target": "ys_mpa", "dtype": "number", "unit": "MPa", "target_unit": "MPa"},
+      {"source": "UTS (MPa)", "target": "uts_mpa", "dtype": "number", "unit": "MPa", "target_unit": "MPa"},
+      {"source": "EL (%)", "target": "el_pct", "dtype": "number", "unit": "%", "target_unit": "%"}
+    ],
+    "rules": {"tensile_relations": true, "allowed_processes": ["DQ"], "expected_replicates": 3}
+  },
+  "field_mappings": [
+    {"source": "Specimen", "target": "specimen_id", "dtype": "text", "source_unit": null, "target_unit": null, "evidence": ["exact_header"], "confidence": 1, "alternatives": []},
+    {"source": "Batch", "target": "batch_id", "dtype": "text", "source_unit": null, "target_unit": null, "evidence": ["exact_header"], "confidence": 1, "alternatives": []},
+    {"source": "Process", "target": "process", "dtype": "text", "source_unit": null, "target_unit": null, "evidence": ["exact_header"], "confidence": 1, "alternatives": []},
+    {"source": "YS (MPa)", "target": "ys_mpa", "dtype": "number", "source_unit": "MPa", "target_unit": "MPa", "evidence": ["exact_header", "header_unit"], "confidence": 1, "alternatives": []},
+    {"source": "UTS (MPa)", "target": "uts_mpa", "dtype": "number", "source_unit": "MPa", "target_unit": "MPa", "evidence": ["exact_header", "header_unit"], "confidence": 1, "alternatives": []},
+    {"source": "EL (%)", "target": "el_pct", "dtype": "number", "source_unit": "%", "target_unit": "%", "evidence": ["exact_header", "header_unit"], "confidence": 1, "alternatives": []}
+  ],
+  "uncertainties": [],
+  "rationale": "Every required header and unit is explicit in the public synthetic source; human approval remains mandatory."
+}

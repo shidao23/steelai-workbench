@@ -1,5 +1,13 @@
 # Changelog
 
+## stage4-t40-frozen-flagship-demo-review - 2026-09-08
+
+- Added a one-command public-synthetic showcase spanning source-bound Agent-shaped suggestion, explicit frozen human-decision fixture, SteelData normalization/QC, isolated SteelStats reporting and bounded SteelAI interpretation.
+- Added a real negative path where an unresolved YS unit stays `needs_human`; an attempted unapproved execution returns `execution_not_approved` and writes no result.
+- Added semantic expected values, recursive SHA-256 package verification, idempotent reuse, tamper refusal, a Workbench result view, operating checklist and regression tests.
+- Bound nested completion markers and the complete SteelData/SteelStats Python source fingerprints into the frozen identity, with bounded retry for transient Windows directory locks and no-overwrite behavior unchanged.
+- Kept T40 in Review until the project owner accepts the visual presentation; no real data, cloud call, automatic approval, formal data intake or inferential claim is part of the demo.
+
 ## stage3-t33-steelstats-integration - 2026-09-08
 
 - Added a “可追溯统计” Workbench view that verifies a SteelData tensile result package and requires explicit specimen-to-sample mapping, method version and human inclusion approval.

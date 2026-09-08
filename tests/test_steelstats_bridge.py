@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from steelai.steeldata_bridge import inspect_run, mapping_rows
+from steelai.steeldata_bridge import SYNTHETIC_PREVIEW_BLOCKER, inspect_run, mapping_rows
 from steelai.steelstats_bridge import (
     INPUT_FILES,
     SteelStatsClient,
@@ -147,6 +147,29 @@ class StatisticalInputBridgeTests(unittest.TestCase):
                     run, bindings_for(run), METHOD, "Researcher A", REVIEWED_AT,
                     output_root=run / "statistics",
                 )
+
+    def test_synthetic_source_requires_explicit_flag_and_keeps_synthetic_label(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            parent = Path(temp)
+            run = self.make_run(parent)
+            manifest_path = run / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["synthetic"] = True
+            seal(run, manifest)
+            inspection = inspect_run(run)
+            self.assertIn(SYNTHETIC_PREVIEW_BLOCKER, inspection.blockers)
+            with self.assertRaisesRegex(ValueError, "合成演示数据"):
+                prepare_statistical_input(
+                    run, bindings_for(run), METHOD, "Researcher A", REVIEWED_AT,
+                    output_root=parent / "blocked",
+                )
+            result = prepare_statistical_input(
+                run, bindings_for(run), METHOD, "Researcher A", REVIEWED_AT,
+                output_root=parent / "allowed", allow_synthetic=True,
+            )
+            with (Path(result["bundle_dir"]) / "units.csv").open(encoding="utf-8", newline="") as handle:
+                units = list(csv.DictReader(handle))
+            self.assertEqual({row["unit_status"] for row in units}, {"synthetic_fixture"})
 
 
 class ModuleClientTests(unittest.TestCase):

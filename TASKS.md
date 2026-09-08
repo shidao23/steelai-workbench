@@ -36,6 +36,7 @@
 | T23 | 实现批准后的执行与接入 | P0 | Done | T22 | 人工批准触发、执行状态、幂等重试、结果审计链、原有仅追加接入闸门 |
 | T24 | 建立 Intake Agent 评测集 | P0 | Done | T21、T23 | 40 个获批脱敏案例、确定性评分、参考回归与 Workbench 标签查看入口 |
 | T33 | 接入 SteelAI 并建立模块边界测试 | P1 | Done | T32 | SteelData 包选择、人工统计决策、独立 SteelStats CLI、结果页与端到端不回写测试 |
+| T40 | 冻结端到端旗舰演示 | P0 | Review | T24、T33 | 公开合成输入、一键脚本、成功/未知单位案例、完整性包、运行清单与截图 |
 
 ## 已完成任务 T10
 
@@ -126,3 +127,11 @@
 验收结果：Workbench 不导入 SteelStats 内部脚本，仅使用模块描述中固定的 `report` 和 `verify-report` CLI；页面显示 SteelData QC、SteelStats 状态、综合质量状态和完整性复核。专项测试包含真实跨项目子进程调用，并证明调用前后的 SteelData 结果包逐文件 SHA-256 完全一致。Workbench 全量 139 项通过，3 项既有环境条件测试跳过；SteelStats 全量 31 项通过。
 
 边界：不合并两个虚拟环境，不向云模型发送数据，不自动猜测样品对应或方法版本，不接入非拉伸数据，不做显著性检验。统计输入和报告只写入 Workbench 被 Git 忽略的 `outputs/`，绝不写回 SteelData、`data/processed/` 或原始观测列。
+
+## 待项目负责人验收任务 T40
+
+完成情况：“研究助手 → 旗舰演示”与 `Run_Flagship_Demo.cmd` 已串起公开合成 CSV、Agent 形状建议、明确的 synthetic-only 人工作决定夹具、SteelData 标准化/QC、SteelStats 组级统计和 SteelAI 描述性解释。结果作为带 SHA-256 manifest 和 `COMPLETE` 的仅追加包发布；同输入重放复用，篡改包拒绝覆盖。
+
+技术验收：成功链路产生 6 个试样、18 条观测、6 个统计组且每组 n=3；SteelData QC 与 SteelStats 完整性均通过。失败链路的 YS 单位故意未知，状态稳定为 `needs_human`，未批准执行返回 `execution_not_approved` 且没有结果。Workbench 全量 142 项通过、3 项既有环境条件测试跳过；SteelData 全量 88 项通过；SteelStats 全量 31 项通过。
+
+边界：全部输入和值为公开合成资料；冻结决定夹具不冒充真实人工实验审批。演示不调用云端或本地 AI，不写正式科研长表，不做推断统计、因果判断或工艺推荐，也不临场修改输出。项目负责人观看界面与截图并确认展示口径后，方可把 T40 从 `Review` 改为 `Done`。

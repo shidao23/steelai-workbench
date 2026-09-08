@@ -1,0 +1,23 @@
+{
+  "contract_version": 1,
+  "success": {
+    "specimens": 6,
+    "observations": 18,
+    "groups": 6,
+    "group_n": 3,
+    "means": {
+      "SYN-SAMPLE-B|ys_mpa": 951.6666666666666,
+      "SYN-SAMPLE-B|uts_mpa": 1121.6666666666667,
+      "SYN-SAMPLE-B|elongation_pct": 12.133333333333333,
+      "SYN-SAMPLE-R|ys_mpa": 906.6666666666666,
+      "SYN-SAMPLE-R|uts_mpa": 1076.6666666666667,
+      "SYN-SAMPLE-R|elongation_pct": 13.966666666666667
+    }
+  },
+  "failure": {
+    "status": "needs_human",
+    "uncertainty_fields": ["ys_mpa"],
+    "execution_started": false,
+    "result_created": false
+  }
+}

@@ -20,7 +20,7 @@ class StreamlitPageTests(unittest.TestCase):
 
     def test_all_embedded_feature_views_render_without_exception(self):
         files = sorted((ROOT / "steelai" / "views").glob("*_view.py"))
-        self.assertEqual(len(files), 13)
+        self.assertEqual(len(files), 14)
         failures = []
         for path in files:
             app = AppTest.from_file(str(path), default_timeout=15).run()

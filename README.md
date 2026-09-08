@@ -6,7 +6,7 @@
 
 ## 当前状态与项目治理
 
-SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接入”两个入口。SteelData v0.2 通过独立 Python 环境、CLI 与结果契约接入拉伸逐试样观测；成分和曲线仍只预览。T23 已接通人工批准后的受控执行，但正式长表仍要用户核对样品对应并确认追加。T24 的 40 个脱敏 Intake Agent 案例标签已获确认并冻结；参考分数仍不代表云模型能力。T33 已接通独立 SteelStats：用户人工确认统计身份后可生成可追溯描述统计报告，结果不回写 SteelData。DSH 是只读/建议旁路，不替代确定性数据处理，也没有审批、执行或写入权限。
+SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接入”两个入口。SteelData v0.2 通过独立 Python 环境、CLI 与结果契约接入拉伸逐试样观测；成分和曲线仍只预览。T23 已接通人工批准后的受控执行，但正式长表仍要用户核对样品对应并确认追加。T24 的 40 个脱敏 Intake Agent 案例标签已获确认并冻结；参考分数仍不代表云模型能力。T33 已接通独立 SteelStats：用户人工确认统计身份后可生成可追溯描述统计报告，结果不回写 SteelData。T40 已形成公开合成的一键旗舰演示，并保持 Review 等待项目负责人最终观看验收。DSH 是只读/建议旁路，不替代确定性数据处理，也没有审批、执行或写入权限。
 
 - [当前能力与旧入口状态](docs/CURRENT_CAPABILITIES.md)
 - [毕业主线数据契约 v1](docs/GRADUATION_DATA_CONTRACT_V1.md)
@@ -18,6 +18,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 - [T23 人工批准后的执行与接入](docs/T23_APPROVED_EXECUTION.md)
 - [T24 Intake Agent 固定评测集](docs/T24_INTAKE_AGENT_EVALUATION.md)
 - [T33 SteelStats 模块接入](docs/T33_STEELSTATS_INTEGRATION.md)
+- [T40 端到端旗舰演示](docs/T40_FLAGSHIP_DEMO.md)
 - [隐私与版本边界](docs/PRIVACY_BOUNDARY.md)
 - [阶段零测试基线](docs/BASELINE_2026-09-04.md)
 - [开发任务看板](TASKS.md)
@@ -29,7 +30,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 
 1. 科研总览
 2. 数据与物理（样品/B-R对比、Physics Engine、数据质量与扩展准备、可追溯统计）
-3. 研究助手（端到端研究任务、Research Agent、Agent评测、证据验证）
+3. 研究助手（端到端研究任务、Research Agent、Agent评测、旗舰演示、证据验证）
 4. 组织与证据（证据索引、EBSD/MTEX）
 5. 模型与自动化（Open Model Lab、任务与结果）
 6. Career Portfolio
@@ -138,6 +139,8 @@ Research Agent和端到端研究任务调用同一注册表的六个默认模型
 ## 运行
 
 当前工作目录若已包含 `.venv`，可直接双击 `Start_SteelAI.bat`。兼容入口 `启动_SteelAI.bat` 也会调用同一个英文启动器。应用只监听本机 `127.0.0.1`，不会主动暴露到局域网；若已运行，启动器会直接打开现有页面。
+
+T40 毕业作品主演示可直接双击 `Run_Flagship_Demo.cmd`。它只读取仓库中的公开合成资料，跨独立 SteelData / SteelStats 环境生成审计包，并同时验证成功案例和“未知单位被拦截”的失败案例；详细清单见 [T40 文档](docs/T40_FLAGSHIP_DEMO.md)。
 
 首次安装可用 Windows PowerShell：
 

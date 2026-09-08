@@ -14,13 +14,16 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from steelai.paths import OUTPUTS, ROOT
-from steelai.steeldata_bridge import Inspection, inspect_run, mapping_rows
+from steelai.steeldata_bridge import (
+    SYNTHETIC_PREVIEW_BLOCKER, Inspection, inspect_run, mapping_rows,
+)
 
 
 ADAPTER_VERSION = "1.0"
@@ -33,6 +36,18 @@ TARGETS = (
     ("el_pct", "elongation_pct", "%"),
 )
 INPUT_FILES = ("analysis_plan.json", "units.csv", "observations.csv", "decisions.csv")
+
+
+def _publish_directory(staging: Path, destination: Path) -> None:
+    """Handle brief Windows scanner locks without weakening no-overwrite publication."""
+    for attempt in range(5):
+        try:
+            staging.rename(destination)
+            return
+        except PermissionError:
+            if attempt == 4 or destination.exists():
+                raise
+            time.sleep(0.1 * (attempt + 1))
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -96,9 +111,15 @@ def _build_input_files(
     method_version: str,
     reviewer: str,
     reviewed_at: str,
+    *,
+    allow_synthetic: bool = False,
 ) -> dict[str, bytes]:
-    if not inspection.transferable:
-        raise ValueError("SteelData 结果包不可用于统计：" + "；".join(inspection.blockers))
+    blockers = list(inspection.blockers)
+    is_synthetic = inspection.manifest.get("synthetic") is True
+    if allow_synthetic and is_synthetic:
+        blockers = [item for item in blockers if item != SYNTHETIC_PREVIEW_BLOCKER]
+    if blockers:
+        raise ValueError("SteelData 结果包不可用于统计：" + "；".join(blockers))
     bindings = _validated_bindings(inspection, bindings)
     method_version, reviewer, reviewed_at = _validate_review(method_version, reviewer, reviewed_at)
     run_id = str(inspection.manifest.get("run_id", "")).strip()
@@ -152,7 +173,7 @@ def _build_input_files(
                 "parent_unit_type": "sample",
                 "sample_id": sample_id,
                 "specimen_id": specimen_id,
-                "unit_status": "verified",
+                "unit_status": "synthetic_fixture" if is_synthetic else "verified",
                 "notes": f"SteelAI SteelStats bridge {ADAPTER_VERSION}; SteelData run {run_id}; manifest {inspection.manifest_sha256}",
             })
             source_qc = source_qc_by_dataset.get(str(dataset.get("dataset_dir")), "")
@@ -216,13 +237,17 @@ def prepare_statistical_input(
     reviewed_at: str,
     *,
     output_root: Path = OUTPUTS / "steelstats_inputs",
+    allow_synthetic: bool = False,
 ) -> dict[str, Any]:
     """Create one append-only T30 bundle without writing inside SteelData."""
     inspection = inspect_run(run_dir)
     root = output_root.resolve()
     if root == inspection.root or root.is_relative_to(inspection.root):
         raise ValueError("统计输入输出目录不能位于 SteelData 结果包内。")
-    files = _build_input_files(inspection, bindings, method_version, reviewer, reviewed_at)
+    files = _build_input_files(
+        inspection, bindings, method_version, reviewer, reviewed_at,
+        allow_synthetic=allow_synthetic,
+    )
     package_digest = _digest_json({name: _digest_bytes(content) for name, content in sorted(files.items())})
     bundle_id = "SSB-" + package_digest[:20].upper()
     destination = root / bundle_id
@@ -240,7 +265,7 @@ def prepare_statistical_input(
         try:
             for name, content in files.items():
                 (staging / name).write_bytes(content)
-            staging.rename(destination)
+            _publish_directory(staging, destination)
         except Exception:
             if staging.exists():
                 shutil.rmtree(staging)
@@ -362,6 +387,7 @@ def run_statistics_from_steeldata(
     input_root: Path = OUTPUTS / "steelstats_inputs",
     report_root: Path = OUTPUTS / "steelstats_reports",
     client: SteelStatsClient | None = None,
+    allow_synthetic: bool = False,
 ) -> dict[str, Any]:
     """Prepare, publish and verify without ever opening SteelData files for writing."""
     source = Path(run_dir).resolve()
@@ -375,6 +401,7 @@ def run_statistics_from_steeldata(
         reviewer,
         reviewed_at,
         output_root=input_root,
+        allow_synthetic=allow_synthetic,
     )
     module = client or SteelStatsClient()
     published = module.publish(Path(prepared["bundle_dir"]), report_root)

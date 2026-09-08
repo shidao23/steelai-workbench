@@ -9,7 +9,7 @@ from steelai.view_loader import render_view
 setup_page(st, "SteelAI Workbench · 研究助手", "🧠")
 section = st.radio(
     "功能模块",
-    ["科研会话", "端到端研究任务", "Research Agent", "Agent评测", "证据验证"],
+    ["科研会话", "端到端研究任务", "Research Agent", "Agent评测", "旗舰演示", "证据验证"],
     horizontal=True,
     label_visibility="collapsed",
 )
@@ -19,6 +19,7 @@ view = {
     "端到端研究任务": "research_case_view.py",
     "Research Agent": "research_agent_view.py",
     "Agent评测": "agent_evaluation_view.py",
+    "旗舰演示": "flagship_demo_view.py",
     "证据验证": "validation_view.py",
 }[section]
 render_view(view)

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "suggestion_id": "t40-syn-unknown-unit-v1",
+  "source_file": "flagship_v1/SYN-T40-unknown-unit.csv",
+  "source_sha256": "3b7b4f5cbb400b2e2d866b400537610e951c15f5f2bbef1775c20f2384d89ce3",
+  "domain": "tensile",
+  "proposed_profile": {
+    "schema_version": 1,
+    "profile_id": "t40-syn-unknown-unit-v1",
+    "domain": "tensile",
+    "layout": "flat",
+    "description": "Frozen negative fixture: yield strength unit is intentionally absent.",
+    "columns": [
+      {"source": "Specimen", "target": "specimen_id", "dtype": "text"},
+      {"source": "Batch", "target": "batch_id", "dtype": "text"},
+      {"source": "Process", "target": "process", "dtype": "text"},
+      {"source": "YS", "target": "ys_mpa", "dtype": "number", "unit": null, "target_unit": "MPa"},
+      {"source": "UTS (MPa)", "target": "uts_mpa", "dtype": "number", "unit": "MPa", "target_unit": "MPa"},
+      {"source": "EL (%)", "target": "el_pct", "dtype": "number", "unit": "%", "target_unit": "%"}
+    ],
+    "rules": {"tensile_relations": true, "allowed_processes": ["DQ"], "expected_replicates": 1}
+  },
+  "field_mappings": [
+    {"source": "Specimen", "target": "specimen_id", "dtype": "text", "source_unit": null, "target_unit": null, "evidence": ["exact_header"], "confidence": 1, "alternatives": []},
+    {"source": "Batch", "target": "batch_id", "dtype": "text", "source_unit": null, "target_unit": null, "evidence": ["exact_header"], "confidence": 1, "alternatives": []},
+    {"source": "Process", "target": "process", "dtype": "text", "source_unit": null, "target_unit": null, "evidence": ["exact_header"], "confidence": 1, "alternatives": []},
+    {"source": "YS", "target": "ys_mpa", "dtype": "number", "source_unit": null, "target_unit": "MPa", "evidence": ["exact_header"], "confidence": 0.4, "alternatives": []},
+    {"source": "UTS (MPa)", "target": "uts_mpa", "dtype": "number", "source_unit": "MPa", "target_unit": "MPa", "evidence": ["exact_header", "header_unit"], "confidence": 1, "alternatives": []},
+    {"source": "EL (%)", "target": "el_pct", "dtype": "number", "source_unit": "%", "target_unit": "%", "evidence": ["exact_header", "header_unit"], "confidence": 1, "alternatives": []}
+  ],
+  "uncertainties": [
+    {"field": "ys_mpa", "code": "unit_uncertain", "detail": "YS has no trustworthy source unit; conversion to MPa must not be guessed.", "alternatives": ["MPa", "ksi"]}
+  ],
+  "rationale": "The domain is recognizable, but the missing YS unit prevents safe execution until a human resolves it."
+}
