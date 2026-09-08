@@ -1,5 +1,10 @@
 # Changelog
 
+## stage4-t40-owner-acceptance - 2026-09-08
+
+- Recorded the project owner's explicit “T40 验收通过” after viewing the live flagship page.
+- Moved T40 from Review to Done; implementation, data boundaries, frozen output identity and test evidence remain unchanged.
+
 ## stage4-t40-frozen-flagship-demo-review - 2026-09-08
 
 - Added a one-command public-synthetic showcase spanning source-bound Agent-shaped suggestion, explicit frozen human-decision fixture, SteelData normalization/QC, isolated SteelStats reporting and bounded SteelAI interpretation.
