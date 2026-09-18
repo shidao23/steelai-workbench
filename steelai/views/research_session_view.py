@@ -225,8 +225,8 @@ with context_tab:
 next_step_buttons(
     st,
     [
-        {"label": "进入研究任务", "state": {"research_module_selector": "研究任务"}},
-        {"label": "使用智能助手", "state": {"research_module_selector": "智能助手"}},
+        {"label": "进入研究报告", "url": "/analysis?module=research"},
+        {"label": "使用 AI 助手", "url": "/assistant"},
     ],
     key_prefix="research_session",
     note="会话范围确认后，可以运行端到端任务，或让智能助手整理当前结构化证据。",

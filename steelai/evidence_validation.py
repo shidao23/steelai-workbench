@@ -394,9 +394,49 @@ def validation_summary(
     low_ebsd: dict[str, Any] | None = None,
     high_ebsd: dict[str, Any] | None = None,
     autodimple: dict[str, Any] | None = None,
+    *,
+    statistics_package=None,
 ) -> dict[str, Any]:
     evidence = build_evidence_registry(low_ebsd, high_ebsd, autodimple)
     claims = build_claim_register(low_ebsd, high_ebsd, autodimple)
+    governed_statistics = None
+    if statistics_package is not None:
+        from steelai.statistics_governance import inspect_governed_statistics
+
+        inspected = inspect_governed_statistics(statistics_package)
+        if inspected.get("status") == "passed":
+            registry = inspected["registry"]
+            policy = inspected["statement_policy"]
+            governed_statistics = {
+                "governance_id": inspected["governance_id"],
+                "analysis_id": inspected["analysis_id"],
+                "governance_state": inspected["governance_state"],
+                "quality_status": inspected["quality_status"],
+                "evidence_class": inspected["evidence_class"],
+                "evidence_level": inspected["evidence_level"],
+                "statistical_unit_type": registry["statistical_unit_type"],
+                "counts": registry["counts"],
+                "source": registry["source"],
+                "statement_policy": policy,
+            }
+            mechanical = next(
+                (item for item in evidence if item.evidence_id == "E-MECH-001"),
+                None,
+            )
+            if mechanical is not None:
+                mechanical.level = policy["evidence_level"]
+                mechanical.status = "governed_statistics_complete"
+                mechanical.scope = (
+                    f"{registry['counts']['statistical_units']}个登记统计单位，"
+                    f"{registry['counts']['observations']}条观测，"
+                    f"{registry['counts']['groups']}个描述统计组"
+                )
+                mechanical.summary = (
+                    f"治理统计结果 {inspected['governance_id']} 已通过完整性复核；"
+                    "允许报告描述统计，不包含显著性检验或因果判断。"
+                )
+                mechanical.source_locator = "governed_statistics/" + inspected["governance_id"]
+                mechanical.limitations = list(policy["cautious_statements"])
     level_counts = Counter(item.level for item in evidence)
     status_counts = Counter(item.status for item in claims)
     return {
@@ -414,6 +454,7 @@ def validation_summary(
         "evidence": [item.to_dict() for item in evidence],
         "claims": [item.to_dict() for item in claims],
         "validation_gates": VALIDATION_GATES,
+        "governed_statistics": governed_statistics,
     }
 
 
@@ -457,6 +498,20 @@ def validation_report_markdown(summary: dict[str, Any] | None = None) -> str:
             f"- Scope: {item['scope']}",
             f"- Summary: {item['summary']}",
             "- Limitations: " + "；".join(item["limitations"]),
+            "",
+        ])
+    governed = data.get("governed_statistics")
+    if governed:
+        policy = governed["statement_policy"]
+        lines.extend([
+            "## Governed Statistical Evidence",
+            "",
+            f"- Governance ID: `{governed['governance_id']}`",
+            f"- Analysis ID: `{governed['analysis_id']}`",
+            f"- State / QC / level: `{governed['governance_state']}` / `{governed['quality_status']}` / `{governed['evidence_level']}`",
+            "- Allowed wording: " + "；".join(policy["allowed_statements"]),
+            "- Cautious wording: " + "；".join(policy["cautious_statements"]),
+            "- Prohibited wording: " + "；".join(policy["prohibited_statements"]),
             "",
         ])
     lines.extend(["## Claim Validation Matrix", ""])

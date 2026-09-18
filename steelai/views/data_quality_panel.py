@@ -11,28 +11,50 @@ from steelai.research_data_contract import (
     validate_research_data_contract,
 )
 from steelai.data_intake import (
-    commit_intake,
-    finalize_intake_package,
     load_id_policy,
-    save_intake_package,
     template_csv_bytes,
     validate_intake_csv,
 )
+from steelai.data_intake_governance import (
+    commit_standard_intake_governed,
+    preview_intake_governance,
+)
 from steelai.event_log import record_event
+from steelai.intake_request import register_intake_request, uploaded_file_selection
 from steelai.ui import next_step_buttons, setup_page
+from steelai.views.external_standardization_view import render_external_standardization
 from steelai.views.steeldata_panel import render_steeldata_panel
+from steelai.views.thermal_simulation_view import render_thermal_simulation_intake
 
 
-setup_page(st, "数据接入与质控", "🧱")
-st.caption("检查成分—工艺—组织—性能—物理实测的结构完整性；只报告缺口，不用0或模型输出填补未知实验值。")
+setup_page(st, "导入与检查数据", "🧱")
+st.caption("选择与你手头文件相符的入口。系统先预览和检查；身份或单位不明确时停止，不会把未知值当作 0。")
+
+with st.expander("为什么需要人工确认？", expanded=False):
+    st.write(
+        "文件识别和字段映射可以自动完成，但样品身份、物理试样关系、单位和来源必须由人确认。"
+        "确认后仍只追加新记录，不覆盖原始文件或既有观测。"
+    )
+    st.caption("治理流程：输入登记 → 人工审批 → 受控执行 → 质量检查 → 仅追加提交 → 完整性记录。")
 
 report = validate_research_data_contract()
 contract = load_research_contract()
 policy = load_id_policy()
 
-status_tab, template_tab, intake_tab, steeldata_tab = st.tabs(
-    ["当前数据状态", "模板与编号规则", "标准表导入", "SteelData 标准化接入"]
+external_tab, thermal_tab, status_tab, advanced_tab = st.tabs(
+    ["导入实验表格", "导入热模拟", "查看数据状态", "高级工具"]
 )
+
+with advanced_tab:
+    intake_tab, steeldata_tab, template_tab = st.tabs(
+        ["标准表导入", "SteelData 接入", "字段与模板"]
+    )
+
+with external_tab:
+    render_external_standardization()
+
+with thermal_tab:
+    render_thermal_simulation_intake()
 
 with status_tab:
     a, b, c, d = st.columns(4)
@@ -52,6 +74,7 @@ with status_tab:
         "process": "工艺摘要", "microstructure": "组织摘要", "properties": "性能摘要",
         "physics_observations": "物理实测/校正", "process_steps": "逐工序记录",
         "microstructure_observations": "组织逐视场记录", "property_observations": "性能逐试样记录",
+        "thermal_simulation_runs": "热模拟运行", "thermal_simulation_points": "热模拟曲线点",
     }
     table = pd.DataFrame(report["tables"])
     table["layer"] = table["layer"].map(lambda value: layer_labels.get(value, value))
@@ -118,6 +141,8 @@ with template_tab:
         "microstructure_observations": "组织逐视场记录",
         "property_observations": "性能逐试样记录",
         "physics_observations": "物理实测与模型校正记录",
+        "thermal_simulation_runs": "热模拟运行记录",
+        "thermal_simulation_points": "热模拟曲线点",
     }
     st.write("下载空白模板（只含表头）：")
     columns = st.columns(len(template_labels))
@@ -129,18 +154,21 @@ with template_tab:
             mime="text/csv",
             use_container_width=True,
         )
-    st.caption("当前只接受B-DQ与R-DQ。1–14号数据仍被契约排除；原始实验文件不复制到项目中。")
+    st.caption("冻结旗舰案例仍是B-DQ与R-DQ；其他真实样品必须先经人工审核登记到samples，再接入后续数据。原始实验文件不复制到项目中。")
 
 with intake_tab:
-    st.subheader("标准表导入 · 保留原有入口")
+    st.subheader("标准表导入 · 统一治理入口")
     st.caption("已按 SteelAI 模板整理好的 CSV 走这里；仪器导出或不同格式的数据请使用“SteelData 标准化接入”。")
-    st.caption("流程：选择数据层 → 上传CSV → 本地预检 → 明确确认 → 仅追加写入。默认不会修改processed。")
+    st.caption("流程：选择数据层 → 上传 CSV → 本地预检 → 具名审批 → 受控执行 → 仅追加写入。默认不会修改 processed。")
+    st.markdown("#### 主要操作")
     intake_labels = {
         "composition_observations": "成分逐元素记录",
         "process_steps": "工艺逐步骤记录",
         "microstructure_observations": "组织逐视场记录",
         "property_observations": "性能逐试样记录",
         "physics_observations": "物理实测与模型校正记录",
+        "thermal_simulation_runs": "热模拟运行记录",
+        "thermal_simulation_points": "热模拟曲线点",
     }
     selected_label = st.selectbox("要新增哪类数据？", list(intake_labels.values()))
     selected_table = next(key for key, value in intake_labels.items() if value == selected_label)
@@ -152,26 +180,57 @@ with intake_tab:
     )
     upload = st.file_uploader("上传填写后的CSV", type=["csv"], key=f"intake_{selected_table}")
     if upload is None:
+        st.markdown("#### 当前状态")
         st.info("尚未上传。模板可在Excel/WPS中填写后另存为UTF-8 CSV。")
     else:
+        try:
+            intake_request = register_intake_request(
+                st.session_state,
+                route="standard_csv",
+                selection=uploaded_file_selection([upload]),
+                target_table=selected_table,
+            )
+        except (OSError, ValueError) as exc:
+            st.error("无法登记数据选择；未执行导入：" + str(exc))
+            st.stop()
+        st.caption(
+            f"请求已登记：{intake_request.identity.request_id} · "
+            f"任务：{intake_request.identity.task_id}（尚未执行）"
+        )
         intake_report = validate_intake_csv(selected_table, upload.getvalue())
+        governance_preview = preview_intake_governance(intake_report)
+        st.markdown("#### 当前状态")
         x, y, z = st.columns(3)
-        x.metric("预检状态", "可写入" if intake_report["status"] == "ready" else "已拦截")
+        x.metric("治理状态", governance_preview["state"])
         y.metric("新增记录", intake_report["row_count"])
         z.metric("现有记录", intake_report.get("existing_row_count", 0))
+        if governance_preview["issue_codes"]:
+            st.caption("治理代码：" + "、".join(governance_preview["issue_codes"]))
+        st.markdown("#### 结果")
         if intake_report["errors"]:
             st.error("\n\n".join(f"• {item}" for item in intake_report["errors"]))
         if intake_report["warnings"]:
             st.warning("\n\n".join(f"• {item}" for item in intake_report["warnings"]))
-        if intake_report["rows"]:
-            st.dataframe(pd.DataFrame(intake_report["rows"]), hide_index=True, width="stretch")
-        st.caption("系统只保存规范化后的结构化暂存表和校验Manifest，不复制上传的原始文件，也不调用DeepSeek。")
+        with st.expander("技术详情 · 规范化数据预览", expanded=False):
+            if intake_report["rows"]:
+                st.dataframe(pd.DataFrame(intake_report["rows"]), hide_index=True, width="stretch")
+            st.caption("系统只保存规范化后的结构化暂存表、审批快照和治理 Manifest，不复制上传的原始文件，也不调用 DeepSeek。")
 
-        confirm = st.checkbox("我已核对样品/试样层级、单位和来源状态，并确认这些记录可以进入processed。")
+        st.markdown("#### 人工审批")
+        reviewer = st.text_input("本次标准表接入审核人", key=f"intake_reviewer_{selected_table}")
+        rationale = st.text_input(
+            "审核说明（如何核对身份、单位、来源和警告）",
+            key=f"intake_rationale_{selected_table}",
+        )
+        confirm = st.checkbox(
+            "我已核对样品/试样层级、单位、来源状态及全部警告，并确认仅追加写入 processed。",
+            key=f"intake_confirm_{selected_table}",
+        )
         if st.button(
             "确认追加到 processed",
             type="primary",
-            disabled=intake_report["status"] != "ready" or not confirm,
+            disabled=(intake_report["status"] != "ready" or not confirm
+                      or not reviewer.strip() or not rationale.strip()),
             use_container_width=True,
         ):
             # Revalidate immediately before commit; the shared gate checks again under its lock.
@@ -179,27 +238,37 @@ with intake_tab:
             if intake_report["status"] != "ready":
                 st.error("数据状态发生变化，请重新预检：" + "；".join(intake_report["errors"]))
                 st.stop()
-            package_info = save_intake_package(intake_report)
             try:
-                commit_result = commit_intake(intake_report)
+                commit_result = commit_standard_intake_governed(
+                    intake_report,
+                    reviewer_id=reviewer,
+                    rationale=rationale,
+                    confirmed=confirm,
+                    workflow_identity=intake_request.identity,
+                )
             except (ValueError, OSError) as exc:
-                finalize_intake_package(package_info, {"status": "not_committed", "error": str(exc)})
                 st.error("未写入，请重新预检：" + str(exc))
                 st.stop()
-            finalize_intake_package(package_info, commit_result)
             record_event(
                 "data_intake",
                 f"新增{selected_label}",
                 f"通过v1.1数据闸门，向{selected_table}追加{commit_result['rows_added']}条记录。",
                 evidence={
-                    "intake_id": package_info["intake_id"],
+                    "intake_id": commit_result["governance_intake_id"],
                     "table": selected_table,
                     "rows_added": commit_result["rows_added"],
                     "content_sha256": commit_result["content_sha256"],
+                    "request_id": commit_result["request_id"],
+                    "task_id": commit_result["task_id"],
+                    "run_id": commit_result["run_id"],
+                    "task_revision": commit_result["task_revision"],
                 },
                 tags=["data-contract", "append-only", "portfolio-evidence"],
             )
-            st.success(f"已追加{commit_result['rows_added']}条记录；审计编号：{package_info['intake_id']}。刷新页面可查看新的数据状态。")
+            st.success(
+                f"已追加{commit_result['rows_added']}条记录；治理审计编号："
+                f"{commit_result['governance_intake_id']}。刷新页面可查看新的数据状态。"
+            )
 
 with steeldata_tab:
     render_steeldata_panel(contract)
@@ -207,8 +276,9 @@ with steeldata_tab:
 next_step_buttons(
     st,
     [
-        {"label": "生成可追溯统计", "state": {"data_module_selector": "可追溯统计"}},
-        {"label": "返回样品比较", "state": {"data_module_selector": "样品比较"}},
+        {"label": "生成可追溯统计", "url": "/analysis?module=statistics"},
+        {"label": "返回样品总览", "url": "/projects"},
+        {"label": "查看运行与成果", "url": "/analysis?module=runs"},
     ],
     key_prefix="data_quality",
     note="只有通过人工审核和质量门禁的数据，才应进入组级描述统计。",

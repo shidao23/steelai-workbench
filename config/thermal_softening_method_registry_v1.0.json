@@ -1,0 +1,102 @@
+{
+  "registry_id": "SteelAI-DoubleHit-Softening-Methods-v1.0",
+  "schema_version": "1.0",
+  "common_equation": "X=(sigma_m-sigma_2)/(sigma_m-sigma_1)",
+  "result_version": "SteelAI-DoubleHit-Softening-v1.0",
+  "selected_method_id": "offset_2p0_srx_focused",
+  "sensitivity_method_id": "fixed_true_strain_0p05",
+  "selection_status": "approved",
+  "method_decision": {
+    "decision": "approved",
+    "reviewer_id": "yjh",
+    "decided_at": "2026-09-11T22:01:28+08:00",
+    "rationale": "项目负责人确认：2%偏移法作为静态再结晶软化率主方法，5%定真应变法作为敏感性对照；统一使用X=(sigma_m-sigma_2)/(sigma_m-sigma_1)，0.2%偏移法暂不作为正式结果。"
+  },
+  "methods": [
+    {
+      "method_id": "offset_0p2_total_softening",
+      "label": "0.2% 偏移法",
+      "offset_true_strain": 0.002,
+      "sigma_m_definition": "flow_stress_at_end_of_first_hit",
+      "interpretation": "mechanical_total_softening_recovery_plus_recrystallization",
+      "current_batch_note": "offset_is_smaller_than_one_observed_strain_increment"
+    },
+    {
+      "method_id": "offset_2p0_srx_focused",
+      "label": "2% 偏移法",
+      "offset_true_strain": 0.02,
+      "sigma_m_definition": "maximum_flow_stress_of_first_hit",
+      "interpretation": "static_recrystallization_focused_mechanical_estimate",
+      "current_batch_note": "offset_spans_about_five_median_observed_strain_increments",
+      "yield_extraction": {
+        "curve_preparation": "median_stress_for_equal_local_strain_then_sort_ascending",
+        "initial_linear_fit_min_true_strain_exclusive": 0.0,
+        "initial_linear_fit_max_true_strain_inclusive": 0.02,
+        "minimum_unique_fit_points": 4,
+        "minimum_fit_r_squared": 0.75,
+        "intersection_rule": "first_curve_offset_line_crossing_at_or_after_offset_linear_interpolation",
+        "extrapolation": "forbidden"
+      }
+    },
+    {
+      "method_id": "fixed_true_strain_0p05",
+      "label": "5% 定真应变法",
+      "offset_true_strain": null,
+      "evaluation_true_strain": 0.05,
+      "sigma_m_definition": "first_hit_reference_stress_defined_by_method",
+      "interpretation": "fixed_strain_mechanical_softening",
+      "current_batch_note": "sigma_1_and_sigma_2_are_supported_by_T74; sigma_m_uses_declared_hollomon_projection",
+      "yield_extraction": {
+        "evaluation_true_strain": 0.05,
+        "sigma_1_definition": "first_hit_flow_stress_at_local_true_strain_0p05",
+        "sigma_2_definition": "second_hit_flow_stress_at_local_true_strain_0p05",
+        "sigma_m_definition": "hollomon_first_hit_projection_at_first_hit_max_local_true_strain_plus_0p05",
+        "hollomon_equation": "sigma=K*epsilon^n",
+        "hollomon_fit_min_true_strain_inclusive": 0.05,
+        "hollomon_fit_max_true_strain": "first_hit_observed_maximum",
+        "minimum_unique_fit_points": 10,
+        "minimum_fit_r_squared": 0.9,
+        "projection_increment_true_strain": 0.05
+      }
+    },
+    {
+      "method_id": "mean_flow_stress",
+      "label": "平均流动应力法",
+      "offset_true_strain": null,
+      "sigma_m_definition": "method_specific_mean_flow_stress",
+      "interpretation": "mean_flow_stress_softening",
+      "current_batch_note": "integration_bounds_must_be_defined_before_use"
+    }
+  ],
+  "current_batch_resolution_rule": {
+    "status": "steelai_diagnostic_not_literature_standard",
+    "minimum_offset_to_median_step_ratio": 3.0,
+    "purpose": "warn_when_an_offset_is_not_resolved_by_the_observed_strain_grid"
+  },
+  "references": [
+    {
+      "title": "Analysis of the methods to calculate austenite static recrystallization volume fraction",
+      "doi": "10.1557/jmr.2016.217",
+      "url": "https://www.cambridge.org/core/journals/journal-of-materials-research/article/abs/analysis-of-the-methods-to-calculate-austenite-static-recrystallization-volume-fraction/416CE689588CE9EC4F185210934F7705",
+      "supports": ["method_results_can_differ", "2_percent_and_5_percent_agreement_without_precipitation", "precipitation_changes_method_suitability"]
+    },
+    {
+      "title": "A modified kinetics model and softening behavior for static recrystallization of 12Cr ultra-super-critical rotor steel",
+      "doi": "10.1088/2053-1591/ab8c0c",
+      "url": "https://doi.org/10.1088/2053-1591/ab8c0c",
+      "supports": ["0.2_percent_offset_total_softening", "2_percent_offset_recrystallization_focus"]
+    },
+    {
+      "title": "Limitations of double compression to determine static recrystallization fraction",
+      "doi": "10.1177/03093247221116033",
+      "url": "https://journals.sagepub.com/doi/10.1177/03093247221116033",
+      "supports": ["six_common_methods", "method_selection_depends_on_flow_behavior"]
+    }
+  ],
+  "guardrails": [
+    "do_not_compute_formal_softening_without_selected_method",
+    "do_not_hide_sigma_m_definition",
+    "do_not_equate_mechanical_softening_with_metallographic_srx_without_validation",
+    "retain_all_method_and_fit_diagnostics"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "registry_id": "SteelAI-Portfolio-Acceptance-v1.0",
+  "entries": [
+    {
+      "record_id": "T40-EBC752D15CFE43A605D1",
+      "module": "flagship_demo",
+      "decision": "approved",
+      "reviewer_id": "project_owner",
+      "accepted_on": "2026-09-08",
+      "scope": "Public synthetic engineering demonstration only",
+      "evidence_class": "synthetic_demo_data",
+      "result_level": "synthetic_demo_only"
+    }
+  ]
+}

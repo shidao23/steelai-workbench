@@ -14,7 +14,8 @@
     {"field": "specimen_id", "meaning": "physical test specimen", "example": "B-DQ-CHARPY-01"},
     {"field": "field_id", "meaning": "imaging or EBSD field nested within a specimen", "example": "B-DQ-EBSD-LR-F01"},
     {"field": "observation_id", "meaning": "one measured or extracted value", "example": "OBS-BDQ-0001"},
-    {"field": "run_id", "meaning": "model or analysis execution", "example": "RUN-20260819-0001"}
+    {"field": "run_id", "meaning": "model or analysis execution", "example": "RUN-20260819-0001"},
+    {"field": "experiment_run_id", "meaning": "one instrument acquisition or physical experiment execution", "example": "EXP-ZHT-A75"}
   ],
   "allowed_core_samples": ["B-DQ", "R-DQ"],
   "excluded_dataset_labels": ["experiments_1_14"],

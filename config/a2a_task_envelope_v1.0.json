@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": "1.0",
+  "contract_id": "SteelAI-Lightweight-A2A-Task-v1.0",
+  "workflow_identity_contract_id": "Shidao-Workflow-Identity-v1.0",
+  "protocol_scope": "local structured handoff between SteelAI T60 roles",
+  "complete_a2a_protocol_compatibility_claimed": false,
+  "roles": ["planner", "data_steward", "statistics_physics", "materials_interpreter", "reviewer"],
+  "statuses": ["proposed", "accepted", "running", "completed", "blocked", "rejected"],
+  "required_fields": ["schema_version", "request_id", "task_id", "task_revision", "sender_role", "receiver_role", "evidence_refs", "status", "created_at", "updated_at", "result_summary", "task_digest"],
+  "evidence_reference_fields": ["evidence_id", "revision", "digest", "evidence_class", "verification_status", "permission_status"],
+  "rules": [
+    "Sender and receiver must be different registered T60 roles.",
+    "Evidence references are identifiers and digests, not raw payloads or local paths.",
+    "Every revision binds the task identity, roles, evidence, status, timestamps and result summary.",
+    "request_id is stable across related tasks and runs; each concrete tool execution emits its own run_id.",
+    "The envelope cannot grant human approval or formal-write authority.",
+    "Network discovery, streaming, push notification and vendor-specific A2A extensions are out of scope."
+  ]
+}

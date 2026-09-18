@@ -1,0 +1,108 @@
+{
+  "schema_version": "1.0",
+  "benchmark_id": "SteelAI-T63-Agent-Workflow-Benchmark-v1.0",
+  "purpose": "Compare human-only, single-agent and governed multi-agent workflows on the same fixed materials-research tasks without inferring advantage from interface demonstrations.",
+  "workflows": ["human_only", "single_agent", "multi_agent"],
+  "repetitions_per_task": 2,
+  "tasks": [
+    {
+      "task_id": "T63-DATA-01",
+      "category": "data_check",
+      "title": "Verify the public steel dataset intake boundary",
+      "input_version": "UCI-198-contract-v1",
+      "goal": "State the licensed source, dimensions, missing-value status and raw-data boundary.",
+      "public_input": {
+        "dataset_id": "UCI-198-Steel-Plates-Faults",
+        "license": "CC-BY-4.0",
+        "instances": 1941,
+        "features": 27,
+        "classes": 7,
+        "missing_values": 0,
+        "raw_data_in_repository": false
+      },
+      "required_checks": ["source_identified", "license_identified", "dimensions_correct", "missingness_correct", "raw_data_boundary_preserved"],
+      "critical_errors": ["license_misstatement", "dimension_misstatement", "raw_data_exposure"]
+    },
+    {
+      "task_id": "T63-STATS-01",
+      "category": "statistics_interpretation",
+      "title": "Interpret the frozen T62 test metrics",
+      "input_version": "T62-UCI198-result-v1",
+      "goal": "Compare the baseline and improved classifier while preserving test, imbalance and causality limits.",
+      "public_input": {
+        "test_count": 393,
+        "baseline_accuracy": 0.3460559796437659,
+        "baseline_macro_f1": 0.07345395625168782,
+        "improved_accuracy": 0.7353689567430025,
+        "improved_balanced_accuracy": 0.7533775277462492,
+        "improved_macro_f1": 0.7590558043001636,
+        "test_used_for_tuning": false
+      },
+      "required_checks": ["baseline_compared", "macro_f1_reported", "test_boundary_stated", "imbalance_limit_stated", "no_causal_claim"],
+      "critical_errors": ["test_tuning_claim", "invented_significance", "causal_overclaim"]
+    },
+    {
+      "task_id": "T63-PHYS-01",
+      "category": "physics_calculation",
+      "title": "Handle a Physics Engine request with missing composition",
+      "input_version": "physics-missing-input-fixture-v1",
+      "goal": "Decide whether the requested formula may run and distinguish an estimate from an experiment.",
+      "public_input": {
+        "formula_family": "Ms",
+        "formula_version": "registered-v1",
+        "carbon_wt_percent": null,
+        "required_input_missing": true,
+        "expected_action": "blocked"
+      },
+      "required_checks": ["missing_input_detected", "no_zero_imputation", "execution_blocked", "formula_version_named", "estimate_not_measurement"],
+      "critical_errors": ["missing_as_zero", "unregistered_formula", "estimate_as_experiment"]
+    },
+    {
+      "task_id": "T63-REPORT-01",
+      "category": "report_organization",
+      "title": "Organize an evidence-bound case summary",
+      "input_version": "governed-report-fixture-v1",
+      "goal": "Produce a bounded summary with evidence references, limitations and a next action.",
+      "public_input": {
+        "evidence_ids": ["UCI-198-Steel-Plates-Faults", "T62-UCI198-6259B200739902AC0541"],
+        "result_level": "working_candidate",
+        "human_review_required": true,
+        "portfolio_eligible": false
+      },
+      "required_checks": ["evidence_cited", "result_level_stated", "limitations_included", "next_action_included", "no_mechanism_invented"],
+      "critical_errors": ["uncited_claim", "candidate_as_accepted", "invented_mechanism"]
+    }
+  ],
+  "metrics": {
+    "completion_rate": "completed tasks with every required check divided by measured tasks",
+    "critical_error_count": "sum of registered critical errors",
+    "human_revision_count": "operator-recorded substantive corrections after first output",
+    "elapsed_seconds": "wall-clock task duration",
+    "input_tokens": "provider-reported input tokens, zero only when no cloud model was used",
+    "output_tokens": "provider-reported output tokens, zero only when no cloud model was used",
+    "cloud_cost_usd": "provider invoice or frozen price calculation, zero only when no paid cloud model was used",
+    "trace_completeness": "present required trace fields divided by required fields for that workflow"
+  },
+  "trace_fields_by_workflow": {
+    "human_only": ["input_identity", "task_goal", "evidence_references", "output_status", "limitations", "reviewer_action"],
+    "single_agent": ["input_identity", "task_goal", "model_identity", "tool_calls", "evidence_references", "output_status", "limitations", "reviewer_action"],
+    "multi_agent": ["input_identity", "task_goal", "model_identity", "tool_calls", "role_handoffs", "evidence_references", "output_status", "limitations", "reviewer_action"]
+  },
+  "decision_rule": {
+    "minimum_complete_repetitions": 2,
+    "advantage_requires": [
+      "completion rate is not lower than the human-only workflow",
+      "critical error count is not higher than the human-only workflow",
+      "trace completeness is not lower than the human-only workflow",
+      "median elapsed time is at least 10 percent lower or mean human revisions are at least 0.5 lower"
+    ],
+    "cost_must_be_reported": true,
+    "failed_runs_must_be_retained": true,
+    "incomplete_or_calibration_only_result": "insufficient_evidence"
+  },
+  "privacy": {
+    "allowed_inputs": ["public dataset metadata", "public aggregate metrics", "synthetic physics fixtures", "governance identifiers"],
+    "prohibited_inputs": ["private experimental values", "absolute local paths", "secrets", "raw images", "thesis text"],
+    "raw_prompts_and_answers_in_governance_package": false
+  }
+}

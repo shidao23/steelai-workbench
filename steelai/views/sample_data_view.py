@@ -69,7 +69,7 @@ def _number(row: dict, key: str) -> float | None:
         return None
 
 
-setup_page(st, "样品比较", "🔬")
+setup_page(st, "样品总览", "🔬")
 samples = read_rows("samples")
 demo_warning(st, samples)
 ids = [row["sample_id"] for row in samples]
@@ -80,7 +80,9 @@ if not ids:
 
 st.caption("选择两个样品，先看关键性能差值，再按数据分区查看来源字段。差值只做描述，不代表优劣或因果。")
 selector_left, selector_right = st.columns(2)
-a_id = selector_left.selectbox("基准样品", ids, index=0)
+active_sample_id = st.session_state.get("active_sample_id")
+active_index = ids.index(active_sample_id) if active_sample_id in ids else 0
+a_id = selector_left.selectbox("基准样品", ids, index=active_index)
 b_id = selector_right.selectbox("比较样品", ids, index=min(1, len(ids) - 1))
 a, b = sample_bundle(a_id), sample_bundle(b_id)
 
@@ -137,8 +139,8 @@ st.caption("数据状态说明：来源核验表示字段可追溯到当前研�
 next_step_buttons(
     st,
     [
-        {"label": "进入物理计算", "state": {"data_module_selector": "物理计算"}},
-        {"label": "检查数据质量", "state": {"data_module_selector": "数据接入与质控"}},
+        {"label": "进入物理计算", "url": "/analysis?module=physics"},
+        {"label": "检查数据质量", "url": "/intake"},
     ],
     key_prefix="sample_compare",
     note="确认样品差异后，可以继续做经验公式计算，或先检查字段、单位与来源。",

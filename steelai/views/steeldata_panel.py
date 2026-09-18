@@ -5,15 +5,79 @@ import pandas as pd
 import streamlit as st
 
 from steelai.event_log import record_event
+from steelai.data_intake_governance import commit_steeldata_intake_governed
+from steelai.intake_request import (
+    folder_reference_selection,
+    register_intake_request,
+    uploaded_file_selection,
+)
 from steelai.steeldata_bridge import (
-    SOURCE_STATUSES, SteelDataClient, commit_run, inspect_run, mapping_rows, prepare_intake,
+    SOURCE_STATUSES, SteelDataClient, inspect_run, mapping_rows, prepare_intake,
     validate_selected_files,
 )
+
+
+_IMPORT_STATE_COPY = {
+    "completed": {
+        "severity": "success",
+        "title": "已完成",
+        "message": "确定性结果已通过复核并完成治理接入。",
+        "next_action": "保留审计编号；需要分析时前往数据状态或相应研究页面。",
+    },
+    "needs_human": {
+        "severity": "warning",
+        "title": "待人工确认",
+        "message": "当前内容仍是待审结果，尚未写入正式研究数据。",
+        "next_action": "核对 Profile、QC、样品对应、来源状态和摘要后再确认。",
+    },
+    "blocked": {
+        "severity": "error",
+        "title": "已阻断",
+        "message": "质量或安全条件未满足，本次流程已经停止。",
+        "next_action": "按下方阻断原因修正输入或审批，不要绕过门禁。",
+    },
+    "invalidated": {
+        "severity": "error",
+        "title": "完整性失效",
+        "message": "结果包或绑定证据未通过完整性校验，禁止复用、覆盖或入库。",
+        "next_action": "返回来源模块重新生成结果；保留原包用于审计。",
+    },
+    "offline": {
+        "severity": "warning",
+        "title": "本地服务离线",
+        "message": "所需本地服务当前不可用；系统不会自动改用模型或第二套运行时。",
+        "next_action": "仍可校验已有结果包；新批次请在恢复已登记的本地环境后运行。",
+    },
+}
+
+
+def steeldata_state_presentation(state: str, detail: str | None = None) -> dict[str, str]:
+    """Project an authoritative backend outcome into one of the five UI states."""
+    if state not in _IMPORT_STATE_COPY:
+        raise ValueError("unsupported SteelData UI state: " + state)
+    payload = {"state": state, **_IMPORT_STATE_COPY[state]}
+    if detail:
+        payload["detail"] = str(detail)
+    return payload
+
+
+def _remember_import_state(state: str, detail: str | None = None) -> None:
+    st.session_state["sd_import_ui_state"] = steeldata_state_presentation(state, detail)
+
+
+def _render_import_state(state: str, detail: str | None = None) -> None:
+    payload = steeldata_state_presentation(state, detail)
+    message = f"{payload['title']}：{payload['message']}"
+    getattr(st, payload["severity"])(message)
+    if payload.get("detail"):
+        st.caption("状态依据：" + payload["detail"])
+    st.caption("下一步：" + payload["next_action"])
 
 
 def _reset_selection_review() -> None:
     st.session_state["sd_snapshot_agree"] = False
     st.session_state.pop("sd_inspection", None)
+    st.session_state.pop("sd_import_ui_state", None)
 
 
 def _execute_and_load(client: SteelDataClient, suggestion_id: str, suggestion_sha256: str) -> dict:
@@ -73,6 +137,12 @@ def _render_suggestion_review(client: SteelDataClient, ready: bool) -> None:
     source_status = "摘要一致" if view["source_matches"] else "缺失或已变化"
     st.write(f"来源：`{view['source_file']}` · 领域：`{view.get('domain') or '未识别'}` · 状态：`{view['status']}` · 修订：`r{view['revision']}`")
     st.write("源文件核验：" + source_status)
+    if not view["source_matches"]:
+        _render_import_state("invalidated", "建议绑定的源文件摘要已经变化或来源缺失。")
+    elif view["status"] in {"unsupported", "rejected", "failed"}:
+        _render_import_state("blocked", f"映射建议状态为 {view['status']}。")
+    else:
+        _render_import_state("needs_human", "映射建议不能自行批准或直接写入研究数据。")
     st.caption("建议摘要（批准绑定对象）")
     st.code(view["suggestion_sha256"], language=None)
     st.caption("建议配置摘要（字段与单位配置）")
@@ -195,10 +265,13 @@ def _render_suggestion_review(client: SteelDataClient, ready: bool) -> None:
 
 def render_steeldata_panel(contract: dict) -> None:
     st.subheader("SteelData · 原始表标准化接入")
-    st.caption("原始表 → SteelData 独立运行 → 完整性与 QC 检查 → 人工对应样品 → 原有入库闸门。")
+    st.caption("原始表 → SteelData 独立运行 → 完整性与 QC 检查 → 人工对应样品 → T52 共享治理闸门。")
     st.info("已经填好的 SteelAI 标准 CSV，继续使用旁边的“标准表导入”；两条路线共用校验和仅追加写入，不需要重复导入。")
+    st.markdown("#### 主要操作")
     client = SteelDataClient()
     availability = client.availability()
+    if not availability["ready"]:
+        _render_import_state("offline", availability.get("reason", "SteelData 本地环境不可用。"))
     with st.expander("模块连接与边界", expanded=False):
         st.write("连接：" + ("找到 SteelData 独立环境" if availability["ready"] else "未找到独立运行环境"))
         st.code(availability["project"], language=None)
@@ -215,6 +288,7 @@ def render_steeldata_panel(contract: dict) -> None:
     mode = st.radio("输入方式", ["读取已有结果包", "运行原始数据批次", "合成演示（禁止入库）"],
                     horizontal=True, key="sd_mode")
     selected_run = None
+    intake_request = None
     if mode == "读取已有结果包":
         run_path = st.text_input("SteelData 运行目录（包含 manifest.json 和 COMPLETE）", key="sd_run_path",
                                  placeholder=r"<SteelData结果包目录>\run-...")
@@ -233,6 +307,16 @@ def render_steeldata_panel(contract: dict) -> None:
                 max_upload_size=2, key="sd_approval_files", on_change=_reset_selection_review)
             st.caption("可点击 Browse files（浏览文件）或拖拽。实验文件单个 ≤20 MiB、合计 ≤100 MiB；旧 .xls 请先另存为 .xlsx。选取不会自动运行。")
             if uploads:
+                try:
+                    intake_request = register_intake_request(
+                        st.session_state,
+                        route="steeldata_files",
+                        selection=uploaded_file_selection(uploads),
+                    )
+                except (OSError, ValueError) as exc:
+                    st.error("无法登记数据选择；SteelData 未运行：" + str(exc))
+                    return
+                _remember_import_state("needs_human", "已登记文件选择；选择本身没有启动 SteelData。")
                 st.dataframe(pd.DataFrame([{"文件名": f.name, "大小（KiB）": round(f.size / 1024, 1)} for f in uploads]),
                              hide_index=True, width="stretch")
             if uploads and approvals:
@@ -247,7 +331,23 @@ def render_steeldata_panel(contract: dict) -> None:
         else:
             input_dir = st.text_input("本批原始数据文件夹", key="sd_input", on_change=_reset_selection_review)
             approval_text = st.text_area("已人工批准的映射 JSON 路径（每行一个）", key="sd_approvals", on_change=_reset_selection_review)
+            if input_dir.strip():
+                try:
+                    intake_request = register_intake_request(
+                        st.session_state,
+                        route="steeldata_folder",
+                        selection=folder_reference_selection(input_dir),
+                    )
+                except (OSError, ValueError) as exc:
+                    st.error("无法登记文件夹选择；SteelData 未运行：" + str(exc))
+                    return
+                _remember_import_state("needs_human", "已登记文件夹引用；尚未扫描目录或启动 SteelData。")
             ready = bool(input_dir.strip() and approval_text.strip())
+        if intake_request is not None:
+            st.caption(
+                f"请求已登记：{intake_request.identity.request_id} · "
+                f"任务：{intake_request.identity.task_id}（尚未运行 SteelData）"
+            )
         st.caption("这里接收 SteelData v0.2 的 human 批准记录，不是旧版 mapping JSON，也不是未经批准的 profile。")
         agree = st.checkbox("我确认只处理该批次，并允许 SteelData 在自己的 output 中保存原始文件快照。", key="sd_snapshot_agree")
         if st.button("运行 SteelData 并读取结果", key="sd_run", disabled=not (agree and availability["ready"] and ready)):
@@ -261,6 +361,7 @@ def render_steeldata_panel(contract: dict) -> None:
                                             [p.strip().strip('"') for p in approval_text.splitlines() if p.strip()])
                 selected_run = result["run_dir"]
             except (ValueError, OSError) as exc:
+                _remember_import_state("blocked", str(exc))
                 st.error(str(exc))
     else:
         st.warning("仅运行内置合成数据，含故意设置的错误。它用于演示拦截流程，不会修改真实 processed。")
@@ -278,13 +379,20 @@ def render_steeldata_panel(contract: dict) -> None:
             with st.spinner("校验全部结果文件和批准摘要…"):
                 st.session_state["sd_inspection"] = inspect_run(selected_run)
         except (ValueError, OSError, KeyError, TypeError) as exc:
+            _remember_import_state("invalidated", str(exc))
             st.error("无法接收结果包：" + str(exc))
     inspection = st.session_state.get("sd_inspection")
     if inspection is None:
-        st.caption("尚未读取结果。首次可选择“合成演示”，确认模块调用和拦截流程。")
+        st.markdown("#### 当前状态")
+        remembered = st.session_state.get("sd_import_ui_state")
+        if remembered:
+            _render_import_state(remembered["state"], remembered.get("detail"))
+        else:
+            st.caption("尚未读取结果。首次可选择“合成演示”，确认模块调用和拦截流程。")
         return
     manifest = inspection.manifest
     st.divider()
+    st.markdown("#### 当前状态")
     st.write("当前已校验的结果：", manifest["run_id"])
     st.code(str(inspection.root), language=None)
     a, b, c = st.columns(3)
@@ -292,6 +400,7 @@ def render_steeldata_panel(contract: dict) -> None:
     b.metric("QC 状态", manifest["qc_status"])
     c.metric("标准记录", manifest["counts"]["records"])
     st.caption("COMPLETE 只代表结果写齐，不代表科研质量合格。预览固定在上次读取时；点击提交会重新校验。")
+    st.markdown("#### 结果")
     st.dataframe(pd.DataFrame(manifest["files"])[["source_file", "status", "records"]], hide_index=True, width="stretch")
     with st.expander("QC 事项与标准数据预览", expanded=False):
         if inspection.qc.get("issues"):
@@ -301,10 +410,12 @@ def render_steeldata_panel(contract: dict) -> None:
             st.dataframe(pd.DataFrame(data["records"][:12]), hide_index=True, width="stretch")
         st.caption("完整 HTML 报告位于上述运行目录的 report.html；这里不执行导入结果中的 HTML/脚本。")
     if inspection.blockers:
+        _render_import_state("blocked", "；".join(inspection.blockers))
         for reason in inspection.blockers:
             st.warning(reason)
         st.button("确认接入性能长表", disabled=True, key="sd_blocked_commit")
         return
+    _render_import_state("needs_human", "结果包完整性已通过；仍需完成样品对应和人工审批。")
     for warning in inspection.warnings:
         st.warning(warning)
     st.subheader("确认试样与研究样品的对应关系")
@@ -322,6 +433,8 @@ def render_steeldata_panel(contract: dict) -> None:
     try:
         candidate = prepare_intake(inspection, bindings, source_status)
     except (ValueError, OSError) as exc:
+        _remember_import_state("blocked", str(exc))
+        _render_import_state("blocked", str(exc))
         st.error(str(exc))
         return
     report = candidate["report"]
@@ -332,6 +445,7 @@ def render_steeldata_panel(contract: dict) -> None:
         st.error(message)
     for message in report["warnings"]:
         st.warning(message)
+    st.markdown("#### 人工审批")
     reviewer = st.text_input("本次接入审核人", key="sd_reviewer")
     note = st.text_input("审核说明（如何核对样品、单位与来源）", key="sd_review_note")
     confirm = st.checkbox("我已核对对应关系、全部数值、来源状态及警告，确认追加到真实性能长表。",
@@ -339,16 +453,39 @@ def render_steeldata_panel(contract: dict) -> None:
     if st.button("确认接入性能长表", type="primary", key="sd_commit",
                   disabled=report["status"] != "ready" or not (confirm and reviewer.strip() and note.strip())):
         try:
-            result = commit_run(inspection.root, bindings, source_status, candidate["preview_sha256"],
-                                reviewer=reviewer, note=note, confirmed=confirm)
+            result = commit_steeldata_intake_governed(
+                inspection.root,
+                bindings,
+                source_status,
+                candidate["preview_sha256"],
+                reviewer_id=reviewer,
+                rationale=note,
+                confirmed=confirm,
+                workflow_identity=intake_request.identity if intake_request is not None else None,
+            )
         except (ValueError, OSError) as exc:
+            _remember_import_state("blocked", str(exc))
+            _render_import_state("blocked", str(exc))
             st.error("未能完成接入，请重新预检：" + str(exc))
         else:
-            st.success(f"已追加 {result['rows_added']} 条性能观测；审计编号：{result['intake_id']}。")
+            _remember_import_state("completed", f"治理审计编号 {result['governance_intake_id']}。")
+            _render_import_state("completed", f"治理审计编号 {result['governance_intake_id']}。")
+            st.success(
+                f"已追加 {result['rows_added']} 条性能观测；"
+                f"治理审计编号：{result['governance_intake_id']}。"
+            )
             try:
                 record_event("data_intake", "SteelData 接入性能长表",
                     f"人工确认后追加 {result['rows_added']} 条记录；未修改旧摘要。",
-                    evidence={key: result[key] for key in ("intake_id", "run_id", "rows_added", "manifest_sha256")},
+                    evidence={
+                        "intake_id": result["governance_intake_id"],
+                        "request_id": result["request_id"],
+                        "task_id": result["task_id"],
+                        "run_id": result["run_id"],
+                        "source_run_id": result["source_run_id"],
+                        "rows_added": result["rows_added"],
+                        "manifest_sha256": result["governance_manifest_sha256"],
+                    },
                     tags=["steeldata", "append-only", "portfolio-evidence"])
             except OSError:
                 st.warning("数据和接入审计包已保存，但事件日志未写入；请勿重复导入。")

@@ -173,6 +173,13 @@ class StatisticalInputBridgeTests(unittest.TestCase):
 
 
 class ModuleClientTests(unittest.TestCase):
+    def test_availability_probes_runtime_instead_of_trusting_stale_executable(self) -> None:
+        client = SteelStatsClient(ROOT.parent / "SteelStats")
+        with patch("steelai.steelstats_bridge.subprocess.run", side_effect=OSError("stale launcher")):
+            report = client.availability()
+        self.assertFalse(report["ready"])
+        self.assertEqual(report["reason"], "runtime_probe_failed")
+
     def test_cli_uses_argument_list_independent_runtime_and_scrubbed_environment(self) -> None:
         client = SteelStatsClient(ROOT.parent / "SteelStats")
         response = subprocess.CompletedProcess([], 0, '{"status":"passed","problems":[]}', "")

@@ -146,8 +146,8 @@ st.caption("隐私边界：禁止发送原始图片、CTF/TIF、本地文件路�
 next_step_buttons(
     st,
     [
-        {"label": "验证研究结论", "state": {"research_module_selector": "证据验证"}},
-        {"label": "查看旗舰演示", "state": {"research_module_selector": "旗舰演示"}},
+        {"label": "验证研究结论", "url": "/analysis?module=validation"},
+        {"label": "查看旗舰演示", "url": "/advanced?module=flagship"},
     ],
     key_prefix="research_case",
     note="任务完成后先验证证据边界；答辩准备时可进入已经冻结的旗舰演示。",

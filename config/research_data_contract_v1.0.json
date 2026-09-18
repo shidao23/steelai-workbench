@@ -120,6 +120,66 @@
         "model_estimate_is_not_experimental_truth",
         "residual_requires_matched_experimental_and_model_values"
       ]
+    },
+    "thermal_simulation_runs": {
+      "path": "data/processed/thermal_simulation_runs.csv",
+      "required": false,
+      "essential_fields": ["sample_id", "specimen_id", "experiment_run_id", "program", "acquisition_id", "source_status", "review_status"],
+      "recommended_fields": ["test_type", "planned_temperature_c", "planned_interpass_time_s", "strain_1", "strain_2", "strain_rate_s", "specimen_diameter_mm", "specimen_height_mm", "interval_count", "point_count", "period_value_raw", "sampling_period_s", "measured_interval_gap_raw", "measured_interval_gap_s", "measured_reference_temperature_c", "temperature_measurement_metric", "effective_temperature_c", "effective_interpass_time_s", "time_unit_interpretation", "force_unit_interpretation", "force_time_offset_raw", "stroke_time_offset_raw", "temperature_time_offset_raw", "source_file_sha256", "plan_source_status"],
+      "optional_fields": ["notes"],
+      "numeric_fields": ["planned_temperature_c", "planned_interpass_time_s", "strain_1", "strain_2", "strain_rate_s", "specimen_diameter_mm", "specimen_height_mm", "interval_count", "point_count", "period_value_raw", "sampling_period_s", "measured_interval_gap_raw", "measured_interval_gap_s", "measured_reference_temperature_c", "effective_temperature_c", "effective_interpass_time_s", "force_time_offset_raw", "stroke_time_offset_raw", "temperature_time_offset_raw"],
+      "primary_key": ["experiment_run_id"],
+      "interpretation_guardrails": [
+        "planned_parameters_are_not_measured_values",
+        "conflicting_plan_values_may_be_retained_but_must_not_replace_reviewed_instrument_values",
+        "acquisition_id_does_not_prove_physical_specimen_identity_without_review",
+        "instrument_force_unit_Kg_must_not_be_converted_without_an_explicit_unit_basis"
+      ]
+    },
+    "thermal_simulation_points": {
+      "path": "data/processed/thermal_simulation_points.csv",
+      "required": false,
+      "essential_fields": ["sample_id", "specimen_id", "experiment_run_id", "interval_index", "point_index", "time_value_raw", "time_s", "force_value_raw", "force_unit_raw", "stroke_value_raw", "stroke_unit_raw", "stroke_mm", "control_temperature_raw", "control_temperature_unit_raw", "control_temperature_c", "source_status"],
+      "recommended_fields": [],
+      "optional_fields": ["force_n"],
+      "numeric_fields": ["interval_index", "point_index", "time_value_raw", "time_s", "force_value_raw", "force_n", "stroke_value_raw", "stroke_mm", "control_temperature_raw", "control_temperature_c"],
+      "primary_key": ["experiment_run_id", "interval_index", "point_index"],
+      "interpretation_guardrails": [
+        "blank_force_n_is_missing_not_zero",
+        "source_force_sign_is_preserved",
+        "stress_strain_curves_require_a_separately_reviewed_geometry_and_area_convention"
+      ]
+    },
+    "thermal_simulation_features": {
+      "path": "data/processed/thermal_simulation_features.csv",
+      "required": false,
+      "essential_fields": ["sample_id", "specimen_id", "experiment_run_id", "acquisition_id", "feature_version", "test_type", "formula_id", "segment_policy_id", "segment_review_status", "segment_reviewer_id", "segment_reviewed_at", "source_status", "source_file_sha256", "source_points_sha256", "formula_config_sha256", "segment_policy_sha256", "feature_policy_sha256", "segment_candidate_sha256", "feature_row_sha256"],
+      "recommended_fields": ["effective_temperature_c", "run_effective_interpass_time_s", "effective_deformation_gap_s", "hit1_start_point_index", "hit1_end_point_index", "hit1_start_time_s", "hit1_end_time_s", "hit1_start_temperature_c", "hit1_mean_temperature_c", "hit1_end_temperature_c", "hit1_peak_stress_mpa", "hit1_peak_local_true_strain", "hit1_peak_temperature_c", "hit1_max_stroke_cm", "hit1_max_displacement_from_contact_cm", "hit1_max_local_true_strain", "hit1_flow_stress_at_strain_0p05_mpa", "hit1_flow_stress_at_strain_0p1_mpa", "hit1_flow_stress_at_strain_0p15_mpa", "hit1_flow_stress_at_strain_0p2_mpa", "hit2_start_point_index", "hit2_end_point_index", "hit2_start_time_s", "hit2_end_time_s", "hit2_start_temperature_c", "hit2_mean_temperature_c", "hit2_end_temperature_c", "hit2_peak_stress_mpa", "hit2_peak_local_true_strain", "hit2_peak_temperature_c", "hit2_max_stroke_cm", "hit2_max_displacement_from_contact_cm", "hit2_max_local_true_strain", "hit2_flow_stress_at_strain_0p05_mpa", "hit2_flow_stress_at_strain_0p1_mpa", "hit2_flow_stress_at_strain_0p15_mpa", "hit2_flow_stress_at_strain_0p2_mpa"],
+      "optional_fields": ["source_run_review_status"],
+      "numeric_fields": ["acquisition_id", "effective_temperature_c", "run_effective_interpass_time_s", "effective_deformation_gap_s", "hit1_start_point_index", "hit1_end_point_index", "hit1_start_time_s", "hit1_end_time_s", "hit1_start_temperature_c", "hit1_mean_temperature_c", "hit1_end_temperature_c", "hit1_peak_stress_mpa", "hit1_peak_local_true_strain", "hit1_peak_temperature_c", "hit1_max_stroke_cm", "hit1_max_displacement_from_contact_cm", "hit1_max_local_true_strain", "hit1_flow_stress_at_strain_0p05_mpa", "hit1_flow_stress_at_strain_0p1_mpa", "hit1_flow_stress_at_strain_0p15_mpa", "hit1_flow_stress_at_strain_0p2_mpa", "hit2_start_point_index", "hit2_end_point_index", "hit2_start_time_s", "hit2_end_time_s", "hit2_start_temperature_c", "hit2_mean_temperature_c", "hit2_end_temperature_c", "hit2_peak_stress_mpa", "hit2_peak_local_true_strain", "hit2_peak_temperature_c", "hit2_max_stroke_cm", "hit2_max_displacement_from_contact_cm", "hit2_max_local_true_strain", "hit2_flow_stress_at_strain_0p05_mpa", "hit2_flow_stress_at_strain_0p1_mpa", "hit2_flow_stress_at_strain_0p15_mpa", "hit2_flow_stress_at_strain_0p2_mpa"],
+      "primary_key": ["experiment_run_id", "feature_version"],
+      "interpretation_guardrails": [
+        "features_require_named_human_approval_of_effective_loading_segments",
+        "target_strain_flow_stress_must_not_be_extrapolated",
+        "feature_values_are_deterministic_derivations_not_raw_measurements",
+        "formula_segment_source_and_feature_hashes_are_required"
+      ]
+    },
+    "thermal_simulation_softening": {
+      "path": "data/processed/thermal_simulation_softening.csv",
+      "required": false,
+      "essential_fields": ["sample_id", "specimen_id", "experiment_run_id", "acquisition_id", "softening_version", "feature_version", "test_type", "method_registry_id", "method_registry_sha256", "primary_method_id", "sensitivity_method_id", "method_selection_status", "method_decision_reviewer_id", "method_decided_at", "result_review_status", "result_reviewer_id", "result_reviewed_at", "source_status", "source_feature_review_status", "source_feature_reviewer_id", "source_feature_row_sha256", "primary_result_status", "sensitivity_result_status", "result_qc_status", "softening_row_sha256"],
+      "recommended_fields": ["effective_temperature_c", "run_effective_interpass_time_s", "effective_deformation_gap_s", "primary_sigma_m_mpa", "primary_sigma_1_mpa", "primary_sigma_2_mpa", "primary_softening_fraction_raw", "primary_softening_percent_raw", "hit1_offset_proof_true_strain", "hit1_offset_fit_point_count", "hit1_offset_fit_slope_mpa", "hit1_offset_fit_intercept_mpa", "hit1_offset_fit_r_squared", "hit1_offset_fit_strain_min", "hit1_offset_fit_strain_max", "hit2_offset_proof_true_strain", "hit2_offset_fit_point_count", "hit2_offset_fit_slope_mpa", "hit2_offset_fit_intercept_mpa", "hit2_offset_fit_r_squared", "hit2_offset_fit_strain_min", "hit2_offset_fit_strain_max", "sensitivity_sigma_m_mpa", "sensitivity_sigma_1_mpa", "sensitivity_sigma_2_mpa", "sensitivity_softening_fraction_raw", "sensitivity_softening_percent_raw", "sensitivity_evaluation_true_strain", "hollomon_fit_point_count", "hollomon_fit_r_squared", "hollomon_fit_strain_min", "hollomon_fit_strain_max", "hollomon_strength_coefficient_k_mpa", "hollomon_strain_hardening_exponent_n", "hollomon_projection_true_strain", "sensitivity_minus_primary_fraction", "qc_flags"],
+      "optional_fields": [],
+      "numeric_fields": ["acquisition_id", "effective_temperature_c", "run_effective_interpass_time_s", "effective_deformation_gap_s", "primary_sigma_m_mpa", "primary_sigma_1_mpa", "primary_sigma_2_mpa", "primary_softening_fraction_raw", "primary_softening_percent_raw", "hit1_offset_proof_true_strain", "hit1_offset_fit_point_count", "hit1_offset_fit_slope_mpa", "hit1_offset_fit_intercept_mpa", "hit1_offset_fit_r_squared", "hit1_offset_fit_strain_min", "hit1_offset_fit_strain_max", "hit2_offset_proof_true_strain", "hit2_offset_fit_point_count", "hit2_offset_fit_slope_mpa", "hit2_offset_fit_intercept_mpa", "hit2_offset_fit_r_squared", "hit2_offset_fit_strain_min", "hit2_offset_fit_strain_max", "sensitivity_sigma_m_mpa", "sensitivity_sigma_1_mpa", "sensitivity_sigma_2_mpa", "sensitivity_softening_fraction_raw", "sensitivity_softening_percent_raw", "sensitivity_evaluation_true_strain", "hollomon_fit_point_count", "hollomon_fit_r_squared", "hollomon_fit_strain_min", "hollomon_fit_strain_max", "hollomon_strength_coefficient_k_mpa", "hollomon_strain_hardening_exponent_n", "hollomon_projection_true_strain", "sensitivity_minus_primary_fraction"],
+      "primary_key": ["experiment_run_id", "softening_version"],
+      "interpretation_guardrails": [
+        "primary_method_is_2_percent_offset_and_sensitivity_method_is_5_percent_true_strain",
+        "softening_values_outside_0_to_1_are_flagged_and_never_clamped",
+        "five_percent_sigma_m_is_a_declared_hollomon_projection_not_an_observed_point",
+        "formal_results_require_named_review_of_exact_candidate_values",
+        "source_feature_and_method_registry_hashes_are_required"
+      ]
     }
   },
   "relationships": [
@@ -131,7 +191,12 @@
     {"from": "process_steps.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"},
     {"from": "microstructure_observations.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"},
     {"from": "property_observations.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"},
-    {"from": "physics_observations.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"}
+    {"from": "physics_observations.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"},
+    {"from": "thermal_simulation_runs.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"},
+    {"from": "thermal_simulation_points.sample_id", "to": "samples.sample_id", "cardinality": "one_to_many"},
+    {"from": "thermal_simulation_points.experiment_run_id", "to": "thermal_simulation_runs.experiment_run_id", "cardinality": "many_to_one"},
+    {"from": "thermal_simulation_features.experiment_run_id", "to": "thermal_simulation_runs.experiment_run_id", "cardinality": "one_to_one_per_feature_version"}
+    ,{"from": "thermal_simulation_softening.experiment_run_id", "to": "thermal_simulation_features.experiment_run_id", "cardinality": "one_to_one_per_softening_version"}
   ],
   "physics_model_requirements": [
     "model_id",

@@ -5,7 +5,13 @@ cd /d "%~dp0"
 if not defined STEELAI_PORT set "STEELAI_PORT=8501"
 set "STEELAI_URL=http://127.0.0.1:%STEELAI_PORT%"
 
-powershell.exe -NoProfile -Command "try { $response = Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 '%STEELAI_URL%/_stcore/health'; if ($response.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }"
+rem Loopback instance probe. It runs in scripts\check_local_streamlit_health.ps1
+rem because Windows PowerShell 5.1 has no -NoProxy switch on Invoke-WebRequest;
+rem that helper clears the proxy on its own request only, so a user-configured
+rem HTTP_PROXY/HTTPS_PROXY without a localhost exception can no longer make a
+rem running instance look unreachable. No proxy variable is read, changed or
+rem persisted. Exit code 0 means "this port already answers HTTP 200".
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "scripts\check_local_streamlit_health.ps1" -Port %STEELAI_PORT%
 if not errorlevel 1 (
   echo SteelAI Workbench is already running.
   echo Opening %STEELAI_URL%

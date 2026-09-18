@@ -12,6 +12,7 @@ from statistics import mean
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
+from steelai.governance import digest_value
 from steelai.paths import AGENT_EVALUATIONS, ROOT
 from steelai.agent_observability import write_observability_artifacts
 from steelai.research_agent import AgentRunResult, TOOL_DEFINITIONS, agent_status, run_research_agent
@@ -126,6 +127,8 @@ def _call_matches(expected: dict[str, Any], actual: dict[str, Any]) -> bool:
     if expected.get("tool") != actual.get("tool"):
         return False
     expected_arguments = expected.get("arguments", {})
+    if actual.get("arguments_sha256"):
+        return actual.get("arguments_sha256") == digest_value(expected_arguments)
     actual_arguments = actual.get("arguments", {})
     return all(actual_arguments.get(key) == value for key, value in expected_arguments.items())
 

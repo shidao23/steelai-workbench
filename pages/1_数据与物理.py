@@ -6,33 +6,30 @@ from steelai.ui import module_selector, setup_page, workspace_header
 from steelai.view_loader import render_view
 
 
-setup_page(st, "SteelAI Workbench · 数据与物理", "📊", show_title=False)
+setup_page(st, "SteelAI Workbench · 项目与样品", "🧬", show_title=False)
 workspace_header(
     st,
-    kicker="DATA & PHYSICS",
-    title="数据与物理",
-    description="从样品对比进入确定性计算、数据质控与可追溯统计；所有结果都保留来源和适用边界。",
-    workflow=("样品比较", "物理计算", "数据质控", "统计报告"),
+    kicker="PROJECT & SAMPLES",
+    title="项目与样品",
+    description="围绕当前课题和样品查看数据、科研会话与原始证据位置；先明确研究对象，再进入处理和分析。",
+    workflow=("选择样品", "查看数据", "关联证据", "继续研究"),
 )
 modules = {
-    "样品比较": ("比较 B/R 样品", "先看两个样品的关键性能，再按成分、工艺、组织和性能查看明细。"),
-    "物理计算": ("经验公式计算", "使用登记过版本和适用范围的公式；计算值不是实验真值。"),
-    "数据接入与质控": ("数据门禁", "检查字段、单位和来源，只有人工批准后才允许进入标准化数据。"),
-    "可追溯统计": ("组级统计报告", "从已核验的逐试样记录生成可复核、可重放的描述统计。"),
+    "样品总览": ("样品数据与差异", "查看当前样品的成分、工艺、组织和性能，并与另一研究样品做描述性比较。"),
+    "科研会话": ("研究问题与进度", "保存研究问题、阶段发现、待办和运行引用，让工作可以从上次位置继续。"),
+    "证据索引": ("实验文件与样品关系", "登记 OM、SEM、EBSD、XRD 等原始证据的位置和样品身份，不复制原始文件。"),
 }
 requested_section = {
-    "samples": "样品比较",
-    "physics": "物理计算",
-    "quality": "数据接入与质控",
-    "statistics": "可追溯统计",
+    "samples": "样品总览",
+    "session": "科研会话",
+    "evidence": "证据索引",
 }.get(st.query_params.get("module"))
 if requested_section:
-    st.session_state["data_module_selector"] = requested_section
+    st.session_state["project_module_selector"] = requested_section
     st.query_params.clear()
-section = module_selector(st, modules, key="data_module_selector")
+section = module_selector(st, modules, key="project_module_selector")
 render_view({
-    "样品比较": "sample_data_view.py",
-    "物理计算": "physics_view.py",
-    "数据接入与质控": "data_quality_panel.py",
-    "可追溯统计": "steelstats_view.py",
+    "样品总览": "sample_data_view.py",
+    "科研会话": "research_session_view.py",
+    "证据索引": "evidence_index_view.py",
 }[section])

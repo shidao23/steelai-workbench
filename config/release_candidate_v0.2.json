@@ -1,0 +1,126 @@
+{
+  "schema_version": "1.0",
+  "release_id": "SteelAI-Workbench-v0.2.0-rc1",
+  "product_version": "0.2.0rc1",
+  "display_version": "v0.2.0-rc1",
+  "stage": "T57",
+  "status": "frozen_candidate",
+  "frozen_on": "2026-09-10",
+  "evidence_boundary": {
+    "public_repository": "synthetic_and_documentation_only",
+    "real_research_data_included": false,
+    "cloud_ai_required_for_validation": false,
+    "git_tag_status": "pending_project_owner_action"
+  },
+  "flagship_demo": {
+    "demo_id": "T40-EBC752D15CFE43A605D1",
+    "data_class": "synthetic_demo_data",
+    "required_status": "passed",
+    "unknown_unit_guardrail": "execution_not_approved"
+  },
+  "workspaces": [
+    {
+      "workspace_id": "data_intake",
+      "status": "complete",
+      "target_chain": ["field_identification", "human_approval", "normalization", "value_level_qc", "formal_admission"],
+      "implementation_evidence": ["steelai/data_intake_governance.py", "steelai/views/steeldata_panel.py"],
+      "verification_evidence": ["tests/test_t52_governed_data_physics.py"],
+      "limitations": "Only the governed and explicitly approved route may publish formal data; unknown units and specimen conflicts fail closed."
+    },
+    {
+      "workspace_id": "physics_engine",
+      "status": "complete",
+      "target_chain": ["input_completeness", "formula_version", "applicability_scope", "calculation", "residual", "model_card"],
+      "implementation_evidence": ["steelai/physics_governance.py", "steelai/views/physics_view.py"],
+      "verification_evidence": ["tests/test_t52_governed_data_physics.py", "tests/test_physics.py"],
+      "limitations": "Formula outputs are versioned estimates, not experimental truth; missing inputs are never replaced with zero."
+    },
+    {
+      "workspace_id": "traceable_statistics",
+      "status": "complete",
+      "target_chain": ["statistics_identity", "inclusion_decision", "descriptive_statistics", "group_level_qc", "report_review"],
+      "implementation_evidence": ["steelai/statistics_governance.py", "steelai/views/steelstats_view.py"],
+      "verification_evidence": ["tests/test_t53_statistics_governance.py"],
+      "limitations": "The frozen scope is descriptive statistics and group QC; significance tests and causal claims are excluded."
+    },
+    {
+      "workspace_id": "ebsd_sem",
+      "status": "complete",
+      "target_chain": ["raw_file_registration", "parameter_confirmation", "model_execution", "human_review", "result_indexing"],
+      "implementation_evidence": ["steelai/image_model_governance.py", "steelai/views/image_model_governance_panel.py"],
+      "verification_evidence": ["tests/test_t54_image_model_governance.py"],
+      "limitations": "The Workbench governs external runs and reviews; it does not bundle raw images, model runtimes, or weights."
+    },
+    {
+      "workspace_id": "research_agent",
+      "status": "complete",
+      "target_chain": ["verified_evidence_only", "claim_type_labeling", "bounded_explanation"],
+      "implementation_evidence": ["steelai/agent_evidence_gateway.py", "steelai/research_agent.py"],
+      "verification_evidence": ["tests/test_t55_agent_evidence_gateway.py", "tests/test_research_agent.py"],
+      "limitations": "The Agent cannot approve, write research data, or run arbitrary commands; offline operation remains available."
+    },
+    {
+      "workspace_id": "model_laboratory",
+      "status": "complete",
+      "target_chain": ["dataset_version", "model_version", "run_parameters", "result", "human_acceptance"],
+      "implementation_evidence": ["steelai/image_model_governance.py", "steelai/views/model_lab_view.py"],
+      "verification_evidence": ["tests/test_t54_image_model_governance.py", "tests/test_model_lab.py"],
+      "limitations": "Heavy model execution stays in an isolated external environment and candidate outputs require human review."
+    },
+    {
+      "workspace_id": "automation_tasks",
+      "status": "deferred",
+      "target_chain": ["task_proposal", "execution_approval", "status_record", "artifact_verification"],
+      "implementation_evidence": ["steelai/automation.py", "steelai/views/automation_view.py"],
+      "verification_evidence": ["tests/test_automation.py", "tests/test_t56_run_center.py"],
+      "limitations": "T57 freezes status visibility only; full approval-bound automation execution is deferred and cannot produce accepted portfolio evidence.",
+      "defer_reason": "The current AutoDimple runner predates the shared governance execution gate.",
+      "planned_task": "Post-v0.2 governed automation adapter"
+    },
+    {
+      "workspace_id": "research_session",
+      "status": "complete",
+      "target_chain": ["research_question", "evidence_citation", "stage_conclusion", "limitations", "next_step"],
+      "implementation_evidence": ["steelai/research_session.py", "steelai/views/research_session_view.py"],
+      "verification_evidence": ["tests/test_research_session.py"],
+      "limitations": "Local session records organize work but are not accepted evidence and are excluded from public candidates."
+    },
+    {
+      "workspace_id": "portfolio",
+      "status": "complete",
+      "target_chain": ["accepted_results_only", "evidence_projection", "disclosure_review", "portfolio_publication"],
+      "implementation_evidence": ["steelai/run_center.py", "steelai/portfolio.py", "pages/5_Career_Portfolio.py"],
+      "verification_evidence": ["tests/test_t56_run_center.py"],
+      "limitations": "Only complete, integrity-passed and named-human-accepted results are eligible; synthetic demos remain explicitly labelled."
+    }
+  ],
+  "regression_scenarios": [
+    {"scenario_id": "success", "tests": ["tests/test_t40_flagship_demo.py", "tests/test_t52_governed_data_physics.py"]},
+    {"scenario_id": "missing_field", "tests": ["tests/test_t52_governed_data_physics.py", "tests/test_physics.py"]},
+    {"scenario_id": "unknown_unit", "tests": ["tests/test_t40_flagship_demo.py", "tests/test_t52_governed_data_physics.py"]},
+    {"scenario_id": "identity_conflict", "tests": ["tests/test_governance_core.py", "tests/test_steeldata_bridge.py"]},
+    {"scenario_id": "duplicate_write", "tests": ["tests/test_governance_core.py", "tests/test_data_intake.py"]},
+    {"scenario_id": "unapproved_execution", "tests": ["tests/test_governance_core.py", "tests/test_t52_governed_data_physics.py"]},
+    {"scenario_id": "tampering", "tests": ["tests/test_governance_core.py", "tests/test_t53_statistics_governance.py", "tests/test_t54_image_model_governance.py"]},
+    {"scenario_id": "privacy_leak", "tests": ["tests/test_public_release_audit.py", "tests/test_t55_agent_evidence_gateway.py"]}
+  ],
+  "offline_degradation": [
+    {"component": "Research Agent", "expected": "offline_without_api_key", "tests": ["tests/test_research_agent.py", "tests/test_t55_agent_evidence_gateway.py"]},
+    {"component": "SteelData", "expected": "actionable_unavailable_message", "tests": ["tests/test_steeldata_bridge.py"]},
+    {"component": "SteelStats", "expected": "actionable_unavailable_message", "tests": ["tests/test_steelstats_bridge.py"]}
+  ],
+  "required_documents": [
+    "README.md",
+    "docs/ARCHITECTURE.md",
+    "docs/INSTALL.md",
+    "docs/KNOWN_LIMITATIONS.md",
+    "docs/USER_GUIDE.md",
+    "docs/T57_VALIDATION_REPORT.md"
+  ],
+  "acceptance_thresholds": {
+    "minimum_test_count": 147,
+    "maximum_test_failures": 0,
+    "privacy_findings": 0,
+    "required_workspace_count": 9
+  }
+}

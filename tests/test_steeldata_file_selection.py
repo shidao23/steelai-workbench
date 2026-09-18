@@ -105,7 +105,9 @@ class Upload:
 class SelectionPanelTests(unittest.TestCase):
     def test_picker_and_manual_path_are_both_available_and_no_auto_execution(self):
         from streamlit.testing.v1 import AppTest
-        with patch.object(SteelDataClient, "_call", side_effect=AssertionError("No automatic execution")):
+        with patch.object(SteelDataClient, "_call", side_effect=AssertionError("No automatic execution")), patch(
+            "steelai.intake_request.record_event"
+        ) as intake_event:
             app = AppTest.from_file(str(ROOT / "steelai/views/data_quality_panel.py"), default_timeout=20).run()
             app.radio(key="sd_mode").set_value("运行原始数据批次").run()
             self.assertFalse(app.exception, str(app.exception))
@@ -118,6 +120,12 @@ class SelectionPanelTests(unittest.TestCase):
             self.assertFalse(app.exception, str(app.exception))
             self.assertFalse(app.checkbox(key="sd_snapshot_agree").value)
             self.assertTrue(any(item.key == "sd_input" for item in app.text_input))
+            app.text_input(key="sd_input").set_value(r"D:\lab\input").run()
+            self.assertTrue(app.button(key="sd_run").disabled)
+            self.assertTrue(any(
+                call.args and call.args[0] == "intake_request"
+                for call in intake_event.call_args_list
+            ))
 
     def test_selected_files_need_confirmation_and_result_uses_existing_qc_gate(self):
         from streamlit.testing.v1 import AppTest
@@ -129,7 +137,9 @@ class SelectionPanelTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = Path(temp) / "run"
             result_fixture(run, synthetic=True)
-            with patch("streamlit.file_uploader", side_effect=picker), patch.object(
+            with patch("streamlit.file_uploader", side_effect=picker), patch(
+                "steelai.intake_request.record_event"
+            ), patch.object(
                 SteelDataClient, "availability", return_value={"ready": True, "project": "test"}), patch.object(
                 SteelDataClient, "run_selected", return_value={"run_dir": str(run)}) as execute:
                 app = AppTest.from_file(str(ROOT / "steelai/views/data_quality_panel.py"), default_timeout=20).run()

@@ -46,3 +46,7 @@ T14 已在两个隔离环境完成普通安装和哈希锁定重装，只使用 
 - MLflow：[仓库](https://github.com/mlflow/mlflow)、[v3.16.0](https://github.com/mlflow/mlflow/releases/tag/v3.16.0)、[Apache-2.0 License](https://github.com/mlflow/mlflow/blob/v3.16.0/LICENSE.txt)、[PyPI](https://pypi.org/project/mlflow/3.16.0/)
 
 后续重新评估时必须更新核对日期和固定引用，不能把这里记录的版本自动解释成“永远最新”。
+
+## T62 公开数据登记
+
+`Steel Plates Faults` 由 UCI Machine Learning Repository 发布，数据集 ID 198，DOI `10.24432/C5J88N`，页面明确标注 CC BY 4.0。T62 固定官方 ZIP 及内部数据/字段文件 SHA-256，保留 Buscema、Terzi 与 Tastle 的署名；仓库只提交获取代码、许可记录和验证规则，不重新分发原始数据。完整登记见 `config/real_data_case_v1.0.json` 和 `docs/T62_REAL_DATA_CASE.md`。

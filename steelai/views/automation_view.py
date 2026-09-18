@@ -100,9 +100,10 @@ st.warning("生活管理继续保留在Notion，不接入SteelAI科研数据权�
 next_step_buttons(
     st,
     [
-        {"label": "返回模型实验室", "state": {"model_module_selector": "模型实验室"}},
-        {"label": "返回科研总览", "url": "/"},
+        {"label": "返回模型实验室", "url": "/advanced?module=model_lab"},
+        {"label": "查看运行与成果", "url": "/analysis?module=runs"},
+        {"label": "返回首页", "url": "/"},
     ],
     key_prefix="automation",
-    note="任务完成后回到模型实验室复核结果；需要查看整个项目状态时返回科研总览。",
+    note="任务完成后回到模型实验室复核结果；需要查看整个项目状态时返回首页。",
 )

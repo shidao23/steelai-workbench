@@ -1,0 +1,359 @@
+{
+  "contract_id": "SteelAI-Global-Research-Governance-v1.0",
+  "schema_version": "1.0",
+  "task_id": "T50",
+  "status": "frozen",
+  "effective_date": "2026-09-09",
+  "owner_role": "project_owner",
+  "scope": {
+    "system": "SteelAI Workbench",
+    "purpose": "Freeze one auditable governance language for all research workspaces before shared runtime implementation.",
+    "applies_to": [
+      "data_intake",
+      "physics_engine",
+      "traceable_statistics",
+      "ebsd_sem",
+      "research_agent",
+      "model_laboratory",
+      "automation_tasks",
+      "research_session",
+      "portfolio"
+    ],
+    "preconditions": {
+      "T40": "done",
+      "T41": "done",
+      "T42": "canceled",
+      "T43": "canceled"
+    },
+    "non_goals": [
+      "change real research data",
+      "migrate existing outputs",
+      "refactor all workspace pages",
+      "grant an AI system approval authority",
+      "treat a model output as experimental truth"
+    ]
+  },
+  "principles": {
+    "missing_value_policy": "blank_is_unknown_not_zero",
+    "ai_authority": "suggest_explain_and_summarize_only",
+    "formal_write_policy": "append_only_after_declared_gates",
+    "failure_policy": "fail_closed",
+    "provenance_policy": "required_for_every_formal_result",
+    "immutability_policy": "accepted_artifacts_are_content_addressed_and_never_silently_overwritten",
+    "human_accountability": "approval_rejection_and_warning_acceptance_require_an_attributable_human_record"
+  },
+  "evidence_classes": {
+    "real_research_data": {
+      "description": "A record derived from an identified real experiment or characterization source.",
+      "formal_evidence_eligible": true,
+      "may_be_presented_as_experimental_truth": true,
+      "required_labels": ["source_identity", "source_status", "provenance", "qc_status"],
+      "guard": "Eligibility still requires identity, approval, QC and provenance gates."
+    },
+    "synthetic_demo_data": {
+      "description": "A fabricated public fixture used for demonstration, tests or interface rehearsal.",
+      "formal_evidence_eligible": false,
+      "may_be_presented_as_experimental_truth": false,
+      "required_labels": ["synthetic_only", "fixture_id"],
+      "guard": "It must remain visibly labeled and isolated from formal research stores."
+    },
+    "model_output": {
+      "description": "A calculated, predicted, segmented or generated output from a registered model or formula.",
+      "formal_evidence_eligible": false,
+      "may_be_presented_as_experimental_truth": false,
+      "required_labels": ["model_id", "model_version", "input_identity", "run_id", "limitations"],
+      "guard": "Human review may accept it as a model result but cannot relabel it as a direct measurement."
+    },
+    "human_conclusion": {
+      "description": "A named researcher's conclusion, decision or interpretation based on cited evidence.",
+      "formal_evidence_eligible": true,
+      "may_be_presented_as_experimental_truth": false,
+      "required_labels": ["author_id", "decision_id", "evidence_ids", "scope", "limitations", "decided_at"],
+      "guard": "The conclusion must remain distinguishable from its supporting observations and model outputs."
+    }
+  },
+  "research_object_identity": {
+    "policy": "Every governed object has a stable type-scoped identifier; display names, row positions, filenames and model prose are never identities.",
+    "objects": [
+      {"object_type": "material", "identity_field": "material_id", "parent_identity": null},
+      {"object_type": "heat", "identity_field": "heat_id", "parent_identity": "material_id"},
+      {"object_type": "sample", "identity_field": "sample_id", "parent_identity": "heat_id"},
+      {"object_type": "specimen", "identity_field": "specimen_id", "parent_identity": "sample_id"},
+      {"object_type": "source", "identity_field": "source_id", "parent_identity": null},
+      {"object_type": "observation", "identity_field": "observation_id", "parent_identity": "source_id"},
+      {"object_type": "image_field", "identity_field": "image_field_id", "parent_identity": "source_id"},
+      {"object_type": "task", "identity_field": "task_id", "parent_identity": null},
+      {"object_type": "run", "identity_field": "run_id", "parent_identity": "task_id"},
+      {"object_type": "result", "identity_field": "result_id", "parent_identity": "run_id"},
+      {"object_type": "evidence", "identity_field": "evidence_id", "parent_identity": "result_id"},
+      {"object_type": "approval", "identity_field": "approval_id", "parent_identity": "object_id"},
+      {"object_type": "research_session", "identity_field": "session_id", "parent_identity": null},
+      {"object_type": "portfolio_item", "identity_field": "portfolio_item_id", "parent_identity": "evidence_id"}
+    ],
+    "required_identity_fields": [
+      "object_type",
+      "object_id",
+      "revision",
+      "content_digest",
+      "created_at",
+      "created_by"
+    ],
+    "prohibited_identity_sources": [
+      "display_name_only",
+      "row_number_only",
+      "filename_only",
+      "free_text_only",
+      "model_generated_identifier_without_validation"
+    ]
+  },
+  "states": {
+    "draft": "The input or task exists, but execution is not authorized.",
+    "needs_human": "A named human decision is required because identity, unit, scope, parameter, evidence or acceptance is uncertain.",
+    "approved": "An attributable human has approved a hash-bound revision and declared scope.",
+    "running": "Deterministic code or a registered external tool is executing an approved revision.",
+    "passed": "The declared technical QC rules passed; human acceptance may still be pending.",
+    "warning": "The artifact can be retained only with an explicit limitation and, for formal use, human acceptance.",
+    "rejected": "A human explicitly rejected the reviewed revision.",
+    "blocked": "A required condition failed or is absent; no formal result may be emitted.",
+    "complete": "Result, provenance, integrity evidence and required human review are complete.",
+    "invalidated": "A previously governed input or artifact changed without a registered successor revision."
+  },
+  "allowed_transitions": [
+    {"from": "draft", "to": "needs_human", "actor": "system", "guard": "one_or_more_needs_human_triggers"},
+    {"from": "draft", "to": "approved", "actor": "human", "guard": "valid_approval_record"},
+    {"from": "draft", "to": "rejected", "actor": "human", "guard": "valid_rejection_record"},
+    {"from": "draft", "to": "blocked", "actor": "system", "guard": "one_or_more_blocked_triggers"},
+    {"from": "needs_human", "to": "approved", "actor": "human", "guard": "all_uncertainties_resolved_and_valid_approval_record"},
+    {"from": "needs_human", "to": "rejected", "actor": "human", "guard": "valid_rejection_record"},
+    {"from": "needs_human", "to": "blocked", "actor": "system", "guard": "required_resolution_is_unavailable_or_invalid"},
+    {"from": "approved", "to": "running", "actor": "system", "guard": "approval_digest_matches_current_revision"},
+    {"from": "approved", "to": "invalidated", "actor": "system", "guard": "input_or_configuration_digest_changed"},
+    {"from": "running", "to": "passed", "actor": "system", "guard": "all_declared_qc_rules_pass"},
+    {"from": "running", "to": "warning", "actor": "system", "guard": "nonfatal_limitation_is_recorded"},
+    {"from": "running", "to": "blocked", "actor": "system", "guard": "one_or_more_blocked_triggers"},
+    {"from": "running", "to": "invalidated", "actor": "system", "guard": "input_or_runtime_identity_changed"},
+    {"from": "passed", "to": "complete", "actor": "human_or_system", "guard": "required_review_and_manifest_are_complete"},
+    {"from": "passed", "to": "warning", "actor": "human_or_system", "guard": "limitation_discovered_before_completion"},
+    {"from": "passed", "to": "invalidated", "actor": "system", "guard": "input_output_or_evidence_digest_changed"},
+    {"from": "warning", "to": "complete", "actor": "human", "guard": "warning_is_explicitly_accepted_with_scope_and_limitation"},
+    {"from": "warning", "to": "needs_human", "actor": "system", "guard": "warning_requires_a_new_decision"},
+    {"from": "warning", "to": "invalidated", "actor": "system", "guard": "input_output_or_evidence_digest_changed"},
+    {"from": "blocked", "to": "needs_human", "actor": "system", "guard": "blocking_condition_is_remediable_by_human_decision"},
+    {"from": "invalidated", "to": "needs_human", "actor": "system", "guard": "registered_successor_revision_requires_review"},
+    {"from": "complete", "to": "invalidated", "actor": "system", "guard": "accepted_artifact_or_bound_input_changed"}
+  ],
+  "needs_human_triggers": [
+    {"code": "GOV-IDENTITY-001", "state": "needs_human", "trigger": "Object identity or parent relationship is ambiguous, missing or conflicting.", "resolution": "A human selects or registers the stable identity and records evidence."},
+    {"code": "GOV-UNIT-001", "state": "needs_human", "trigger": "A physical quantity unit is unknown, ambiguous or incompatible with the declared contract.", "resolution": "A human confirms the source unit or rejects the item; the system does not guess a conversion."},
+    {"code": "GOV-SCOPE-001", "state": "needs_human", "trigger": "A formula, model, method or conclusion has an uncertain applicability scope.", "resolution": "A human declares the permitted scope and limitation."},
+    {"code": "GOV-PARAM-001", "state": "needs_human", "trigger": "An analysis, segmentation, model or automation parameter requires scientific choice.", "resolution": "A human records the selected parameter set and rationale."},
+    {"code": "GOV-EVIDENCE-001", "state": "needs_human", "trigger": "Evidence sources conflict, are incomplete or do not support a unique interpretation.", "resolution": "A human records the inclusion decision, conflict and limitation."},
+    {"code": "GOV-WARNING-001", "state": "needs_human", "trigger": "A warning-bearing result is proposed for formal use.", "resolution": "A human accepts or rejects the warning for an explicit scope."},
+    {"code": "GOV-CONCLUSION-001", "state": "needs_human", "trigger": "A model-generated explanation is proposed as a research conclusion.", "resolution": "A human authors or approves a separate conclusion linked to verified evidence."},
+    {"code": "GOV-PORTFOLIO-001", "state": "needs_human", "trigger": "An artifact is proposed for portfolio publication but acceptance or disclosure status is unclear.", "resolution": "A human confirms acceptance, disclosure scope and redaction."}
+  ],
+  "blocked_triggers": [
+    {"code": "GOV-APPROVAL-001", "state": "blocked", "trigger": "Execution or formal write is requested without the required valid approval.", "recovery": "Obtain a hash-bound human decision for the current revision."},
+    {"code": "GOV-STATE-001", "state": "blocked", "trigger": "A requested state transition is not in allowed_transitions.", "recovery": "Return to the last valid state and follow an allowed transition."},
+    {"code": "GOV-INTEGRITY-001", "state": "blocked", "trigger": "A content digest, manifest or completion marker is missing or mismatched.", "recovery": "Preserve the artifact, register a successor revision and rerun verification."},
+    {"code": "GOV-SCHEMA-001", "state": "blocked", "trigger": "Required fields, types, units or relationships fail the declared schema.", "recovery": "Correct the source mapping or register a compatible contract version."},
+    {"code": "GOV-DUPLICATE-001", "state": "blocked", "trigger": "An append-only primary key or source identity already exists with different content.", "recovery": "Do not overwrite; reconcile identity and create an explicit successor when appropriate."},
+    {"code": "GOV-SOURCE-001", "state": "blocked", "trigger": "The source is absent, unregistered, unsupported or changed after review.", "recovery": "Register and verify the current source revision before review."},
+    {"code": "GOV-PRIVACY-001", "state": "blocked", "trigger": "The operation would expose a local path, secret, restricted data or an unapproved research artifact.", "recovery": "Remove restricted content or obtain an explicit, scoped disclosure decision."},
+    {"code": "GOV-LICENSE-001", "state": "blocked", "trigger": "A third-party code or data license is unknown, incompatible or unrecorded.", "recovery": "Record a compatible license and fixed source reference, or remove the dependency."},
+    {"code": "GOV-AI-AUTH-001", "state": "blocked", "trigger": "An AI or Agent attempts approval, formal evidence admission, destructive write or unrestricted tool execution.", "recovery": "Route the action to a human-controlled, allow-listed procedure."},
+    {"code": "GOV-RUNTIME-001", "state": "blocked", "trigger": "A registered runtime, formula version, model version or external tool cannot be reproduced.", "recovery": "Restore the registered environment or create and review a new version."},
+    {"code": "GOV-RESULT-001", "state": "blocked", "trigger": "A formal result is requested from synthetic-only data or from an unreviewed model output.", "recovery": "Keep it in demo/model scope or provide eligible real evidence and required review."},
+    {"code": "GOV-WRITE-001", "state": "blocked", "trigger": "A write target is outside the workspace allow-list or would mutate a source/accepted package.", "recovery": "Write a new artifact to an approved output area and preserve the source."}
+  ],
+  "result_levels": {
+    "working_candidate": {"formal_citation_allowed": false, "minimum_state": "draft", "description": "Unaccepted intermediate work."},
+    "synthetic_demo_only": {"formal_citation_allowed": false, "minimum_state": "passed", "description": "Verified demonstration behavior using synthetic fixtures."},
+    "model_result": {"formal_citation_allowed": true, "minimum_state": "complete", "description": "A reviewed model/formula result, explicitly labeled as non-measurement."},
+    "verified_output": {"formal_citation_allowed": true, "minimum_state": "passed", "description": "Technically verified output whose scientific acceptance may still be pending."},
+    "accepted_evidence": {"formal_citation_allowed": true, "minimum_state": "complete", "description": "A complete result accepted for a declared research scope."},
+    "human_conclusion": {"formal_citation_allowed": true, "minimum_state": "complete", "description": "A human-authored conclusion linked to accepted or explicitly limited evidence."}
+  },
+  "approval_record": {
+    "decisions": ["approved", "rejected", "warning_accepted"],
+    "required_fields": [
+      "approval_id",
+      "object_type",
+      "object_id",
+      "object_revision",
+      "object_digest",
+      "decision",
+      "reviewer_id",
+      "decided_at",
+      "scope",
+      "rationale",
+      "governance_contract_id"
+    ],
+    "rules": [
+      "AI and Agent identities cannot be reviewer_id.",
+      "An approval applies only to the bound object revision and digest.",
+      "Changing the bound content invalidates the approval.",
+      "Approval and rejection records are append-only and attributable.",
+      "Batch approval is prohibited unless a later contract explicitly defines homogeneous scope and sampling evidence."
+    ]
+  },
+  "formal_write_conditions": [
+    {"condition_id": "FW-IDENTITY", "requirement": "Stable object and parent identities are registered."},
+    {"condition_id": "FW-SOURCE", "requirement": "Source identity, status and current digest are registered."},
+    {"condition_id": "FW-SCHEMA", "requirement": "Schema, field, unit and relationship validation pass."},
+    {"condition_id": "FW-APPROVAL", "requirement": "Every required human approval matches the current revision and digest."},
+    {"condition_id": "FW-QC", "requirement": "Declared QC passes, or a warning has explicit human acceptance and scope."},
+    {"condition_id": "FW-PROVENANCE", "requirement": "Input, method/model, runtime, output and reviewer provenance are complete."},
+    {"condition_id": "FW-INTEGRITY", "requirement": "Manifest and content digests verify before publication."},
+    {"condition_id": "FW-CLASS", "requirement": "Evidence class is explicit; synthetic data and unreviewed model output cannot enter formal evidence stores."},
+    {"condition_id": "FW-APPEND", "requirement": "The destination is allow-listed and the write is append-only with no conflicting identity."},
+    {"condition_id": "FW-STATE", "requirement": "The object reached a permitted state through allowed transitions."}
+  ],
+  "responsibility_matrix": [
+    {
+      "component": "SteelData",
+      "owns": ["source_registration", "mapping_suggestion_contract", "normalization_execution", "value_level_qc", "result_package_integrity"],
+      "does_not_own": ["human_approval", "research_sample_mapping", "formal_workbench_admission", "scientific_conclusion"]
+    },
+    {
+      "component": "SteelStats",
+      "owns": ["frozen_statistics_input_contract", "descriptive_statistics", "group_level_qc", "report_integrity"],
+      "does_not_own": ["source_data_mutation", "specimen_inclusion_decision", "causal_claim", "human_report_acceptance"]
+    },
+    {
+      "component": "SteelAI Workbench",
+      "owns": ["workspace_orchestration", "human_review_interface", "cross_module_identity_binding", "evidence_index", "portfolio_filtering"],
+      "does_not_own": ["silent_source_repair", "automatic_scientific_approval", "unrestricted_external_execution"]
+    },
+    {
+      "component": "Research Agent",
+      "owns": ["bounded_suggestion", "evidence_citation", "fact_judgment_hypothesis_labeling", "limited_explanation"],
+      "does_not_own": ["approval", "formal_write", "source_of_experimental_truth", "unrestricted_tool_call"]
+    },
+    {
+      "component": "Registered external tool",
+      "owns": ["versioned_declared_computation", "declared_output_artifact"],
+      "does_not_own": ["input_approval", "formal_evidence_admission", "scientific_conclusion", "source_overwrite"]
+    },
+    {
+      "component": "Project owner or delegated human reviewer",
+      "owns": ["approval", "rejection", "warning_acceptance", "scope_decision", "scientific_conclusion", "disclosure_decision"],
+      "does_not_own": ["silent_history_rewrite", "unrecorded_identity_change"]
+    }
+  ],
+  "workspaces": [
+    {
+      "workspace_id": "data_intake",
+      "label": "数据接入",
+      "current_entry_points": ["数据与物理/数据接入与质控", "SteelData v0.2 fixed CLI and MCP"],
+      "current_outputs": ["mapping suggestion", "human decision", "SteelData result package", "Workbench append-only staging"],
+      "current_state_vocabulary": ["candidate", "needs_human", "unsupported", "approved", "rejected", "execution_not_approved", "completed", "not_committed"],
+      "target_chain": ["field_identification", "human_approval", "normalization", "value_level_qc", "formal_admission"],
+      "governed_states": ["draft", "needs_human", "approved", "running", "passed", "warning", "rejected", "blocked", "complete", "invalidated"],
+      "result_levels": ["working_candidate", "verified_output", "accepted_evidence"],
+      "primary_human_gate": "Approve one source-bound mapping revision and separately confirm physical specimen mapping before formal admission."
+    },
+    {
+      "workspace_id": "physics_engine",
+      "label": "Physics Engine",
+      "current_entry_points": ["数据与物理/物理计算", "physics model registry v1.0"],
+      "current_outputs": ["versioned formula estimate", "applicability warning", "residual-ready comparison", "model card metadata"],
+      "current_state_vocabulary": ["not_ready", "ready", "warning", "blocked"],
+      "target_chain": ["input_completeness", "formula_version", "applicability_scope", "calculation", "residual", "model_card"],
+      "governed_states": ["draft", "needs_human", "approved", "running", "passed", "warning", "blocked", "complete", "invalidated"],
+      "result_levels": ["working_candidate", "model_result"],
+      "primary_human_gate": "Confirm applicability scope and accept any warning before a formula result is cited."
+    },
+    {
+      "workspace_id": "traceable_statistics",
+      "label": "可追溯统计",
+      "current_entry_points": ["数据与物理/可追溯统计", "SteelStats fixed report and verify-report CLI"],
+      "current_outputs": ["frozen input bundle", "descriptive statistics report", "group QC", "report integrity verification"],
+      "current_state_vocabulary": ["ready", "passed", "failed", "warning", "not_started"],
+      "target_chain": ["statistics_identity", "inclusion_decision", "descriptive_statistics", "group_level_qc", "report_review"],
+      "governed_states": ["draft", "needs_human", "approved", "running", "passed", "warning", "rejected", "blocked", "complete", "invalidated"],
+      "result_levels": ["working_candidate", "verified_output", "accepted_evidence"],
+      "primary_human_gate": "Approve specimen inclusion and method version, then review the report for formal use."
+    },
+    {
+      "workspace_id": "ebsd_sem",
+      "label": "EBSD/SEM",
+      "current_entry_points": ["组织与证据/EBSD 分析", "SEM/EBSD/XRD evidence index and manual parameter records"],
+      "current_outputs": ["source-file registration", "parameter record", "analysis artifact", "evidence index entry"],
+      "current_state_vocabulary": ["pending", "ready", "running", "completed", "failed", "needs_review"],
+      "target_chain": ["raw_file_registration", "parameter_confirmation", "model_execution", "human_review", "result_indexing"],
+      "governed_states": ["draft", "needs_human", "approved", "running", "passed", "warning", "rejected", "blocked", "complete", "invalidated"],
+      "result_levels": ["working_candidate", "model_result", "accepted_evidence"],
+      "primary_human_gate": "Confirm scientific parameters before execution and review segmentation/measurement outputs before indexing."
+    },
+    {
+      "workspace_id": "research_agent",
+      "label": "研究助手",
+      "current_entry_points": ["研究助手/智能助手", "研究助手/证据验证", "DSH allow-listed research bridge"],
+      "current_outputs": ["bounded answer", "evidence citation", "fact/judgment/hypothesis labels", "limitations"],
+      "current_state_vocabulary": ["candidate", "needs_human", "unsupported", "verified", "blocked"],
+      "target_chain": ["verified_evidence_only", "claim_type_labeling", "bounded_explanation"],
+      "governed_states": ["draft", "needs_human", "approved", "running", "passed", "warning", "blocked", "complete", "invalidated"],
+      "result_levels": ["working_candidate", "human_conclusion"],
+      "primary_human_gate": "A human owns conclusions; the Agent can only organize cited, verified evidence and disclose uncertainty."
+    },
+    {
+      "workspace_id": "model_laboratory",
+      "label": "模型实验室",
+      "current_entry_points": ["模型与自动化/模型实验室", "model_lab registry and run artifacts"],
+      "current_outputs": ["dataset identity", "model identity", "run record", "metrics", "review decision"],
+      "current_state_vocabulary": ["draft", "ready", "running", "completed", "failed", "accepted", "rejected"],
+      "target_chain": ["dataset_version", "model_version", "run_parameters", "result", "human_acceptance"],
+      "governed_states": ["draft", "needs_human", "approved", "running", "passed", "warning", "rejected", "blocked", "complete", "invalidated"],
+      "result_levels": ["working_candidate", "model_result"],
+      "primary_human_gate": "Approve the data/model/run configuration and separately accept the resulting model card."
+    },
+    {
+      "workspace_id": "automation_tasks",
+      "label": "自动化任务",
+      "current_entry_points": ["模型与自动化/任务与结果", "allow-listed automation runner"],
+      "current_outputs": ["task proposal", "approval record", "execution status", "artifact verification"],
+      "current_state_vocabulary": ["draft", "pending", "approved", "running", "completed", "failed", "blocked"],
+      "target_chain": ["task_proposal", "execution_approval", "status_record", "artifact_verification"],
+      "governed_states": ["draft", "needs_human", "approved", "running", "passed", "warning", "rejected", "blocked", "complete", "invalidated"],
+      "result_levels": ["working_candidate", "verified_output"],
+      "primary_human_gate": "A human approves the exact allow-listed task; output verification is required before completion."
+    },
+    {
+      "workspace_id": "research_session",
+      "label": "科研会话",
+      "current_entry_points": ["研究助手/科研会话", "local research-session store"],
+      "current_outputs": ["research question", "evidence links", "stage conclusion", "limitations", "next action"],
+      "current_state_vocabulary": ["open", "in_progress", "blocked", "complete"],
+      "target_chain": ["research_question", "evidence_citation", "stage_conclusion", "limitations", "next_step"],
+      "governed_states": ["draft", "needs_human", "approved", "running", "passed", "warning", "blocked", "complete", "invalidated"],
+      "result_levels": ["working_candidate", "human_conclusion"],
+      "primary_human_gate": "The researcher accepts a stage conclusion and its limitations; conversation text alone is not evidence."
+    },
+    {
+      "workspace_id": "portfolio",
+      "label": "作品集",
+      "current_entry_points": ["成果与作品集", "Career Portfolio event projection"],
+      "current_outputs": ["accepted project event", "capability summary", "evidence-linked portfolio item"],
+      "current_state_vocabulary": ["candidate", "accepted", "hidden", "blocked"],
+      "target_chain": ["accepted_results_only", "evidence_projection", "disclosure_review", "portfolio_publication"],
+      "governed_states": ["draft", "needs_human", "approved", "passed", "warning", "rejected", "blocked", "complete", "invalidated"],
+      "result_levels": ["accepted_evidence", "human_conclusion", "synthetic_demo_only"],
+      "primary_human_gate": "Only accepted, disclosure-reviewed artifacts may be projected; unconfirmed intermediates are excluded."
+    }
+  ],
+  "t50_acceptance": {
+    "criteria": [
+      "Exactly nine workspaces map to the common state and result vocabularies.",
+      "Every needs_human and blocked route has an explicit trigger and recovery or resolution.",
+      "Real data, synthetic data, model output and human conclusion remain distinct.",
+      "No real data, existing result package or T40 fixture is modified.",
+      "This contract defines governance only; shared runtime enforcement begins at T51."
+    ],
+    "evidence": [
+      "docs/T50_GLOBAL_RESEARCH_GOVERNANCE.md",
+      "config/global_research_governance_v1.0.json",
+      "tests/test_global_research_governance.py"
+    ]
+  }
+}

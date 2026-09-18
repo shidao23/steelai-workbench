@@ -20,9 +20,17 @@ def _latest_verified() -> tuple[Path, dict] | None:
     if not OUTPUT_ROOT.is_dir():
         return None
     for path in sorted(OUTPUT_ROOT.glob("T40-*"), key=lambda item: item.stat().st_mtime, reverse=True):
-        verification = verify_flagship_demo(path)
+        try:
+            verification = verify_flagship_demo(path)
+        except (OSError, ValueError, json.JSONDecodeError):
+            # A stale local package may be unreadable because of Windows ACLs
+            # or a partial copy. Keep the page usable and treat it as invalid.
+            continue
         if verification["status"] == "passed":
-            return path, json.loads((path / MANIFEST_NAME).read_text(encoding="utf-8"))
+            try:
+                return path, json.loads((path / MANIFEST_NAME).read_text(encoding="utf-8"))
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
     return None
 
 
@@ -73,9 +81,9 @@ next_step_buttons(
     [
         {
             "label": "查看可追溯统计",
-            "url": "/数据与物理?module=statistics",
+            "url": "/analysis?module=statistics",
         },
-        {"label": "进入证据验证", "state": {"research_module_selector": "证据验证"}},
+        {"label": "进入证据验证", "url": "/analysis?module=validation"},
     ],
     key_prefix="flagship",
     note="演示结束后，可以查看统计模块的正式边界，或继续检查允许表述的研究结论。",

@@ -1,0 +1,33 @@
+{
+  "feature_version": "SteelAI-Thermal-Features-v1.0",
+  "schema_version": "1.0",
+  "scope": {
+    "test_type": "DH",
+    "formula_id": "SteelAI-Thermal-Compression-Phi10x15-v1.0",
+    "segment_policy_id": "SteelAI-DoubleHit-LiteratureAligned-v1.0"
+  },
+  "target_local_true_strains": [0.05, 0.1, 0.15, 0.2],
+  "flow_stress_sampling": {
+    "method": "linear_interpolation_on_unique_local_true_strain",
+    "duplicate_strain_rule": "median_stress",
+    "extrapolation": "forbidden"
+  },
+  "peak_stress_basis": "baseline_corrected_effective_loading_segment",
+  "temperature_basis": "instrument_control_temperature_c",
+  "interpass_time_basis": {
+    "run_effective_interpass_time_s": "reviewed instrument interval retained by T71",
+    "effective_deformation_gap_s": "hit_2_contact_time_s - hit_1_end_time_s"
+  },
+  "formal_write": {
+    "destination": "data/processed/thermal_simulation_features.csv",
+    "requires_named_human_segment_review": true,
+    "append_only": true
+  },
+  "guardrails": [
+    "read_governed_runs_and_points_only",
+    "never_extrapolate_target_strain",
+    "never_publish_candidate_segments_as_approved_features",
+    "preserve_formula_policy_source_and_feature_hashes",
+    "missing_required_feature_blocks_formal_write"
+  ]
+}

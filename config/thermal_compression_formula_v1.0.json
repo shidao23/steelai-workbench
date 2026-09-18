@@ -1,0 +1,28 @@
+{
+  "formula_id": "SteelAI-Thermal-Compression-Phi10x15-v1.0",
+  "schema_version": "1.0",
+  "source_status": "project_owner_provided_formula",
+  "applicable_test_type": "DH",
+  "specimen_diameter_mm": 10.0,
+  "initial_height_mm": 15.0,
+  "initial_height_cm": 1.5,
+  "force_input_column": "force_value_raw",
+  "force_input_unit": "Kg",
+  "stroke_input_column": "stroke_value_raw",
+  "stroke_input_unit": "cm",
+  "stress_output_column": "stress_mpa",
+  "stress_output_unit": "MPa",
+  "strain_output_column": "true_strain",
+  "strain_output_unit": "1",
+  "stress_coefficient": 0.083,
+  "stress_formula": "0.083 * force_value_raw * (1.5 - stroke_value_raw)",
+  "strain_formula": "ln(1.5 / (1.5 - stroke_value_raw))",
+  "guardrails": [
+    "preserve_raw_force_and_stroke",
+    "do_not_fill_missing_values_with_zero",
+    "require_phi10_by_15_mm_geometry",
+    "require_positive_current_height",
+    "do_not_apply_to_non_DH_runs",
+    "formula_output_is_derived_from_instrument_values"
+  ]
+}

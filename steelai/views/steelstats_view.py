@@ -6,20 +6,24 @@ from pathlib import Path
 import streamlit as st
 
 from steelai.steeldata_bridge import inspect_run, mapping_rows
-from steelai.steelstats_bridge import SteelStatsClient, run_statistics_from_steeldata
+from steelai.steelstats_bridge import SteelStatsClient
+from steelai.statistics_governance import run_governed_statistics_from_steeldata
 from steelai.ui import next_step_buttons, setup_page
 
 
 setup_page(st, "可追溯统计", "📈")
 st.caption("选择已完成的 SteelData 结果包，经人工确认试样对应和统计方法后，调用独立 SteelStats 环境生成描述统计报告。")
+st.caption("T53 共享治理：统计单位与纳入决定 → SteelStats 描述统计 → 完整性复核 → 证据等级与表述边界 → Governance Manifest。")
 
 client = SteelStatsClient()
 availability = client.availability()
+st.markdown("#### 当前状态")
 if availability["ready"]:
     st.success("SteelStats 独立模块已就绪；Workbench 只调用公开 CLI，不导入其内部代码。")
 else:
     st.error("未找到同级 SteelStats 项目、steelstats.module.json 或独立 .venv。仍可填写路径，但不能生成报告。")
 
+st.markdown("#### 主要操作")
 run_path = st.text_input("SteelData 结果包目录", key="ss_run_path", placeholder=r"<SteelData结果包目录>\run-...")
 if st.button("校验并读取统计来源", key="ss_load", disabled=not run_path.strip()):
     try:
@@ -60,20 +64,39 @@ if inspection is not None:
             help="必须来自实验方法或报告记录，Workbench 不会自行推断。",
         )
         reviewer = st.text_input("统计纳入审核人", key="ss_reviewer")
+        rationale = st.text_input(
+            "审核说明（统计单位、纳入决定、方法版本和证据边界）",
+            key="ss_rationale",
+        )
         confirmed = st.checkbox(
             "我已核对试样对应、方法版本和来源 QC，并批准这些逐试样 YS、UTS、EL 观测进入本次描述统计。",
             key="ss_confirm",
         )
-        ready = availability["ready"] and all(bindings.values()) and bool(method_version.strip()) and bool(reviewer.strip()) and confirmed
+        accept_warnings = st.checkbox(
+            "若结果保留 warning，我同意完整保留警告并仅作描述性解释，不摘取为显著性或因果结论。",
+            key="ss_accept_warnings",
+        )
+        ready = (
+            availability["ready"]
+            and all(bindings.values())
+            and bool(method_version.strip())
+            and bool(reviewer.strip())
+            and bool(rationale.strip())
+            and confirmed
+            and accept_warnings
+        )
         if st.button("生成并复核统计报告", type="primary", key="ss_generate", disabled=not ready):
             st.session_state.pop("ss_result", None)
             try:
-                result = run_statistics_from_steeldata(
+                reviewed_at = datetime.now().astimezone().isoformat(timespec="seconds")
+                result = run_governed_statistics_from_steeldata(
                     inspection.root,
                     bindings,
                     method_version,
                     reviewer,
-                    datetime.now().astimezone().isoformat(timespec="seconds"),
+                    reviewed_at,
+                    rationale=rationale,
+                    accept_warnings=accept_warnings,
                     client=client,
                 )
                 st.session_state["ss_result"] = result
@@ -82,17 +105,21 @@ if inspection is not None:
 
 result = st.session_state.get("ss_result")
 if result is not None:
-    st.subheader("统计结果状态")
-    a, b, c = st.columns(3)
+    st.markdown("#### 结果")
+    a, b, c, d = st.columns(4)
     a.metric("综合质量状态", result["quality_status"])
     b.metric("SteelStats 状态", result["statistics"]["status"])
     c.metric("完整性复核", result["statistics"]["verification"])
-    st.caption(f"分析编号：{result['analysis_id']}　SteelData 源包 modified=false")
+    d.metric("证据等级", result["evidence_level"])
+    st.caption(
+        f"治理编号：{result['governance_id']}　分析编号：{result['analysis_id']}　"
+        "SteelData 源包 modified=false"
+    )
     if result["quality_status"] == "warning":
         st.warning("报告已生成，但 SteelData 或 SteelStats 存在 warning；请阅读报告中的缺失、排除和 QC 说明。")
     else:
         st.success("报告已生成并通过独立完整性复核。")
-    report_text = Path(result["report"]).read_text(encoding="utf-8")
+    report_text = Path(result["governance_report"]).read_text(encoding="utf-8")
     with st.expander("查看统计报告", expanded=True):
         st.markdown(report_text)
     st.download_button(
@@ -101,7 +128,17 @@ if result is not None:
         file_name=f"{result['analysis_id']}_statistics_report.md",
         mime="text/markdown",
     )
-    with st.expander("查看模块边界记录", expanded=False):
+    policy = result["statement_policy"]
+    with st.expander("技术详情 · 表述边界与治理记录", expanded=False):
+        st.markdown("**允许表述**")
+        for item in policy["allowed_statements"]:
+            st.write("- " + item)
+        st.markdown("**谨慎表述**")
+        for item in policy["cautious_statements"]:
+            st.write("- " + item)
+        st.markdown("**禁止表述**")
+        for item in policy["prohibited_statements"]:
+            st.write("- " + item)
         st.json(result)
 
 st.info("边界：只做描述统计，不做显著性检验；不自动删异常值或补缺失值；不把统计结果写回 SteelData 或原始观测列。")
@@ -111,9 +148,10 @@ next_step_buttons(
     [
         {
             "label": "进入证据验证",
-            "url": "/研究助手?module=validation",
+            "url": "/analysis?module=validation",
         },
-        {"label": "返回数据质控", "state": {"data_module_selector": "数据接入与质控"}},
+        {"label": "返回数据处理", "url": "/intake"},
+        {"label": "查看运行与成果", "url": "/analysis?module=runs"},
     ],
     key_prefix="steelstats",
     note="统计报告生成后，继续检查证据等级、限制和允许表述的结论。",

@@ -296,21 +296,41 @@ class SteelStatsClient:
         self.python = self.project / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
     def availability(self) -> dict[str, Any]:
+        result = {"ready": False, "project": str(self.project), "python": str(self.python)}
         try:
             descriptor = json.loads((self.project / "steelstats.module.json").read_text(encoding="utf-8"))
             invocation = descriptor.get("invocation", {})
-            ready = (
+            declared = (
                 descriptor.get("module_id") == "steelstats"
                 and descriptor.get("contract_version") == 1
                 and invocation.get("kind") == "isolated_cli"
                 and invocation.get("report_command") == "report"
                 and invocation.get("verify_command") == "verify-report"
-                and self.python.is_file()
-                and (self.project / "steelstats" / "__main__.py").is_file()
             )
         except (OSError, ValueError, TypeError):
-            ready = False
-        return {"ready": ready, "project": str(self.project), "python": str(self.python)}
+            return {**result, "reason": "invalid_module_descriptor"}
+        if not declared:
+            return {**result, "reason": "unsupported_module_descriptor"}
+        if not self.python.is_file() or not (self.project / "steelstats" / "__main__.py").is_file():
+            return {**result, "reason": "runtime_files_missing"}
+        env = {
+            key: value for key, value in os.environ.items()
+            if key.upper() not in {"PYTHONPATH", "PYTHONHOME", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"}
+        }
+        env["PYTHONUTF8"] = "1"
+        try:
+            completed = subprocess.run(
+                [str(self.python), "-B", "-m", "steelstats", "contract"],
+                cwd=str(self.project), env=env, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=10, shell=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            payload = json.loads(completed.stdout)
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            return {**result, "reason": "runtime_probe_failed"}
+        if completed.returncode != 0 or not isinstance(payload, dict) or payload.get("status") != "passed":
+            return {**result, "reason": "runtime_probe_rejected"}
+        return {**result, "ready": True, "reason": "ready", "runtime": payload}
 
     def _call(self, args: list[str], *, accepted: tuple[int, ...] = (0,)) -> dict[str, Any]:
         if not self.availability()["ready"]:

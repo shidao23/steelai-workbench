@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0",
+  "contract_id": "Shidao-Intake-Request-Event-v1.0",
+  "event_type": "intake_request",
+  "state": "selected",
+  "identity_fields": [
+    "request_id",
+    "task_id",
+    "run_id",
+    "task_revision"
+  ],
+  "selection_fields": [
+    "kind",
+    "item_count",
+    "total_size_bytes",
+    "extensions",
+    "selection_sha256",
+    "reference_scope"
+  ],
+  "selection_kinds": [
+    "uploaded_files",
+    "folder_reference"
+  ],
+  "persisted_metadata": [
+    "aggregate item count",
+    "aggregate byte count",
+    "sanitized extensions",
+    "aggregate selection sha256",
+    "route",
+    "optional target table",
+    "workflow identity"
+  ],
+  "forbidden_persisted_fields": [
+    "file_name",
+    "file_names",
+    "path",
+    "absolute_path",
+    "folder_reference",
+    "raw_content",
+    "content_bytes"
+  ],
+  "invariants": {
+    "run_id_before_execution": null,
+    "execution_started": false,
+    "research_data_written": false,
+    "raw_content_persisted": false,
+    "absolute_path_persisted": false,
+    "folder_scanned_during_registration": false
+  }
+}

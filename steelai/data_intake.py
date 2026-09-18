@@ -6,6 +6,7 @@ import io
 import json
 import math
 import re
+import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +21,7 @@ ID_POLICY_PATH = ROOT / "config" / "research_id_policy_v1.0.json"
 INTAKE_OUTPUTS = OUTPUTS / "data_intake"
 ID_FIELDS = {
     "material_id", "heat_id", "batch_id", "sample_id", "specimen_id",
-    "field_id", "observation_id", "run_id", "step_id",
+    "field_id", "observation_id", "run_id", "experiment_run_id", "step_id",
 }
 STANDARD_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
@@ -143,6 +144,9 @@ def validate_intake_csv(
     allowed_units = set(spec.get("allowed_units", []))
     allowed_types = set(spec.get("allowed_measurement_types", []))
     scoped_samples = set(contract.get("scope", {}).get("included_samples", []))
+    sample_registry = project_root / str(contract.get("tables", {}).get("samples", {}).get("path", ""))
+    _, registered_sample_rows = _read_existing(sample_registry)
+    registered_samples = {row.get("sample_id", "") for row in registered_sample_rows if row.get("sample_id")}
     provisional = str(policy.get("provisional_status", "provisional_unverified"))
 
     for row_number, row in enumerate(rows, start=2):
@@ -164,10 +168,13 @@ def validate_intake_csv(
             if value and not STANDARD_ID.fullmatch(value):
                 warnings.append(f"第{row_number}行 {field} 不符合建议的英文编号格式")
         sample_id = row.get("sample_id", "")
-        if sample_id and sample_id not in scoped_samples:
-            errors.append(f"第{row_number}行样品 {sample_id} 超出当前B/R契约范围")
+        # The frozen B/R samples stay in scope, while an explicitly reviewed
+        # samples.csv intake is the only route for registering a new sample.
+        # Other tables must reference either the frozen scope or that registry.
+        if table_name != "samples" and sample_id and sample_id not in scoped_samples | registered_samples:
+            errors.append(f"第{row_number}行样品 {sample_id} 超出当前B/R契约范围或尚未登记")
         if allowed_units and row.get("unit") and row["unit"] not in allowed_units:
-            warnings.append(f"第{row_number}行单位 {row['unit']} 不在当前建议单位清单")
+            errors.append(f"第{row_number}行单位 {row['unit']} 未登记；在人工确认正确单位前不得标准化或统计")
         if allowed_types and row.get("measurement_type") not in allowed_types:
             errors.append(f"第{row_number}行 measurement_type 不受支持：{row.get('measurement_type', '')}")
         if row.get("source_status") == provisional:
@@ -306,6 +313,135 @@ def commit_intake(
         fresh["content_sha256"] = report.get("content_sha256")
         return _append_validated_intake(fresh, project_root=project_root)
     finally:
+        lock.unlink(missing_ok=True)
+
+
+def commit_intake_batch(
+    reports: list[dict[str, Any]], *, project_root: Path = ROOT,
+    contract_path: Path = CONTRACT_PATH, id_policy_path: Path = ID_POLICY_PATH,
+) -> dict[str, Any]:
+    """Append several validated contract tables under one lock with rollback.
+
+    CSV cannot provide a database transaction across files.  This function
+    therefore prepares every complete replacement first, keeps same-filesystem
+    backups, and restores already replaced destinations if any replace fails.
+    """
+    if not reports:
+        raise ValueError("At least one intake report is required.")
+    table_names = [str(report.get("table_name", "")) for report in reports]
+    if len(table_names) != len(set(table_names)):
+        raise ValueError("Batch intake tables must be unique.")
+    if any(report.get("status") != "ready" for report in reports):
+        raise ValueError("Every batch intake report must be ready.")
+    contract = load_research_contract(contract_path)
+    processed = (project_root / "data" / "processed").resolve()
+    processed.mkdir(parents=True, exist_ok=True)
+    lock = processed / ".intake.lock"
+    try:
+        lock_handle = lock.open("x", encoding="utf-8")
+    except FileExistsError as exc:
+        raise ValueError("另一个导入正在提交。请稍后重新预检；不要重复点击。") from exc
+
+    transaction_id = uuid.uuid4().hex
+    prepared: list[dict[str, Any]] = []
+    replaced: list[dict[str, Any]] = []
+    try:
+        with lock_handle:
+            lock_handle.write("SteelAI batch intake in progress\n")
+        for report in reports:
+            table_name = str(report["table_name"])
+            spec = contract.get("tables", {}).get(table_name)
+            if not spec or report.get("destination") != spec.get("path"):
+                raise ValueError(f"{table_name} destination does not match the registered contract.")
+            destination = (project_root / str(spec["path"])).resolve()
+            if not destination.is_relative_to(processed):
+                raise ValueError(f"{table_name} destination is outside data/processed.")
+            buffer = io.StringIO(newline="")
+            writer = csv.DictWriter(buffer, fieldnames=report["columns"])
+            writer.writeheader()
+            writer.writerows(report["rows"])
+            fresh = validate_intake_csv(
+                table_name, buffer.getvalue().encode("utf-8"), project_root=project_root,
+                contract_path=contract_path, id_policy_path=id_policy_path,
+            )
+            if fresh["status"] != "ready":
+                raise ValueError(f"{table_name} 提交前重新校验失败：" + "；".join(fresh["errors"]))
+            fresh["content_sha256"] = report.get("content_sha256")
+            existing_columns, existing_rows = _read_existing(destination)
+            columns = list(existing_columns)
+            for column in fresh["columns"]:
+                if column not in columns:
+                    columns.append(column)
+            if not columns:
+                columns = list(fresh["columns"])
+            all_rows = [*existing_rows, *fresh["rows"]]
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            temporary = destination.with_name(destination.name + f".{transaction_id}.tmp")
+            backup = destination.with_name(destination.name + f".{transaction_id}.bak")
+            with temporary.open("w", encoding="utf-8-sig", newline="") as handle:
+                output = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
+                output.writeheader()
+                output.writerows(all_rows)
+            prepared.append({
+                "report": fresh, "destination": destination, "temporary": temporary,
+                "backup": backup, "existed": destination.exists(), "total_rows": len(all_rows),
+            })
+
+        fresh_by_table = {item["report"]["table_name"]: item["report"] for item in prepared}
+        thermal_runs = fresh_by_table.get("thermal_simulation_runs")
+        thermal_points = fresh_by_table.get("thermal_simulation_points")
+        if thermal_runs is not None or thermal_points is not None:
+            if thermal_runs is None or thermal_points is None:
+                raise ValueError("热模拟运行表和曲线点表必须在同一批次提交。")
+            run_lookup = {
+                row["experiment_run_id"]: (row.get("sample_id", ""), row.get("specimen_id", ""))
+                for row in thermal_runs["rows"]
+            }
+            point_counts: dict[str, int] = {}
+            for row in thermal_points["rows"]:
+                run_id = row.get("experiment_run_id", "")
+                identity = run_lookup.get(run_id)
+                if identity is None:
+                    raise ValueError(f"曲线点引用了本批运行表中不存在的 experiment_run_id：{run_id}")
+                if identity != (row.get("sample_id", ""), row.get("specimen_id", "")):
+                    raise ValueError(f"曲线点与运行表的试样身份不一致：{run_id}")
+                point_counts[run_id] = point_counts.get(run_id, 0) + 1
+            for row in thermal_runs["rows"]:
+                run_id = row["experiment_run_id"]
+                if point_counts.get(run_id, 0) != int(float(row["point_count"])):
+                    raise ValueError(f"运行表声明点数与曲线点表不一致：{run_id}")
+
+        for item in prepared:
+            destination = item["destination"]
+            if item["existed"]:
+                shutil.copy2(destination, item["backup"])
+            item["temporary"].replace(destination)
+            replaced.append(item)
+
+        results = []
+        for item in prepared:
+            destination = item["destination"]
+            results.append({
+                "status": "committed", "table_name": item["report"]["table_name"],
+                "rows_added": len(item["report"]["rows"]), "total_rows": item["total_rows"],
+                "destination": str(destination.relative_to(project_root)).replace("\\", "/"),
+                "content_sha256": item["report"].get("content_sha256"),
+                "destination_sha256": hashlib.sha256(destination.read_bytes()).hexdigest(),
+            })
+        return {"status": "committed", "transaction_id": transaction_id, "tables": results}
+    except Exception:
+        for item in reversed(replaced):
+            destination = item["destination"]
+            backup = item["backup"]
+            if backup.exists():
+                backup.replace(destination)
+            elif not item["existed"]:
+                destination.unlink(missing_ok=True)
+        raise
+    finally:
+        for item in prepared:
+            item["temporary"].unlink(missing_ok=True)
+            item["backup"].unlink(missing_ok=True)
         lock.unlink(missing_ok=True)
 
 

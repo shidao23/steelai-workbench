@@ -7,82 +7,82 @@ import streamlit as st
 
 from steelai.data import read_rows
 from steelai.event_log import read_events, record_event
-from steelai.paths import ensure_runtime_dirs
+from steelai.paths import PROCESSED, ensure_runtime_dirs
 from steelai.research_session import research_session_dashboard
+from steelai.run_center import collect_run_records
 from steelai.settings import source_statuses
 from steelai.ui import demo_warning, setup_page
 
 
 ensure_runtime_dirs()
-setup_page(st, "SteelAI Workbench · 科研总览", "🧭", show_title=False)
+setup_page(st, "SteelAI Workbench · 首页", "🏠", show_title=False)
 
 samples = read_rows("samples")
-evidence = read_rows("evidence")
+thermal_runs_path = PROCESSED / "thermal_simulation_runs.csv"
+thermal_run_count = len(pd.read_csv(thermal_runs_path)) if thermal_runs_path.exists() else 0
 events = read_events()
 session_dashboard = research_session_dashboard()
+run_records = collect_run_records()
+run_counts = {
+    state: sum(record.state_group == state for record in run_records)
+    for state in ("needs_human", "blocked", "invalidated", "completed")
+}
+pending_total = run_counts["needs_human"] + run_counts["blocked"] + run_counts["invalidated"]
 demo_warning(st, samples)
 
 st.markdown(
-    """
+    f"""
     <section class="steel-hero">
-      <div class="steel-eyebrow">STEELAI RESEARCH WORKBENCH · GRADUATION MVP</div>
-      <h1>让每一条材料数据，都能解释它从哪里来</h1>
-      <p>面向耐磨钢课题的个人科研工作台：把实验文件、人工审核、质量控制、组级统计与科研解释组织成一条可复核的证据链。</p>
-      <span class="steel-chip">T40 旗舰演示已验收</span>
-      <span class="steel-chip">公开合成演示</span>
-      <span class="steel-chip">本地确定性处理</span>
+      <div class="steel-eyebrow">STEELAI · B/R 耐磨钢研究</div>
+      <h1>继续处理当前实验，而不是先寻找功能</h1>
+      <p>从样品出发完成文件导入、人工确认、确定性分析和结果复核。系统保留来源与边界，但把技术细节留在需要时查看。</p>
+      <span class="steel-chip">{len(samples)} 个核心样品</span>
+      <span class="steel-chip">{thermal_run_count} 条热模拟运行</span>
+      <span class="steel-chip">当前仅支持方向性证据</span>
     </section>
     """,
     unsafe_allow_html=True,
 )
 
-action_left, action_mid, action_right = st.columns([1.15, 1, 1])
+action_left, action_data, action_analysis, action_right = st.columns([1.15, 1, 1, 1])
 with action_left:
-    if st.button("▶ 查看端到端旗舰演示", type="primary", width="stretch"):
-        st.session_state["research_module_selector"] = "旗舰演示"
-        st.switch_page("pages/2_研究助手.py")
-with action_mid:
-    if st.button("开始一次科研会话", width="stretch"):
-        st.session_state["research_module_selector"] = "科研会话"
-        st.switch_page("pages/2_研究助手.py")
-with action_right:
-    if st.button("查看数据与统计", width="stretch"):
+    if st.button("继续查看当前样品", type="primary", width="stretch"):
+        st.session_state["project_module_selector"] = "样品总览"
         st.switch_page("pages/1_数据与物理.py")
+with action_data:
+    if st.button("导入实验文件", width="stretch"):
+        st.switch_page("pages/2_研究助手.py")
+with action_analysis:
+    action_label = f"处理 {pending_total} 项待办" if pending_total else "查看运行与成果"
+    if st.button(action_label, width="stretch"):
+        st.session_state["analysis_module_selector"] = "运行与成果"
+        st.switch_page("pages/3_组织与证据.py")
+with action_right:
+    if st.button("询问 AI 助手", width="stretch"):
+        st.switch_page("pages/4_模型与自动化.py")
 
 st.markdown(
     '<div class="section-kicker">SYSTEM SNAPSHOT</div>'
-    '<div class="section-title">今天需要知道的四件事</div>',
+    '<div class="section-title">当前任务状态</div>',
     unsafe_allow_html=True,
 )
 m1, m2, m3, m4 = st.columns(4)
-m1.metric("核心研究样品", len(samples), help="当前毕业主线中登记的研究样品")
-m2.metric("可追溯事件", len(events), help="已进入项目日志的运行、决定与里程碑")
-m3.metric("科研会话", session_dashboard["session_count"], help="可继续的结构化研究会话")
-m4.metric("开放行动", session_dashboard["open_action_count"], help="尚待处理的人工行动")
+m1.metric("核心样品", len(samples), help="当前课题中登记的研究样品")
+m2.metric("待人工确认", run_counts["needs_human"], help="需要你明确接纳或拒绝的候选结果")
+m3.metric("阻断或失效", run_counts["blocked"] + run_counts["invalidated"], help="未满足前置条件或完整性检查失败的运行")
+m4.metric("已完成运行", run_counts["completed"], help="已完成但仍应结合证据边界使用的运行")
 
-st.markdown(
-    '<div class="section-kicker">RESEARCH PIPELINE</div>'
-    '<div class="section-title">已经走通的科研闭环</div>',
-    unsafe_allow_html=True,
-)
-flow = (
-    ("01 · INGEST", "实验数据入口", "识别陌生表格的字段、单位与来源摘要；不修改原始文件。"),
-    ("02 · REVIEW", "人工审核门禁", "Agent 只给建议；字段、单位和物理试样身份由人确认。"),
-    ("03 · QUALITY", "标准化与统计", "SteelData 执行 QC，SteelStats 按独立试样计算组级统计。"),
-    ("04 · EXPLAIN", "可追溯解释", "SteelAI 组织描述性结论，同时保留证据、限制与失败案例。"),
-)
-columns = st.columns(4)
-for column, (step, title, copy) in zip(columns, flow, strict=True):
-    column.markdown(
-        f'<div class="flow-card"><div class="flow-step">{step}</div>'
-        f'<div class="flow-title">{title}</div><div class="flow-copy">{copy}</div>'
-        '<span class="flow-ok">✓ 已接通</span></div>',
-        unsafe_allow_html=True,
+if pending_total:
+    st.warning(
+        f"当前有 {pending_total} 项结果需要处理：先查看待确认、阻断或失效原因，再决定是否进入报告。",
+        icon="⚠️",
     )
+else:
+    st.success("当前没有待处理的运行异常。", icon="✅")
 
 st.markdown(
     '<div class="section-kicker">RESEARCH OBJECTS</div>'
-    '<div class="section-title">当前毕业主线研究对象</div>',
+    '<div class="section-title">当前研究对象</div>',
     unsafe_allow_html=True,
 )
 sample_columns = st.columns(max(1, min(2, len(samples))))
@@ -105,7 +105,7 @@ if samples:
             unsafe_allow_html=True,
         )
 else:
-    st.info("尚未登记研究样品。请从“数据与物理”进入数据质量页面。")
+    st.info("尚未登记研究样品。请先进入“数据处理”导入并确认样品数据。")
 
 st.markdown(
     '<div class="section-kicker">DAILY WORK</div>'
@@ -122,7 +122,7 @@ with left:
             hide_index=True,
         )
     else:
-        st.info("还没有科研会话。建议从“研究助手 → 科研会话”用固定模板创建第一条研究主线。")
+        st.info("还没有科研会话。可在“项目与样品 → 科研会话”创建第一条研究主线。")
 with right:
     if session_dashboard["open_actions"]:
         for item in session_dashboard["open_actions"][:4]:
@@ -134,9 +134,9 @@ with right:
             """
             **推荐下一步**
 
-            1. 创建第一条 B/R 科研会话
-            2. 把一次真实研究问题与证据关联
-            3. 用旗舰演示准备答辩讲解
+            1. 在“项目与样品”选择本次研究对象
+            2. 导入一组逐试样实验数据并完成人工确认
+            3. 在“分析与报告”检查结果和证据边界
             """
         )
 
@@ -194,5 +194,5 @@ with st.expander("快速记录一次数据、决定或里程碑"):
                 event_summary,
                 tags=[tag.strip() for tag in tag_text.split(",") if tag.strip()],
             )
-            st.success("已写入项目日志，可在 Career Portfolio 中继续沉淀。")
+            st.success("已写入项目日志，可在“作品集与发布”中继续整理。")
             st.rerun()

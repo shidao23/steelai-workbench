@@ -45,3 +45,17 @@ streamlit run app.py
 ## 独立模块说明
 
 SteelData 与 SteelStats 在完整本地研发环境中保持同级独立项目和独立虚拟环境。公开候选仓库可以单独安装、浏览界面和运行离线测试；跨项目 T40 完整重放需要另外取得相应模块，并按各模块文档配置路径。这一限制不会被安装脚本隐藏。
+
+## v0.2 候选版本验收
+
+Windows 完整研发环境可双击 `Freeze_v0.2_Candidate.cmd`，也可依次运行：
+
+```powershell
+python -m steelai.release_candidate
+python -m steelai.quality_gate
+python -m unittest discover -s tests -v
+python -m steelai.flagship_demo
+python -m steelai.public_release_audit
+```
+
+第一项检查九工作区覆盖矩阵、回归场景、延期说明和版本号是否仍与冻结契约一致。最后一项默认审计 Git 已跟踪候选；正式提交前还应确认所有拟新增文件均已纳入待提交清单。验收脚本不会自动创建 Git 提交、标签或发布。

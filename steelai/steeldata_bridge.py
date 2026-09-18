@@ -32,6 +32,35 @@ SOURCE_STATUSES = ("instrument_export", "verified_from_source", "manual_extracti
 SYNTHETIC_PREVIEW_BLOCKER = "合成演示数据（或缺少 synthetic=false 声明）只能预览，不能进入真实 processed。"
 MAX_ARTIFACT = 128 * 1024 * 1024
 MAX_PACKAGE = 512 * 1024 * 1024
+_STEELDATA_ENV_BLOCKED = {
+    "PYTHONPATH", "PYTHONHOME",
+    "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+    "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_APPLICATION_CREDENTIALS",
+    "AZURE_OPENAI_API_KEY", "OPENROUTER_API_KEY",
+    "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
+}
+_STEELDATA_ENV_SECRET_SUFFIXES = (
+    "_API_KEY", "_ACCESS_TOKEN", "_AUTH_TOKEN", "_CLIENT_SECRET",
+    "_SECRET_ACCESS_KEY", "_PASSWORD", "_TOKEN", "_SECRET",
+)
+_STEELDATA_ENV_ORCHESTRATION_PREFIXES = (
+    "DSH_", "DEEPSEEK_HARNESS_", "HARNESS_", "OPENCLAW_", "WORKBUDDY_",
+)
+
+
+def _steeldata_subprocess_env(source: dict[str, str] | None = None) -> dict[str, str]:
+    """Remove model, cloud, proxy and Agent-runtime context from SteelData."""
+    values = os.environ if source is None else source
+    env = {
+        key: value
+        for key, value in values.items()
+        if key.upper() not in _STEELDATA_ENV_BLOCKED
+        and not key.upper().endswith(_STEELDATA_ENV_SECRET_SUFFIXES)
+        and not key.upper().startswith(_STEELDATA_ENV_ORCHESTRATION_PREFIXES)
+    }
+    env["PYTHONUTF8"] = "1"
+    return env
 
 
 def validate_selected_files(data_files: list[tuple[str, bytes]], approval_files: list[tuple[str, bytes]]) -> None:
@@ -437,20 +466,38 @@ class SteelDataClient:
         self.python = self.project / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
     def availability(self) -> dict:
+        result = {"ready": False, "project": str(self.project), "python": str(self.python)}
         try:
             descriptor = _json(_read(self.project / "steeldata.module.json", 65536))
-            ready = (descriptor.get("module_id") == "steeldata" and descriptor.get("contract_version") == 1
-                     and self.python.is_file() and (self.project / "steeldata" / "__main__.py").is_file())
+            declared = (
+                descriptor.get("module_id") == "steeldata"
+                and descriptor.get("contract_version") == 1
+            )
         except (OSError, ValueError):
-            ready = False
-        return {"ready": ready, "project": str(self.project), "python": str(self.python)}
+            return {**result, "reason": "invalid_module_descriptor"}
+        if not declared:
+            return {**result, "reason": "unsupported_module_descriptor"}
+        if not self.python.is_file() or not (self.project / "steeldata" / "__main__.py").is_file():
+            return {**result, "reason": "runtime_files_missing"}
+        env = _steeldata_subprocess_env()
+        try:
+            completed = subprocess.run(
+                [str(self.python), "-B", "-m", "steeldata", "doctor"],
+                cwd=str(self.project), env=env, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=10, shell=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            payload = json.loads(completed.stdout)
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            return {**result, "reason": "runtime_probe_failed"}
+        if completed.returncode != 0 or not isinstance(payload, dict) or payload.get("version") != descriptor.get("version"):
+            return {**result, "reason": "runtime_probe_rejected"}
+        return {**result, "ready": True, "reason": "ready", "runtime": payload}
 
     def _call(self, args: list[str], *, accepted=(0,)) -> dict:
         if not self.availability()["ready"]:
             raise ValueError("未找到同级 SteelData 项目及其独立 .venv；已有结果包仍可只读检查。")
-        env = {key: value for key, value in os.environ.items()
-               if key.upper() not in {"PYTHONPATH", "PYTHONHOME", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"}}
-        env["PYTHONUTF8"] = "1"
+        env = _steeldata_subprocess_env()
         try:
             completed = subprocess.run([str(self.python), "-B", "-m", "steeldata", *args],
                 cwd=str(self.project), env=env, capture_output=True, text=True, encoding="utf-8",

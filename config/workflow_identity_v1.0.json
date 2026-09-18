@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "contract_id": "Shidao-Workflow-Identity-v1.0",
+  "canonical_fields": ["request_id", "task_id", "run_id", "task_revision"],
+  "platform_field_aliases": {
+    "request_id": "requestId",
+    "task_id": "taskId",
+    "run_id": "runId",
+    "task_revision": "taskRevision"
+  },
+  "prefixes": {
+    "request_id": "request_",
+    "task_id": "task_",
+    "run_id": "run_"
+  },
+  "lifecycle": {
+    "request_id": "one user intent across Streamlit, Agent assistance and deterministic execution",
+    "task_id": "one bounded unit of work; revisions retain the same task_id",
+    "run_id": "one concrete tool or deterministic execution; null before execution starts",
+    "task_revision": "positive integer used to reject stale review or approval"
+  },
+  "rules": [
+    "IDs are opaque non-path identifiers and do not contain user or sample data.",
+    "A request may contain multiple tasks and each task may contain multiple runs.",
+    "Receipts and result packages must carry request_id, task_id, run_id and task_revision.",
+    "Platform camelCase fields and SteelAI snake_case fields carry identical values.",
+    "Correlation identity grants no permission, approval or evidence status."
+  ]
+}

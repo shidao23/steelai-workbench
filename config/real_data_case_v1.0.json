@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "case_id": "SteelAI-T62-UCI-Steel-Plates-Faults-v1.0",
+  "dataset": {
+    "dataset_id": "UCI-198-Steel-Plates-Faults",
+    "title": "Steel Plates Faults",
+    "publisher": "UCI Machine Learning Repository",
+    "doi": "10.24432/C5J88N",
+    "landing_page": "https://archive.ics.uci.edu/dataset/198/steel+plates+faults",
+    "download_url": "https://archive.ics.uci.edu/static/public/198/steel%2Bplates%2Bfaults.zip",
+    "license_id": "CC-BY-4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "attribution": "Buscema, M., Terzi, S., & Tastle, W. (2010). Steel Plates Faults. UCI Machine Learning Repository. DOI: 10.24432/C5J88N.",
+    "zip_sha256": "cb8eb9859198b63f053e443513036b401746fa517ef58bd17c846c6741c93919",
+    "data_member": "Faults.NNA",
+    "data_sha256": "08994f5b0185a8e6cc22afe9910fd36834990fb1ca30852ed79012a832fbff55",
+    "variables_member": "Faults27x7_var",
+    "variables_sha256": "887dbfa140b48877b706865ef277550dc0203699243c600e24bfe8b090a9a953",
+    "expected_instances": 1941,
+    "expected_features": 27,
+    "expected_classes": 7,
+    "missing_values_expected": 0,
+    "raw_data_in_repository": false
+  },
+  "research_question": {
+    "question": "Can a lightweight, reproducible classifier improve on a majority-class baseline for seven steel-plate surface-fault categories?",
+    "target": "one of seven one-hot fault categories",
+    "features": "the 27 numeric predictors supplied by UCI",
+    "scientific_scope": "method demonstration for industrial steel-plate fault pattern recognition",
+    "out_of_scope": [
+      "steel grade or process recommendation",
+      "causal or metallurgical mechanism inference",
+      "deployment safety or production-line performance",
+      "comparison with the user's private experimental data"
+    ]
+  },
+  "split": {
+    "algorithm": "class-stratified-sha256-order-v1",
+    "salt": "STEELAI-T62-FROZEN-SPLIT-v1",
+    "train_fraction": 0.6,
+    "validation_fraction": 0.2,
+    "test_fraction": 0.2,
+    "test_used_for_tuning": false
+  },
+  "models": {
+    "baseline": {
+      "model_id": "majority-class-v1",
+      "rule": "predict the most frequent training label"
+    },
+    "improved": {
+      "model_id": "standardized-distance-weighted-knn-v1",
+      "candidate_k": [3, 5, 7, 11],
+      "selection_metric": "validation_macro_f1",
+      "tie_break": "higher validation balanced accuracy, then smaller k",
+      "scaler": "training-set mean and population standard deviation only"
+    }
+  },
+  "metrics": ["accuracy", "balanced_accuracy", "macro_f1"],
+  "runtime": {
+    "local_ai_required": false,
+    "cloud_ai_required": false,
+    "gpu_required": false,
+    "production_dependency_added": false
+  },
+  "acceptance": {
+    "one_command_reproduction": "Run_T62_RealData_Case.cmd",
+    "result_level_before_human_review": "working_candidate",
+    "formal_scientific_conclusion": false,
+    "portfolio_eligible_before_human_review": false
+  }
+}

@@ -349,6 +349,13 @@ class BridgeTests(unittest.TestCase):
 
 
 class ClientTests(unittest.TestCase):
+    def test_availability_probes_runtime_instead_of_trusting_stale_executable(self):
+        client = SteelDataClient(ROOT.parent / "SteelData")
+        with patch("steelai.steeldata_bridge.subprocess.run", side_effect=OSError("stale launcher")):
+            report = client.availability()
+        self.assertFalse(report["ready"])
+        self.assertEqual(report["reason"], "runtime_probe_failed")
+
     def test_cli_uses_isolated_python_argument_list_no_shell_and_handles_partial(self):
         client = SteelDataClient(ROOT.parent / "SteelData")
         response = subprocess.CompletedProcess([], 2, '{"run_dir":"example","processing_status":"partial"}', "")
@@ -440,12 +447,16 @@ class PanelTests(unittest.TestCase):
             self.assertTrue(any("真实来源状态" in item.label for item in app.selectbox))
             self.assertFalse(any(item.key == "sd_commit" for item in app.button))
 
-    def test_existing_and_new_import_tabs_render_without_module_execution(self):
+    def test_common_and_advanced_import_tabs_render_without_module_execution(self):
         from streamlit.testing.v1 import AppTest
         with patch.object(SteelDataClient, "_call", side_effect=AssertionError("No automatic execution")):
             app = AppTest.from_file(str(ROOT / "steelai/views/data_quality_panel.py"), default_timeout=20).run()
         self.assertFalse(app.exception, str(app.exception))
-        self.assertEqual([t.label for t in app.tabs], ["当前数据状态", "模板与编号规则", "标准表导入", "SteelData 标准化接入"])
+        expected_tabs = [
+            "导入实验表格", "导入热模拟", "查看数据状态", "高级工具",
+            "标准表导入", "SteelData 接入", "字段与模板",
+        ]
+        self.assertEqual([t.label for t in app.tabs if t.label in expected_tabs], expected_tabs)
         self.assertTrue(any(item.label == "上传填写后的CSV" for item in app.get("file_uploader")))
 
     def test_synthetic_load_shows_disabled_commit(self):

@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0",
+  "release_id": "SteelAI-Workbench-Portfolio-v0.3.0-candidate",
+  "purpose": "Freeze a reproducible public portfolio package for materials research AI engineering roles.",
+  "dependencies": ["T57", "T60", "T61", "T62", "T63"],
+  "required_public_assets": [
+    {"path": "LICENSE", "purpose": "license"},
+    {"path": "README.md", "purpose": "Chinese project entry"},
+    {"path": "README.en.md", "purpose": "English project entry"},
+    {"path": "docs/ARCHITECTURE.md", "purpose": "architecture"},
+    {"path": "docs/INSTALL.md", "purpose": "clean-environment setup"},
+    {"path": "docs/KNOWN_LIMITATIONS.md", "purpose": "scientific and release boundaries"},
+    {"path": "docs/T40_FLAGSHIP_DEMO.md", "purpose": "public synthetic demonstration"},
+    {"path": "docs/T62_REAL_DATA_CASE.md", "purpose": "reproducible public steel case"},
+    {"path": "docs/T63_AGENT_WORKFLOW_EVALUATION.md", "purpose": "agent workflow benchmark"},
+    {"path": "docs/T64_PORTFOLIO_RELEASE.md", "purpose": "portfolio release guide"},
+    {"path": "docs/T64_INTERVIEW_GUIDE.md", "purpose": "interview explanation"},
+    {"path": "docs/T64_DEMO_SCRIPT.md", "purpose": "three-minute demo script"},
+    {"path": "Freeze_v0.2_Candidate.cmd", "purpose": "release candidate check"},
+    {"path": "Run_Flagship_Demo.cmd", "purpose": "T40 replay"},
+    {"path": "Run_T62_RealData_Case.cmd", "purpose": "T62 replay"},
+    {"path": "Run_T63_Benchmark_Prep.cmd", "purpose": "T63 benchmark preparation"}
+  ],
+  "capability_claims": [
+    {
+      "claim_id": "governed-research-chain",
+      "claim": "Deterministic processing, human gates and append-only evidence are separated from cloud-agent explanation.",
+      "evidence": ["steelai/governance", "docs/T50_GLOBAL_RESEARCH_GOVERNANCE.md", "tests/test_governance_core.py"]
+    },
+    {
+      "claim_id": "real-public-steel-case",
+      "claim": "A public steel-plate defect dataset can be re-run on a CPU with explicit split, metrics and limitations.",
+      "evidence": ["steelai/real_data_case.py", "docs/T62_REAL_DATA_CASE.md", "tests/test_t62_real_data_case.py"]
+    },
+    {
+      "claim_id": "controlled-agent-collaboration",
+      "claim": "Multi-agent roles use fixed tools, handoffs and human checkpoints rather than unrestricted autonomy.",
+      "evidence": ["steelai/multi_agent_orchestrator.py", "steelai/research_protocol.py", "docs/T60_MULTI_AGENT_ORCHESTRATION.md", "docs/T61_MCP_A2A_PROTOCOL.md"]
+    },
+    {
+      "claim_id": "workflow-evaluation",
+      "claim": "Human, single-agent and multi-agent workflows are compared using the same frozen task set.",
+      "evidence": ["steelai/agent_workflow_benchmark.py", "config/agent_workflow_benchmark_v1.0.json", "docs/T63_AGENT_WORKFLOW_EVALUATION.md"]
+    }
+  ],
+  "acceptance": {
+    "new_environment_replay_required": true,
+    "video_required": true,
+    "technical_report_required": true,
+    "t63_measurements_required": true,
+    "privacy_audit_required": true,
+    "license_audit_required": true,
+    "claim_to_evidence_mapping_required": true,
+    "release_and_resume_must_use_same_version": true
+  },
+  "privacy": {
+    "raw_private_research_data_allowed": false,
+    "absolute_local_paths_allowed": false,
+    "secrets_allowed": false,
+    "unverified_agent_answers_allowed": false,
+    "portfolio_status_before_human_review": "needs_human"
+  }
+}

@@ -1,0 +1,21 @@
+# SteelAI Enterprise Lab optional PostgreSQL dependencies (T81).
+#
+# These packages are OPTIONAL. The default application, the research pipeline and
+# the T80 in-memory adapters must keep working without them, so this file is
+# deliberately NOT referenced by requirements.txt or requirements-dev.txt.
+#
+# Install only when working on the PostgreSQL persistence baseline:
+#   .\.venv\Scripts\python.exe -m pip install -r requirements-enterprise.txt
+#
+# Version policy: exact pins, stable releases only, no pre-releases, chosen for
+# CPython 3.12 on Windows.
+#   SQLAlchemy 2.0.54   latest stable 2.0 line (SQLAlchemy Core, no ORM usage)
+#   alembic 1.20.0      latest stable migration tool; depends on SQLAlchemy + Mako
+#   psycopg[binary] 3.3.5  Psycopg 3 with the prebuilt Windows wheel (no local
+#                          libpq build step, no PostgreSQL client install)
+# Transitive dependencies pulled in and verified: Mako 1.4.1, greenlet 3.5.6.
+# Not installed on purpose: psycopg2, asyncpg, FastAPI, Kafka, Redis, Celery,
+# OpenTelemetry, Testcontainers, pytest-postgresql.
+SQLAlchemy==2.0.54
+alembic==1.20.0
+psycopg[binary]==3.3.5

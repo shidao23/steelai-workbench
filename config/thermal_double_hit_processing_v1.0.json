@@ -1,0 +1,65 @@
+{
+  "policy_id": "SteelAI-DoubleHit-LiteratureAligned-v1.0",
+  "schema_version": "1.0",
+  "source_status": "literature_aligned_with_versioned_project_segmentation",
+  "scope": {
+    "test_type": "DH",
+    "specimen_geometry": "cylinder_phi10_by_15_mm",
+    "input_formula_id": "SteelAI-Thermal-Compression-Phi10x15-v1.0"
+  },
+  "literature_method": {
+    "curve_coordinate": "separate_local_true_strain_for_each_hit",
+    "softening_fraction_equation": "X=(sigma_m-sigma_2)/(sigma_m-sigma_1)",
+    "yield_method": "0.2_percent_offset",
+    "sigma_m_definition": "flow_stress_at_end_of_first_hit",
+    "implementation_stage": "segment_preparation_only",
+    "notice": "T73 does not publish a softening fraction; yield fitting and result review are subsequent governed steps."
+  },
+  "segmentation": {
+    "rule_status": "steelai_project_rule_not_universal_literature_standard",
+    "baseline_fraction": 0.1,
+    "baseline_min_points": 20,
+    "baseline_max_points": 40,
+    "contact_peak_fraction": 0.02,
+    "contact_mad_multiplier": 6.0,
+    "minimum_consecutive_points": 5,
+    "end_rule": "first_maximum_stroke_before_unloading",
+    "expected_interval_count": 2
+  },
+  "analysis": {
+    "preserve_raw_formula_stress": true,
+    "baseline_correct_force_for_analysis": true,
+    "local_strain_zero_at_detected_contact": true,
+    "smoothing": "none",
+    "friction_correction": "none",
+    "adiabatic_heating_correction": "none",
+    "formal_result_requires_human_review": true
+  },
+  "references": [
+    {
+      "title": "Effect of Sample Geometry on Strain Uniformity and Double Hit Compression Tests for Softening Kinetics Determination",
+      "doi": "10.1002/srin.202200157",
+      "url": "https://onlinelibrary.wiley.com/doi/10.1002/srin.202200157",
+      "supports": ["double-hit workflow", "softening equation", "0.2% offset yield method", "phi10x15 geometry example"]
+    },
+    {
+      "title": "Study of Static Recrystallization Kinetics and the Evolution of Austenite Grain Size by Dynamic Recrystallization Refinement of an Eutectoid Steel",
+      "doi": "10.3390/met9121289",
+      "url": "https://www.mdpi.com/2075-4701/9/12/1289",
+      "supports": ["comparison of fractional-softening methods", "limitations of 0.2% offset interpretation"]
+    },
+    {
+      "title": "Metadynamic Recrystallization in the Isothermal Double Compression of CP800 Steel",
+      "doi": "10.3390/ma18071549",
+      "url": "https://www.mdpi.com/1996-1944/18/7/1549",
+      "supports": ["0.2% offset yield method", "end-of-first-hit flow stress definition"]
+    }
+  ],
+  "guardrails": [
+    "never_modify_governed_raw_points",
+    "never_replace_missing_values_with_zero",
+    "never_treat_auto_segments_as_approved",
+    "never_compute_formal_softening_fraction_before_segment_review",
+    "retain_cumulative_and_local_strain_together"
+  ]
+}

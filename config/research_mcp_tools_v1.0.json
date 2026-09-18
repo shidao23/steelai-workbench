@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0",
+  "manifest_id": "SteelAI-Research-MCP-Tools-v1.0",
+  "transport": "stdio",
+  "protocol_scope": "SteelAI local verified tool subset",
+  "complete_mcp_or_a2a_compatibility_claimed": false,
+  "tools": [
+    {
+      "tool_id": "query_samples",
+      "version": "1.0.0",
+      "owner_role": "data_steward",
+      "allowed_roles": ["planner", "data_steward"],
+      "permission": "read_verified_registry",
+      "requires_task_approval": false,
+      "timeout_ms": 3000,
+      "idempotent": true,
+      "formal_result_allowed": false,
+      "input_schema": {"type": "object", "properties": {}, "required": [], "additionalProperties": false},
+      "output_schema": {"type": "object", "required": ["samples", "count"], "additionalProperties": true},
+      "error_codes": ["GOV-AI-AUTH-001", "GOV-SCHEMA-001", "GOV-RUNTIME-001", "GOV-DUPLICATE-001"]
+    },
+    {
+      "tool_id": "get_verified_evidence",
+      "version": "1.0.0",
+      "owner_role": "data_steward",
+      "allowed_roles": ["data_steward"],
+      "permission": "read_verified_evidence",
+      "requires_task_approval": false,
+      "timeout_ms": 5000,
+      "idempotent": true,
+      "formal_result_allowed": false,
+      "input_schema": {"type": "object", "properties": {"sample_id": {"type": "string", "minLength": 1, "maxLength": 80}}, "required": ["sample_id"], "additionalProperties": false},
+      "output_schema": {"type": "object", "required": ["sample_id", "evidence_status", "bundle_sha256"], "additionalProperties": true},
+      "error_codes": ["GOV-AI-AUTH-001", "GOV-SCHEMA-001", "GOV-EVIDENCE-001", "GOV-RUNTIME-001", "GOV-DUPLICATE-001"]
+    },
+    {
+      "tool_id": "run_descriptive_statistics",
+      "version": "1.0.0",
+      "owner_role": "statistics_physics",
+      "allowed_roles": ["statistics_physics"],
+      "permission": "run_deterministic_statistics",
+      "requires_task_approval": true,
+      "timeout_ms": 10000,
+      "idempotent": true,
+      "formal_result_allowed": false,
+      "input_schema": {"type": "object", "properties": {"sample_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 12, "uniqueItems": true}}, "required": ["sample_ids"], "additionalProperties": false},
+      "output_schema": {"type": "object", "required": ["method_id", "sample_count", "metrics", "result_scope"], "additionalProperties": true},
+      "error_codes": ["GOV-AI-AUTH-001", "GOV-APPROVAL-001", "GOV-SCHEMA-001", "GOV-RUNTIME-001", "GOV-DUPLICATE-001"]
+    },
+    {
+      "tool_id": "run_physics_calculation",
+      "version": "1.0.0",
+      "owner_role": "statistics_physics",
+      "allowed_roles": ["statistics_physics"],
+      "permission": "run_registered_physics",
+      "requires_task_approval": true,
+      "timeout_ms": 10000,
+      "idempotent": true,
+      "formal_result_allowed": false,
+      "input_schema": {"type": "object", "properties": {"sample_id": {"type": "string", "minLength": 1, "maxLength": 80}}, "required": ["sample_id"], "additionalProperties": false},
+      "output_schema": {"type": "object", "required": ["sample_id", "engine", "model_scope"], "additionalProperties": true},
+      "error_codes": ["GOV-AI-AUTH-001", "GOV-APPROVAL-001", "GOV-SCHEMA-001", "GOV-SCOPE-001", "GOV-RUNTIME-001", "GOV-DUPLICATE-001"]
+    },
+    {
+      "tool_id": "generate_report_candidate",
+      "version": "1.0.0",
+      "owner_role": "materials_interpreter",
+      "allowed_roles": ["materials_interpreter", "reviewer"],
+      "permission": "create_nonformal_candidate",
+      "requires_task_approval": true,
+      "timeout_ms": 5000,
+      "idempotent": true,
+      "formal_result_allowed": false,
+      "input_schema": {"type": "object", "properties": {"source_call_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 20, "uniqueItems": true}}, "required": ["source_call_ids"], "additionalProperties": false},
+      "output_schema": {"type": "object", "required": ["report_status", "source_call_ids", "human_review_required", "formal_result"], "additionalProperties": true},
+      "error_codes": ["GOV-AI-AUTH-001", "GOV-APPROVAL-001", "GOV-SCHEMA-001", "GOV-EVIDENCE-001", "GOV-RUNTIME-001", "GOV-DUPLICATE-001"]
+    }
+  ]
+}

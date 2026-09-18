@@ -21,6 +21,7 @@ from steelai.model_lab import (
 )
 from steelai.settings import load_settings
 from steelai.ui import next_step_buttons, setup_page
+from steelai.views.image_model_governance_panel import render_image_model_governance_panel
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -55,11 +56,12 @@ def _render_next_steps() -> None:
     next_step_buttons(
         st,
         [
-            {"label": "查看任务与结果", "state": {"model_module_selector": "任务与结果"}},
+            {"label": "查看自动化任务", "url": "/advanced?module=automation"},
             {
                 "label": "进入证据验证",
-                "url": "/研究助手?module=validation",
+                "url": "/analysis?module=validation",
             },
+            {"label": "查看运行与成果", "url": "/analysis?module=runs"},
         ],
         key_prefix="model_lab",
         note="模型输出先查看任务记录并完成人工复核；只有接纳后的结果才能进入证据验证。",
@@ -68,6 +70,7 @@ def _render_next_steps() -> None:
 
 setup_page(st, "模型实验室", "🧪")
 st.caption("模型结果与正式科研数据保持隔离；先选择当前关注内容，只有人工复核通过后才能接纳结果。")
+render_image_model_governance_panel(st, "SEM", key_prefix="sem_governance")
 
 gpu = gpu_status()
 runtime = micro_sam_status()

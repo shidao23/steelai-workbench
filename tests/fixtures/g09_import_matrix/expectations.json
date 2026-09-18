@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "fixture_classification": "synthetic_test_only",
+  "cases": [
+    {
+      "id": "valid",
+      "input": "valid_tensile.csv",
+      "expected_ui_state": "completed",
+      "expected_processing_status": "complete",
+      "write_expected": true
+    },
+    {
+      "id": "unknown_unit",
+      "input": "unknown_unit_tensile.csv",
+      "expected_ui_state": "blocked",
+      "expected_processing_status": "failed",
+      "write_expected": false
+    },
+    {
+      "id": "offline",
+      "input": "valid_tensile.csv",
+      "expected_ui_state": "needs_human",
+      "expected_processing_status": "complete",
+      "write_expected": false
+    },
+    {
+      "id": "stale_approval",
+      "input": "valid_tensile.csv",
+      "expected_ui_state": "blocked",
+      "expected_error": "version_conflict",
+      "write_expected": false
+    },
+    {
+      "id": "tamper",
+      "input": "valid_tensile.csv",
+      "expected_ui_state": "invalidated",
+      "expected_error": "integrity_rejected",
+      "write_expected": false
+    }
+  ]
+}

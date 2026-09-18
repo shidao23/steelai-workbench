@@ -1,8 +1,11 @@
-# SteelAI Workbench MVP
+# SteelAI Workbench v0.2 Release Candidate
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](docs/INSTALL.md)
 [![offline tests](https://img.shields.io/badge/offline_tests-passing-brightgreen)](.github/workflows/steelai-quality.yml)
 [![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![release candidate](https://img.shields.io/badge/release-v0.2.0--rc1-orange)](config/release_candidate_v0.2.json)
+
+[English README](README.en.md)
 
 一个面向耐磨钢课题的本地科研 AI 工作台：Python 负责可复现的数据处理与物理计算，云端模型只负责在证据约束下组织自然语言报告。生活管理不在本项目范围内，继续放在 Notion。
 
@@ -10,7 +13,9 @@
 
 ## 当前状态与项目治理
 
-SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接入”两个入口。SteelData v0.2 通过独立 Python 环境、CLI 与结果契约接入拉伸逐试样观测；成分和曲线仍只预览。T23 已接通人工批准后的受控执行，但正式长表仍要用户核对样品对应并确认追加。T24 的 40 个脱敏 Intake Agent 案例标签已获确认并冻结；参考分数仍不代表云模型能力。T33 已接通独立 SteelStats：用户人工确认统计身份后可生成可追溯描述统计报告，结果不回写 SteelData。T40 的公开合成一键旗舰演示已由项目负责人观看验收并冻结为 Done。DSH 是只读/建议旁路，不替代确定性数据处理，也没有审批、执行或写入权限。
+SteelAI Workbench 现在把“外部文件标准化入库”作为数据入口首页：CSV、TSV 或 XLSX 先完成人工字段映射和明确单位换算，再复用共享治理内核仅追加进入标准数据层。T71 又为 `ZHT.A*` 热模拟曲线增加专用只读解析、逐 interval QC、计划—实测对照以及运行表/曲线点表预录入；单位、试样身份或计划冲突未解决时不会正式写入。原“标准表导入”和“SteelData 标准化接入”保留为高级入口。SteelData v0.2 通过独立 Python 环境、CLI 与结果契约接入拉伸逐试样观测；其他未登记曲线仍只预览。T23 已接通人工批准后的受控执行，但正式长表仍要用户核对样品对应并确认追加。T24 的 40 个脱敏 Intake Agent 案例标签已获确认并冻结；参考分数仍不代表云模型能力。T33 已接通独立 SteelStats：用户人工确认统计身份后可生成可追溯描述统计报告，结果不回写 SteelData。T40 的公开合成一键旗舰演示已由项目负责人观看验收并冻结为 Done。T50/T51 已冻结并实现共享科研治理内核；T52–T56 已覆盖数据接入、Physics、统计与证据、图像和模型任务、Agent 证据网关以及统一运行与成果中心。T57 把九工作区覆盖、八类失败场景、离线降级、T40 重放和公开隐私边界冻结为 `v0.2.0-rc1` 本地候选。阶段六 T60 新增五角色受控科研编排；T61 将五个研究能力封装为本地 stdio MCP 工具并建立轻量 A2A 交接；T62 又以 UCI CC BY 4.0 钢板缺陷数据完成第一套真实、CPU 轻量、可重放的传统机器学习案例。T63 已冻结人工、单智能体和多智能体的同题比较，但在 24 条真实测量完成前保持 `Review / needs_human`，不宣称效率优势。T64 已整理双语入口、能力—证据映射、演示脚本、面试清单和可追溯发布准备包；全新环境复现、视频、技术报告、简历定稿和最终公开审查仍需人工完成。它们均不会给 Agent 审批、正式写入或任意命令权限。自动化任务完整治理适配被明确延期，Git 提交和标签等待项目负责人决定。DSH 是只读/建议旁路，不替代确定性数据处理，也没有审批、执行或写入权限。
+
+当前真实热模拟批次已通过负责人确认和治理门禁，正式接入 18 条运行记录与 14,352 个曲线点；后续新批次仍必须重新完成单位、身份和偏差审批。
 
 - [当前能力与旧入口状态](docs/CURRENT_CAPABILITIES.md)
 - [毕业主线数据契约 v1](docs/GRADUATION_DATA_CONTRACT_V1.md)
@@ -27,6 +32,26 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 - [从零安装](docs/INSTALL.md)
 - [已知限制](docs/KNOWN_LIMITATIONS.md)
 - [T41 公开仓库候选说明](docs/T41_PUBLIC_REPOSITORY_CANDIDATE.md)
+- [T50 全局科研治理规范](docs/T50_GLOBAL_RESEARCH_GOVERNANCE.md)
+- [T51 共享科研治理包](docs/T51_GOVERNANCE_CORE.md)
+- [T52 数据接入与 Physics Engine 治理适配](docs/T52_DATA_PHYSICS_GOVERNANCE.md)
+- [T53 可追溯统计与证据验证治理适配](docs/T53_STATISTICS_EVIDENCE_GOVERNANCE.md)
+- [T54 EBSD SEM 与模型任务治理适配](docs/T54_IMAGE_MODEL_GOVERNANCE.md)
+- [T55 Agent 证据网关](docs/T55_AGENT_EVIDENCE_GATEWAY.md)
+- [T56 统一运行与成果中心](docs/T56_RUN_AND_RESULTS_CENTER.md)
+- [用户操作指南](docs/USER_GUIDE.md)
+- [T57 全系统回归与版本冻结](docs/T57_VALIDATION_REPORT.md)
+- [T60 材料科研多智能体框架](docs/T60_MULTI_AGENT_ORCHESTRATION.md)
+- [T61 MCP 工具层与轻量 A2A 协作](docs/T61_MCP_A2A_PROTOCOL.md)
+- [T62 UCI 真实钢板缺陷数据案例](docs/T62_REAL_DATA_CASE.md)
+- [T63 人工与智能体流程评估](docs/T63_AGENT_WORKFLOW_EVALUATION.md)
+- [T64 岗位作品集与公开发布包](docs/T64_PORTFOLIO_RELEASE.md)
+- [T70 外部文件标准化入库](docs/T70_EXTERNAL_DATA_STANDARDIZATION.md)
+- [T71 热模拟仪器曲线标准化接入](docs/T71_THERMAL_SIMULATION_INTAKE.md)
+- [T72 热模拟曲线可视化](docs/T72_THERMAL_CURVE_VISUALIZATION.md)
+- [T73 Double-hit 文献口径曲线处理](docs/T73_DOUBLE_HIT_LITERATURE_PROCESSING.md)
+- [T74 热模拟特征表](docs/T74_THERMAL_SIMULATION_FEATURE_TABLE.md)
+- [T75 双道次软化方法选择门](docs/T75_SOFTENING_METHOD_DECISION.md)
 - [隐私与版本边界](docs/PRIVACY_BOUNDARY.md)
 - [阶段零测试基线](docs/BASELINE_2026-09-04.md)
 - [开发任务看板](TASKS.md)
@@ -38,7 +63,7 @@ SteelAI Workbench 当前保留“标准表导入”和“SteelData 标准化接�
 
 1. 科研总览
 2. 数据与物理（样品比较、物理计算、数据接入与质控、可追溯统计）
-3. 研究助手（科研会话、研究任务、智能助手、助手评测、旗舰演示、证据验证）
+3. 研究助手（科研会话、研究任务、智能助手、助手评测、旗舰演示、证据验证、运行与成果）
 4. 组织与证据（证据索引、EBSD 分析）
 5. 模型与自动化（模型实验室、任务与结果）
 6. 成果与作品集
@@ -57,7 +82,7 @@ flowchart LR
     C -->|拒绝或不确定| X[停止并保留审计记录]
     D --> E[SteelAI 仅追加数据闸门]
     E --> F[SteelStats 描述统计]
-    F --> G[Research Agent 受限解释]
+    F --> G[Agent证据网关与受限解释]
     G --> H[可追溯报告与失败证据]
 ```
 
@@ -108,16 +133,16 @@ flowchart LR
 - 原有 CSV 入口保留为“标准表导入”，手工整理好的五类长表仍可导入。
 - 新入口可调用同级 `SteelData` 的独立 Python 环境，或读取已有 v0.2 结果包；不在 SteelAI 环境中安装 pyjanitor/Pandera。
 - 首版接通拉伸结果 → `property_observations.csv`，一条试样记录变成 YS、UTS、EL 三条观测；必须人工对应 `sample_id`，保留原 `specimen_id`。
-- 合成数据、partial/failed、QC failed/needs_review、未知/重复样品和不明确单位不能入库。成分与曲线仅预览，尚不转入长表。
+- 合成数据、partial/failed、QC failed/needs_review、未知/重复样品和不明确单位不能入库。T71 热模拟曲线在人工确认单位、试样映射和计划偏差后，可在共享锁下事务式追加运行表与点表，并生成治理审计包。
 - 两路共用最终入库闸门，提交前重检并加写入锁；保存接入审计和逐单元格来源，不自动覆盖旧性能摘要、生成统计结论或改动 DSH。
 - 人工批准单条映射建议后可自动执行 SteelData；执行状态、幂等键、尝试记录和审批审计链均可核验。执行完成不会自动写 `data/processed/`。
 - 阶段一 T10 已用一批人工批准的脱敏 DQ 结果验证 6 个试样到 18 条性能观测的完整预检；本地暂存状态为 `not_committed`，正式 `property_observations.csv` 仍需另行确认。
 
 操作步骤、字段对应、代码分工和扩展边界见 [docs/STEELDATA_INTEGRATION.md](docs/STEELDATA_INTEGRATION.md)。
 
-## Data Intake Gate v0.11
+## Governed Data Intake v0.14
 
-“数据与物理 → 数据质量与扩展准备”保留当前状态、模板与编号规则和标准表导入，并在 v0.14 增加 SteelData 标准化接入。手工新增数据先使用受控 CSV 模板，并经过本地预检；通过后仍需用户勾选确认，系统才会以仅追加方式写入 `data/processed/`。
+“数据与物理 → 数据质量与扩展准备”保留当前状态、模板与编号规则和标准表导入，并在 v0.14 增加 SteelData 标准化接入。T52 起，手工标准 CSV 与 SteelData 结果包都先生成确定性建议/预检，再要求具名审核人、说明和当前内容摘要绑定的批准，最后才进入同一仅追加写入闸门。
 
 当前提供五类长表入口：
 
@@ -127,28 +152,84 @@ flowchart LR
 - `property_observations.csv`：具有真实`specimen_id`的性能记录；
 - `physics_observations.csv`：区分实验值、模型估算与校正估算。
 
-导入闸门会拦截缺少必要列或必要值、非有限数值、重复主键、现有记录冲突、未登记样品、超出B/R范围、未知列和非法`measurement_type`。系统不覆盖已有主键，不把空白改成0，不复制上传的原始文件，也不调用DeepSeek。成功写入会在`outputs/data_intake/<intake_id>/`生成规范化暂存表、校验Manifest和提交结果，并在项目事件日志中形成可追溯记录。
+导入闸门会拦截缺少必要列或必要值、非有限数值、未知单位、重复主键、现有记录冲突、未登记样品、超出B/R范围、未知列和非法`measurement_type`。未知单位进入 `needs_human`，在单位登记并重新预检前既不生成标准化暂存结果，也不能进入统计。系统不覆盖已有主键，不把空白改成0，不复制上传的原始文件，也不调用DeepSeek。成功写入会在`outputs/governed_data_intake/<governance_intake_id>/`生成规范化快照、审批与状态记录、提交结果和可验证 Governance Manifest；旧 `outputs/data_intake/` 仅保留历史兼容。
 
 编号规则明确区分材料、炉次、工艺批次、研究样品、物理试样、图像视场、观测值和模型运行。视场嵌套于试样，不能冒充独立试样；无法核实的编号必须保留为待核验状态。
 
-## SteelStats 模块接入 v0.12
+## Governed SteelStats v0.15
 
 入口：**数据与物理 → 可追溯统计**。Workbench 先校验完整 SteelData 结果包，再要求用户逐一确认试样到研究样品的对应、填写实验方法版本和人工审核身份。只有这些条件齐全，才会生成冻结的 SteelStats T30 输入包。
 
-SteelStats 保持同级独立项目和独立 `.venv`。Workbench 不导入其内部 Python 代码，只调用 `steelstats.module.json` 声明的固定 `report` 与 `verify-report` 命令。报告生成后页面显示来源 QC、统计状态与完整性复核；任何失败都不会写回 SteelData、`data/processed/` 或原始观测。
+SteelStats 保持同级独立项目和独立 `.venv`。Workbench 不导入其内部 Python 代码，只调用 `steelstats.module.json` 声明的固定 `report` 与 `verify-report` 命令。T53 起，独立复核通过的结果会进一步封装到 `outputs/governed_statistics/<governance_id>/`，其中保存统计单位、逐值观测、纳入决定、方法版本、SteelData 源 Manifest 摘要、SteelStats 原始报告、证据等级、允许/谨慎/禁止表述和 Governance Manifest。
 
-## Physics Model Registry v0.12
+治理统计报告仍只做描述统计。描述性组间差异不会自动变成统计显著性、总体判断或因果结论；warning 必须由具名审核人显式接受。报告被修改后会变为 `invalidated`，证据验证页不再引用。任何失败都不会写回 SteelData、`data/processed/` 或原始观测。
+
+## Governed Physics Engine v0.14
 
 “数据与物理 → Physics Engine”现在使用本地统一模型注册表，覆盖 Ms、Ac1、Ac3、Tnr、Ceq 和 Pcm 六个模型族及 10 个现有公式版本。每个版本登记模型ID、版本、公式、文献来源、必要输入、输出单位、适用范围、范围依据、限制、许可说明、审核状态、实验对照接口、残差约定和校正状态。
 
 - 每个模型族可选择公式版本；默认卡片仍保持六个目标物理量。
 - 缺少必要成分时跳过计算，不把未知值按0代填。
 - 超出登记范围时保留结果但显示适用性警告。
+- 保存结果必须具名复核；适用范围警告必须显式接受，否则停在 `needs_human`。
 - 模型卡和版本对比报告可直接在页面查看/下载。
 - `physics_observations.csv`存在匹配实验记录时，页面按“模型值 − 实验值”只读展示实验值、模型值和残差；没有实验记录时不生成伪值。
 - 校正结果不得覆盖原始公式，所有公式输出仍是经验估算而非实验真值。
 
+正式保存会在 `outputs/physics_runs/<run_id>/` 发布输入成分快照、六个公式 ID/版本/适用范围、模型卡、实验对照、残差定义、审批与状态记录以及 Governance Manifest。相同输入和公式组合幂等复用；包被改动后标记为 `invalidated`，系统拒绝覆盖。
+
 Research Agent和端到端研究任务调用同一注册表的六个默认模型，不再根据旧项目路径是否可用切换计算口径。质量门禁会同时校验模型注册表结构。
+
+## Governed EBSD SEM and Model Tasks v0.16
+
+入口：**组织与证据 → EBSD 分析**以及**模型与自动化 → 模型实验室**。两个页面共用 T54 治理面板，把任务配置、独立环境运行和人工复核分成三个明确步骤。
+
+- 运行前登记来源编号、样品、物理试样、图像视场、模态、软件版本、模型或流程版本、参数和独立环境版本。
+- 治理包只保存来源和输出的 SHA-256、大小及私有定位摘要；不复制原始 TIF、CTF、模型权重或重型输出。
+- `completed` 和 `partial` 结果默认停在 `needs_human`；`failed`、`canceled`、重跑次数和前序运行引用均稳定保存。
+- 部分结果只有在人为选择 `warning_accepted` 并记录范围与局限后才能登记；完整结果也必须由具名审核人接纳。
+- 接纳后的结果等级仍是 `model_result`、证据类别仍是 `model_output`，不能冒充实验测量或自动科学结论。
+- MATLAB/MTEX、micro-sam 及其他重型工具继续留在独立环境，Workbench 只登记配置、状态和摘要。
+
+任务、运行和复核包分别保存在被 Git 忽略的 `outputs/image_model_tasks/`、`outputs/image_model_runs/` 与 `outputs/image_model_reviews/`。所有包均有 Governance Manifest 和完整性标记，篡改后自动失效且不会被覆盖。
+
+## Agent Evidence Gateway v0.17
+
+入口：**研究助手 → 智能助手**。T55 在 OpenAI 与 DeepSeek 两条云模型适配器前设置同一个关闭式证据网关：样品和 Physics 工具必须通过 T52 数据契约，EBSD/SEM 必须引用 T54 已人工复核且完整性有效的结果。工具返回先删除路径、文件名和私密字段，再扫描受保护文件名及疑似密钥，并为允许发送的载荷分配 `AGEVID-*` 证据身份。
+
+每次调用前，页面显示不含问题原文的发送摘要；每次运行后，`outputs/agent_gateway/` 中生成只含哈希、证据引用、模型身份、Token、调用状态和权限边界的仅追加审计包。回答固定整理为“已确认事实、当前判断、待验证假设、证据与局限、下一步行动”，只能手动保存为待人工复核草稿，不能直接成为批准记录、正式数据或科研结论。无 API Key 时整个确定性系统继续离线运行。
+
+## Unified Run and Results Center v0.18
+
+入口：**研究助手 → 运行与成果**。T56 只读聚合 T52–T55 的治理包、科研会话、自动化任务和 T40 冻结演示，统一显示进行中、待人工确认、被阻止、完整性失效、已完成和已验收成果。每条记录只显示项目相对结果位置，并提供返回正确来源模块的下一步入口；中心不执行任务、不修改审批或覆盖结果。
+
+Career Portfolio 不再按普通事件数量生成成果。只有完整性通过、状态为 `complete`、结果等级合格且存在具名人工接纳的治理结果才能进入；Agent 回答、科研会话、自动化状态、draft、needs_human、blocked 和 invalidated 均排除。T40 旧演示另需通过固定完整性检查和显式合成演示验收登记，且只能表述工程能力。
+
+## v0.2.0-rc1 冻结候选
+
+T57 用 `config/release_candidate_v0.2.json` 固定九工作区覆盖矩阵、八类跨模块回归场景、三类离线降级和零失败/零隐私发现门槛。数据、Physics、统计、图像与模型、研究助手、科研会话和作品集达到阶段目标；现有自动化任务只保留状态展示，不得产生已验收作品集成果。
+
+### T60 材料科研多智能体协作
+
+入口：**研究助手 → 多智能体协作**。规划、数据、统计与物理、材料解释、审查五类角色按固定契约交接。计划与结果分别经过具名人工关口；审查角色能阻止无证据主张，但不能代替人批准。工具只允许调用白名单，失败只重试一次；云模型不可用时，确定性数据、统计与 Physics Card 仍可运行。`Run_T60_MultiAgent_Demo.cmd` 可重放成功、证据不足、工具失败和离线成功四条公开合成演示。
+
+### T61 MCP 工具与轻量 A2A
+
+同一“多智能体协作”页面提供协议状态和结构化交接演示。五个工具具有闭合输入 Schema、角色权限、超时、稳定错误码、输入版本和幂等收据；工具结果始终是待人工复核候选。A2A 任务信封按修订绑定发送角色、接收角色、证据引用、状态、时间和结果摘要。`Run_T61_Protocol_Demo.cmd` 可运行协议自检与公开合成交接；实现范围仅为本地 stdio 和项目内任务信封。
+
+### T62 公开真实钢板数据案例
+
+入口：**模型与自动化 → 真实数据案例**。项目使用 UCI `Steel Plates Faults`（ID 198，CC BY 4.0）验证七类缺陷分类：固定数据摘要和 60/20/20 划分，以多数类为基线，只用验证集选择 CPU 距离加权 kNN 的 `k`，最后一次报告测试 accuracy、balanced accuracy 和 macro F1。原始数据不进入仓库或结果包；数据卡、模型卡、预测、错误分析、中文报告和 Governance Manifest 可追溯。双击 `Run_T62_RealData_Case.cmd` 可从官方地址一键重放，不需要 GPU、本地 AI 或云模型。
+
+### T63 人工与智能体流程评估
+
+入口：**研究助手 → 多智能体协作 → 人工 单智能体与多智能体评估**。四项固定任务覆盖数据检查、统计解释、Physics 判断和报告整理；三种流程各重复两次。系统已冻结完成率、关键错误、人工修订、耗时、Token、费用、追溯完整率和优势判定，并可生成测量模板与仅追加评估包。双击 `Run_T63_Benchmark_Prep.cmd` 可准备评测；当前只完成结构校准，24 条真实测量齐全前结论固定为 `insufficient_evidence`。
+
+### T64 岗位作品集与公开发布包
+
+入口：**成果与作品集 → T64 岗位作品集与公开发布包**。项目已固定 16 项公开资产、4 条能力—证据映射和八项发布门槛，补充英文 README、三分钟演示脚本与五类面试讲解。双击 `Run_T64_Portfolio_Prep.cmd` 可生成仅追加发布检查包；该包保持 `needs_human`，不会自动提交 Git、创建 Release 或把 T63 未测结论升级为成果。
+
+Windows 完整研发环境可双击 `Freeze_v0.2_Candidate.cmd`，依次验证候选契约、质量门禁、全量离线测试、T40 合成旗舰演示和公开候选审计。该脚本不执行 Git 提交、标签或远程发布。
 
 ## Research Session & Daily Workflow v0.13
 
@@ -164,7 +245,7 @@ Research Agent和端到端研究任务调用同一注册表的六个默认模型
 
 ## 运行
 
-当前工作目录若已包含 `.venv`，可直接双击 `Start_SteelAI.bat`。兼容入口 `启动_SteelAI.bat` 也会调用同一个英文启动器。应用只监听本机 `127.0.0.1`，不会主动暴露到局域网；若已运行，启动器会直接打开现有页面。
+当前工作目录若已包含 `.venv`，可直接双击 `Start_SteelAI.bat`（仓库中只有这一个 Windows 启动器）。应用只监听本机 `127.0.0.1`，不会主动暴露到局域网；若已运行，启动器会直接打开现有页面。启动器对本机健康端点做检查时会显式绕过系统 HTTP 代理，因此设置了 `HTTP_PROXY` 但没有 localhost 例外时，也能正确识别已在运行的实例，不会在 8501 上启动第二个实例。
 
 T40 毕业作品主演示可直接双击 `Run_Flagship_Demo.cmd`。它只读取仓库中的公开合成资料，跨独立 SteelData / SteelStats 环境生成审计包，并同时验证成功案例和“未知单位被拦截”的失败案例；详细清单见 [T40 文档](docs/T40_FLAGSHIP_DEMO.md)。
 
@@ -244,3 +325,11 @@ python -m steelai.public_release_audit
 ```
 
 该命令只审计 Git 将要公开的候选内容，并对本机绝对路径、常见密钥、真实运行区、个人科研会话和模型权重关闭式失败。
+
+本地 v0.2 候选还应运行：
+
+```powershell
+python -m steelai.release_candidate
+```
+
+完整操作顺序和失败处理见 [用户操作指南](docs/USER_GUIDE.md)，本轮测试证据见 [T57 验收报告](docs/T57_VALIDATION_REPORT.md)。

@@ -34,10 +34,12 @@ from steelai.ebsd import (
 )
 from steelai.ebsd_comparison import compare_ctf_headers
 from steelai.ui import next_step_buttons, setup_page
+from steelai.views.image_model_governance_panel import render_image_model_governance_panel
 
 
 setup_page(st, "SteelAI Workbench · EBSD分析", "🧭")
 st.caption("Python负责样品、任务和报告；MATLAB/MTEX负责晶体学计算。原始EBSD文件保持只读。")
+render_image_model_governance_panel(st, "EBSD", key_prefix="ebsd_governance")
 
 header = read_ctf_header()
 runtime = environment_status()
@@ -323,9 +325,10 @@ next_step_buttons(
     [
         {
             "label": "进入证据验证",
-            "url": "/研究助手?module=validation",
+            "url": "/analysis?module=validation",
         },
-        {"label": "返回证据索引", "state": {"evidence_module_selector": "证据索引"}},
+        {"label": "返回证据索引", "url": "/projects?module=evidence"},
+        {"label": "查看运行与成果", "url": "/analysis?module=runs"},
     ],
     key_prefix="ebsd",
     note="组织分析结果需要与证据等级和取样限制一起进入结论验证。",

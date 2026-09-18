@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -72,18 +73,16 @@ def validate_research_data_contract(
         errors = [f"缺少必要列：{', '.join(missing_columns)}"] if missing_columns else []
 
         ids = [row.get("sample_id", "") for row in rows if row.get("sample_id")]
-        duplicate_ids = sorted({value for value in ids if ids.count(value) > 1})
-        one_to_many = table_name in {
-            "composition_observations", "process_steps", "microstructure_observations",
-            "property_observations", "physics_observations",
-        }
-        if duplicate_ids and not one_to_many:
-            errors.append("sample_id重复：" + ", ".join(duplicate_ids))
 
+        # Row identity is defined only by the primary_key declared for the table in
+        # config/research_data_contract_v1.0.json. Repeating one sample_id across many
+        # observations is valid one-to-many data, not a contract violation.
         primary_key = list(spec.get("primary_key", []))
         if primary_key and rows and all(field in columns for field in primary_key):
-            keys = [" | ".join(row.get(field, "").strip() for field in primary_key) for row in rows]
-            duplicate_keys = sorted({value for value in keys if value and keys.count(value) > 1})
+            key_counts = Counter(
+                " | ".join(row.get(field, "").strip() for field in primary_key) for row in rows
+            )
+            duplicate_keys = sorted(key for key, count in key_counts.items() if key and count > 1)
             if duplicate_keys:
                 errors.append("主键重复：" + ", ".join(duplicate_keys))
 
@@ -187,6 +186,10 @@ def validate_research_data_contract(
         next_actions.append("性能数据增加独立specimen_id长表后再做推断统计；当前均值±标准差只支持方向性判断。")
     if layer_map.get("physics_observations", {}).get("status") == "not_started_optional":
         next_actions.append("获得热膨胀/热模拟结果后新增physics_observations.csv，分开保存实验值、模型值与残差。")
+    if layer_map.get("thermal_simulation_runs", {}).get("status") == "not_started_optional":
+        next_actions.append("热模拟仪器文件先完成单位、试样身份和计划参数核对，再写入运行表与曲线点表。")
+    elif layer_map.get("thermal_simulation_features", {}).get("status") == "not_started_optional":
+        next_actions.append("逐采集复核 double-hit 有效加载段后，再生成可供统计、报告和 Agent 读取的特征表。")
 
     return {
         "contract_id": contract.get("contract_id"),

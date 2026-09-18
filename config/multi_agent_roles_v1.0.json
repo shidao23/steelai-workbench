@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "contract_id": "SteelAI-Materials-Multi-Agent-v1.0",
+  "workflow_sequence": [
+    "planner",
+    "data_steward",
+    "statistics_physics",
+    "materials_interpreter",
+    "reviewer"
+  ],
+  "roles": [
+    {
+      "role_id": "planner",
+      "label": "规划角色",
+      "inputs": ["research_request", "registered_capability_summary"],
+      "outputs": ["task_plan", "stop_conditions"],
+      "allowed_tools": ["list_governed_capabilities"],
+      "denied_authorities": ["human_approval", "formal_write", "source_mutation", "shell_execution"],
+      "stop_conditions": ["request_empty", "plan_not_approved", "human_termination"]
+    },
+    {
+      "role_id": "data_steward",
+      "label": "数据角色",
+      "inputs": ["approved_task_plan", "verified_evidence_references"],
+      "outputs": ["verified_evidence_bundle"],
+      "allowed_tools": ["read_verified_evidence"],
+      "denied_authorities": ["human_approval", "formal_write", "source_mutation", "shell_execution"],
+      "stop_conditions": ["evidence_missing", "evidence_unverified", "permission_denied", "human_termination"]
+    },
+    {
+      "role_id": "statistics_physics",
+      "label": "统计与物理角色",
+      "inputs": ["verified_evidence_bundle", "registered_method_versions"],
+      "outputs": ["deterministic_analysis_bundle"],
+      "allowed_tools": ["descriptive_statistics", "physics_card"],
+      "denied_authorities": ["human_approval", "formal_write", "source_mutation", "shell_execution"],
+      "stop_conditions": ["tool_failure_after_retry", "method_version_missing", "human_termination"]
+    },
+    {
+      "role_id": "materials_interpreter",
+      "label": "材料解释角色",
+      "inputs": ["deterministic_analysis_bundle", "verified_evidence_references"],
+      "outputs": ["evidence_bound_claims", "limitations"],
+      "allowed_tools": ["bounded_material_interpretation"],
+      "denied_authorities": ["human_approval", "formal_write", "source_mutation", "shell_execution"],
+      "stop_conditions": ["claim_has_no_evidence", "privacy_boundary_failure", "human_termination"]
+    },
+    {
+      "role_id": "reviewer",
+      "label": "审查角色",
+      "inputs": ["evidence_bound_claims", "workflow_trace"],
+      "outputs": ["machine_review", "blocked_claims"],
+      "allowed_tools": ["validate_claim_evidence"],
+      "denied_authorities": ["human_approval", "formal_write", "source_mutation", "shell_execution"],
+      "stop_conditions": ["unsupported_claim", "trace_incomplete", "human_termination"]
+    }
+  ],
+  "human_checkpoints": [
+    {
+      "checkpoint_id": "plan_approval",
+      "allowed_decisions": ["approved", "rejected", "terminated"],
+      "required_before": "data_steward"
+    },
+    {
+      "checkpoint_id": "result_acceptance",
+      "allowed_decisions": ["approved", "rejected", "terminated"],
+      "required_before": "workflow_completion"
+    }
+  ],
+  "execution_policy": {
+    "tool_retry_limit": 1,
+    "append_only_trace": true,
+    "persist_raw_tool_arguments": false,
+    "persist_raw_model_prompts": false,
+    "cloud_model_optional": true,
+    "offline_deterministic_processing_required": true
+  }
+}

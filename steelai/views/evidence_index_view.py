@@ -22,7 +22,10 @@ samples = read_rows("samples")
 with st.form("evidence_form", clear_on_submit=True):
     c1, c2 = st.columns(2)
     evidence_id = c1.text_input("证据 ID", placeholder="B-DQ_EBSD_001")
-    sample_id = c2.selectbox("样品", [r["sample_id"] for r in samples])
+    sample_ids = [r["sample_id"] for r in samples]
+    active_sample_id = st.session_state.get("active_sample_id")
+    active_index = sample_ids.index(active_sample_id) if active_sample_id in sample_ids else 0
+    sample_id = c2.selectbox("样品", sample_ids, index=active_index)
     modality = c1.selectbox("模态", ["OM", "SEM", "EBSD", "XRD", "Fractography", "Other"])
     file_path = c2.text_input("原始文件绝对路径")
     description = st.text_input("描述")
@@ -61,10 +64,10 @@ st.info("下一阶段建议：先补齐 sample_id、成像模态、倍率/标尺
 next_step_buttons(
     st,
     [
-        {"label": "进入 EBSD 分析", "state": {"evidence_module_selector": "EBSD 分析"}},
+        {"label": "进入组织分析", "url": "/analysis?module=ebsd"},
         {
             "label": "检查数据质量",
-            "url": "/数据与物理?module=quality",
+            "url": "/intake",
         },
     ],
     key_prefix="evidence_index",

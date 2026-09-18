@@ -11,15 +11,22 @@ from pathlib import Path
 from typing import Any
 
 from steelai.analysis import build_rule_report
+from steelai.agent_evidence_gateway import (
+    AGENT_GATEWAY_OUTPUTS,
+    ALLOWED_AGENT_TOOLS,
+    AgentEvidenceGateway,
+    AgentGatewayError,
+)
 from steelai.automation import AUTODIMPLE_RESULT_ROOT
 from steelai.data import numeric, read_rows, sample_bundle
 from steelai.ebsd import read_highres_comparison, read_matched_comparison
 from steelai.evidence_validation import agent_validation_payload
+from steelai.governance import digest_value
 from steelai.physics import calculate_all
 from steelai.settings import load_settings
 
 
-AGENT_NAME = "SteelAI Research Agent v0.2"
+AGENT_NAME = "SteelAI Research Agent v0.3"
 _ABSOLUTE_PATH_INPUT = re.compile(r"(?:[A-Za-z]:[\\/]|\\\\)[^\n\r\t`\"']+")
 _RAW_FILENAME_INPUT = re.compile(r"[^\s`\"']+\.(?:ctf|tif|tiff)\b", re.IGNORECASE)
 
@@ -96,6 +103,11 @@ class AgentRunResult:
     response_id: str = ""
     error: str = ""
     usage: dict[str, int] = field(default_factory=dict)
+    gateway_id: str = ""
+    send_summary: dict[str, Any] = field(default_factory=dict)
+    structured_output: dict[str, Any] = field(default_factory=dict)
+    audit_package: str = ""
+    manifest_sha256: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -106,6 +118,11 @@ class AgentRunResult:
             "response_id": self.response_id,
             "error": self.error,
             "usage": self.usage,
+            "gateway_id": self.gateway_id,
+            "send_summary": self.send_summary,
+            "structured_output": self.structured_output,
+            "audit_package": self.audit_package,
+            "manifest_sha256": self.manifest_sha256,
         }
 
 
@@ -413,7 +430,12 @@ def _deepseek_chat_tools() -> list[dict[str, Any]]:
     ]
 
 
-def _run_deepseek_agent(question: str, client: Any, current: AgentStatus) -> AgentRunResult:
+def _run_deepseek_agent(
+    question: str,
+    client: Any,
+    current: AgentStatus,
+    gateway: AgentEvidenceGateway,
+) -> AgentRunResult:
     messages: list[Any] = [
         {"role": "system", "content": AGENT_INSTRUCTIONS},
         {"role": "user", "content": question},
@@ -424,6 +446,7 @@ def _run_deepseek_agent(question: str, client: Any, current: AgentStatus) -> Age
     usage_total: dict[str, int] = {}
     try:
         for round_number in range(1, current.max_rounds + 1):
+            gateway.before_model_call()
             response = client.chat.completions.create(
                 model=current.model,
                 messages=messages,
@@ -457,27 +480,42 @@ def _run_deepseek_agent(question: str, client: Any, current: AgentStatus) -> Age
                 tool_started = time.perf_counter()
                 try:
                     arguments = json.loads(raw_arguments)
-                    tool_result = execute_readonly_tool(name, arguments)
+                    tool_result = gateway.execute_evidence_tool(
+                        name,
+                        arguments,
+                        execute_readonly_tool,
+                        round_number=round_number,
+                    )
+                    duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
                     trace.append({
                         "round": round_number,
                         "tool": name,
-                        "arguments": arguments,
+                        "arguments_sha256": digest_value(arguments),
+                        "evidence_id": tool_result["_gateway"]["evidence_id"],
                         "status": "completed",
-                        "duration_ms": round((time.perf_counter() - tool_started) * 1000, 1),
+                        "duration_ms": duration_ms,
                     })
                     output_text = json.dumps(tool_result, ensure_ascii=False, allow_nan=False)
                 except Exception as exc:
+                    duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
+                    failed_audit = gateway.record_failed_tool(
+                        name,
+                        raw_arguments,
+                        round_number=round_number,
+                        error=exc,
+                        duration_ms=duration_ms,
+                    )
                     trace.append({
                         "round": round_number,
-                        "tool": name,
-                        "arguments": raw_arguments,
-                        "status": "failed",
-                        "error": type(exc).__name__,
-                        "duration_ms": round((time.perf_counter() - tool_started) * 1000, 1),
+                        "tool": failed_audit["tool"],
+                        "arguments_sha256": digest_value(raw_arguments),
+                        "status": failed_audit["status"],
+                        "error_code": failed_audit["error_code"],
+                        "duration_ms": duration_ms,
                     })
                     output_text = json.dumps({
-                        "error": type(exc).__name__,
-                        "message": str(exc),
+                        "error": getattr(exc, "code", type(exc).__name__),
+                        "message": "Tool evidence was unavailable or blocked by the gateway.",
                     }, ensure_ascii=False)
                 messages.append({
                     "role": "tool",
@@ -497,36 +535,13 @@ def _run_deepseek_agent(question: str, client: Any, current: AgentStatus) -> Age
         )
 
 
-def run_research_agent(
+def _run_openai_agent(
     question: str,
     *,
-    client: Any | None = None,
-    status: AgentStatus | None = None,
+    client: Any,
+    current: AgentStatus,
+    gateway: AgentEvidenceGateway,
 ) -> AgentRunResult:
-    question = question.strip()
-    current = status or agent_status()
-    if not question:
-        return AgentRunResult("invalid_input", "", current.model, error="问题不能为空。")
-    if _ABSOLUTE_PATH_INPUT.search(question) or _RAW_FILENAME_INPUT.search(question):
-        return AgentRunResult(
-            "invalid_input",
-            "",
-            current.model,
-            error="输入包含本地路径或原始CTF/TIF文件名，已在API调用前阻断。",
-        )
-    if client is None and not current.ready:
-        return AgentRunResult("offline", "", current.model, error=current.message)
-    if client is None:
-        from openai import OpenAI
-
-        client_kwargs = {"api_key": os.getenv(current.api_key_env)}
-        if current.base_url:
-            client_kwargs["base_url"] = current.base_url
-        client = OpenAI(**client_kwargs)
-
-    if current.provider == "deepseek":
-        return _run_deepseek_agent(question, client, current)
-
     input_items: list[Any] = [{"role": "user", "content": question}]
     trace: list[dict[str, Any]] = []
     total_calls = 0
@@ -534,6 +549,7 @@ def run_research_agent(
     usage_total: dict[str, int] = {}
     try:
         for round_number in range(1, current.max_rounds + 1):
+            gateway.before_model_call()
             response = client.responses.create(
                 model=current.model,
                 instructions=AGENT_INSTRUCTIONS,
@@ -568,27 +584,41 @@ def run_research_agent(
                 tool_started = time.perf_counter()
                 try:
                     arguments = json.loads(raw_arguments)
-                    tool_result = execute_readonly_tool(name, arguments)
+                    tool_result = gateway.execute_evidence_tool(
+                        name,
+                        arguments,
+                        execute_readonly_tool,
+                        round_number=round_number,
+                    )
                     trace.append({
                         "round": round_number,
                         "tool": name,
-                        "arguments": arguments,
+                        "arguments_sha256": digest_value(arguments),
+                        "evidence_id": tool_result["_gateway"]["evidence_id"],
                         "status": "completed",
                         "duration_ms": round((time.perf_counter() - tool_started) * 1000, 1),
                     })
                     output_text = json.dumps(tool_result, ensure_ascii=False, allow_nan=False)
                 except Exception as exc:
+                    duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
+                    failed_audit = gateway.record_failed_tool(
+                        name,
+                        raw_arguments,
+                        round_number=round_number,
+                        error=exc,
+                        duration_ms=duration_ms,
+                    )
                     trace.append({
                         "round": round_number,
-                        "tool": name,
-                        "arguments": raw_arguments,
-                        "status": "failed",
-                        "error": type(exc).__name__,
-                        "duration_ms": round((time.perf_counter() - tool_started) * 1000, 1),
+                        "tool": failed_audit["tool"],
+                        "arguments_sha256": digest_value(raw_arguments),
+                        "status": failed_audit["status"],
+                        "error_code": failed_audit["error_code"],
+                        "duration_ms": duration_ms,
                     })
                     output_text = json.dumps({
-                        "error": type(exc).__name__,
-                        "message": str(exc),
+                        "error": getattr(exc, "code", type(exc).__name__),
+                        "message": "Tool evidence was unavailable or blocked by the gateway.",
                     }, ensure_ascii=False)
                 input_items.append({
                     "type": "function_call_output",
@@ -605,4 +635,93 @@ def run_research_agent(
             "failed", "", current.model, trace, last_response_id,
             f"{type(exc).__name__}: {exc}",
             usage_total,
+        )
+
+
+def run_research_agent(
+    question: str,
+    *,
+    client: Any | None = None,
+    status: AgentStatus | None = None,
+    gateway_output_root: str | Path | None = None,
+) -> AgentRunResult:
+    """Run the cloud agent through the T55 fail-closed evidence gateway.
+
+    A caller-supplied client is treated as a test/integration client and keeps
+    the audit in memory unless ``gateway_output_root`` is explicitly supplied.
+    Normal UI runs publish an append-only audit package before returning.
+    """
+    question = question.strip()
+    current = status or agent_status()
+    if not question:
+        return AgentRunResult("invalid_input", "", current.model, error="问题不能为空。")
+    if _ABSOLUTE_PATH_INPUT.search(question) or _RAW_FILENAME_INPUT.search(question):
+        return AgentRunResult(
+            "invalid_input",
+            "",
+            current.model,
+            error="输入包含本地路径或受保护原始文件名，已在API调用前阻断。",
+        )
+    if client is None and not current.ready:
+        return AgentRunResult("offline", "", current.model, error=current.message)
+
+    persist_root: str | Path | None = gateway_output_root
+    if persist_root is None and client is None:
+        persist_root = AGENT_GATEWAY_OUTPUTS
+    try:
+        gateway = AgentEvidenceGateway(
+            question,
+            current.provider,
+            current.model,
+            tuple(sorted(ALLOWED_AGENT_TOOLS)),
+            output_root=Path(persist_root) if persist_root is not None else None,
+        )
+    except AgentGatewayError as exc:
+        return AgentRunResult(
+            "invalid_input", "", current.model,
+            error=f"{exc.code}: 输入未通过Agent证据网关。",
+        )
+
+    try:
+        if client is None:
+            from openai import OpenAI
+
+            client_kwargs = {"api_key": os.getenv(current.api_key_env)}
+            if current.base_url:
+                client_kwargs["base_url"] = current.base_url
+            client = OpenAI(**client_kwargs)
+
+        if current.provider == "deepseek":
+            raw = _run_deepseek_agent(question, client, current, gateway)
+        else:
+            raw = _run_openai_agent(
+                question,
+                client=client,
+                current=current,
+                gateway=gateway,
+            )
+        finalized = gateway.finalize(
+            status=raw.status,
+            answer=raw.answer,
+            response_id=raw.response_id,
+            usage=raw.usage,
+            error=raw.error,
+        )
+        raw.status = finalized["status"]
+        raw.answer = finalized["answer"]
+        raw.error = finalized["error"]
+        raw.gateway_id = finalized["gateway_id"]
+        raw.send_summary = finalized["send_summary"]
+        raw.structured_output = finalized["structured_output"]
+        raw.audit_package = finalized["audit_package"]
+        raw.manifest_sha256 = finalized["manifest_sha256"]
+        return raw
+    except Exception as exc:
+        gateway.abandon()
+        return AgentRunResult(
+            "blocked",
+            "",
+            current.model,
+            error=f"Agent证据网关审计失败：{type(exc).__name__}",
+            gateway_id=gateway.gateway_id,
         )

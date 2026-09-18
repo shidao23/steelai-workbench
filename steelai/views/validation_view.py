@@ -10,13 +10,20 @@ from steelai.evidence_validation import (
     validation_summary,
 )
 from steelai.paths import REPORTS
+from steelai.statistics_governance import latest_governed_statistics_status
 from steelai.ui import next_step_buttons, setup_page
 
 
 setup_page(st, "SteelAI Workbench · 证据与验证中心", "🧩")
 st.caption("围绕B-DQ/R-DQ建立证据等级、结论门控与缺口清单；1–14号实验不进入当前核心证据集。")
 
-summary = validation_summary()
+statistics_status = latest_governed_statistics_status()
+statistics_package = (
+    statistics_status["package"]
+    if statistics_status is not None and statistics_status["status"] == "passed"
+    else None
+)
+summary = validation_summary(statistics_package=statistics_package)
 evidence = pd.DataFrame(summary["evidence"])
 claims = pd.DataFrame(summary["claims"])
 
@@ -29,6 +36,30 @@ d.metric("因果推断", "未就绪")
 st.warning(
     "当前B/R案例可以用于方向性研究分析和可审计求职案例；不支持因果结论，也不具备机器学习训练条件。"
 )
+
+st.subheader("可追溯统计证据")
+if statistics_status is None:
+    st.info("尚无 T53 治理统计包。请先在“分析与报告 → 可追溯统计”完成人工审核和报告生成。")
+elif statistics_status["status"] != "passed":
+    st.error("最新统计包完整性复核失败，已标记为 invalidated，不会进入证据表述。")
+    for problem in statistics_status["problems"]:
+        st.write("- " + problem)
+else:
+    policy = statistics_status["statement_policy"]
+    s1, s2, s3 = st.columns(3)
+    s1.metric("治理状态", statistics_status["governance_state"])
+    s2.metric("证据等级", statistics_status["evidence_level"])
+    s3.metric("统计 QC", statistics_status["quality_status"])
+    with st.expander("查看统计表述规则", expanded=False):
+        st.markdown("**允许表述**")
+        for item in policy["allowed_statements"]:
+            st.write("- " + item)
+        st.markdown("**谨慎表述**")
+        for item in policy["cautious_statements"]:
+            st.write("- " + item)
+        st.markdown("**禁止表述**")
+        for item in policy["prohibited_statements"]:
+            st.write("- " + item)
 
 st.subheader("证据等级标准")
 level_rows = [{"level": level, "definition": definition} for level, definition in EVIDENCE_LEVELS.items()]
@@ -134,8 +165,8 @@ if st.button("保存报告并登记为项目证据", use_container_width=True):
 next_step_buttons(
     st,
     [
-        {"label": "进入成果与作品集", "url": "/Career_Portfolio"},
-        {"label": "返回科研会话", "state": {"research_module_selector": "科研会话"}},
+        {"label": "进入作品集与发布", "url": "/portfolio"},
+        {"label": "返回科研会话", "url": "/projects?module=session"},
     ],
     key_prefix="validation",
     note="证据边界确认后，可以沉淀答辩与求职材料，或回到科研会话补充缺口。",

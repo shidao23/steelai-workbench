@@ -325,8 +325,8 @@ st.caption("评测分数用于定位失败模式，不代表通用智能水平�
 next_step_buttons(
     st,
     [
-        {"label": "查看旗舰演示", "state": {"research_module_selector": "旗舰演示"}},
-        {"label": "返回智能助手", "state": {"research_module_selector": "智能助手"}},
+        {"label": "查看旗舰演示", "url": "/advanced?module=flagship"},
+        {"label": "返回 AI 助手", "url": "/assistant"},
     ],
     key_prefix="agent_evaluation",
     note="确认可靠性边界后，可以用旗舰演示展示完整成功链路和受控失败链路。",
