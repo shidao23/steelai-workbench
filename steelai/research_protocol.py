@@ -32,7 +32,7 @@ from steelai.governance import (
 )
 from steelai.multi_agent_orchestrator import WORKFLOW_SEQUENCE
 from steelai.paths import OUTPUTS, ROOT
-from steelai.research_agent import execute_readonly_tool
+from steelai.research_tools import execute_readonly_tool
 from steelai.workflow_identity import WorkflowIdentity, validate_workflow_identity_contract
 
 

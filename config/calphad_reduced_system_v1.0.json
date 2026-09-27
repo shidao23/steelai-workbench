@@ -1,0 +1,163 @@
+{
+  "policy_id": "SteelAI-CALPHAD-Reduced-System-Policy-v1.0",
+  "schema_version": "1.0",
+  "task": "T86 phase 4",
+  "approved_at": "2026-09-25",
+  "approved_by": "SteelAI Workbench project owner (T86 phase-4 work order, 2026-09-25): fixed reduced component system plus fixed phase range, no environment change, no pycalphad upgrade, no attempt to solve the full 16-component system",
+  "purpose": "研究 B-DQ/R-DQ 在数据库有效温区内的基体相与主要碳化物平衡趋势。",
+  "not_a_generic_selector": "This policy is a fixed, versioned profile. It is NOT a generic element or phase switch: there is no user-facing control that adds, removes or swaps elements or phases, and the adapter blocks with CALPHAD-COMP-012 whenever the composition-derived element set differs from the profile.",
+  "formal_solver_mode": "independent_single_point_process_v1",
+  "solver_modes": {
+    "independent_single_point_process_v1": {
+      "mode_id": "independent_single_point_process_v1",
+      "version": "1.0",
+      "status": "formal_pilot",
+      "formal_pilot": true,
+      "rules": {
+        "one_temperature_per_process": true,
+        "fresh_process_per_point": true,
+        "recreate_database_model_workspace_each_process": true,
+        "serial_only_no_parallel": true,
+        "no_warm_start_from_previous_point": true,
+        "same_normalised_composition_for_every_point": true,
+        "same_components_plus_va_for_every_point": true,
+        "same_fixed_phase_set_for_every_point": true,
+        "same_pressure_database_version_for_every_point": true
+      },
+      "forbidden": [
+        "删除失败温度点",
+        "改变温度步长",
+        "用相邻点插值",
+        "平滑相分数",
+        "动态删除组元或相",
+        "根据求解结果更改 pdens",
+        "从多次失败中挑选看起来合理的一次",
+        "用前一个温度点作为下一点的初始状态"
+      ],
+      "retry_policy": {
+        "formal_acceptance_requires_first_attempt_success": true,
+        "diagnostic_retries_allowed": 1,
+        "diagnostic_retry_may_not_change_the_formal_result": true,
+        "diagnostic_retry_may_not_be_spliced_into_the_formal_curve": true,
+        "formal_curve_must_not_contain_selectively_retried_data": true
+      }
+    },
+    "batch_workspace_warm_start": {
+      "mode_id": "batch_workspace_warm_start",
+      "version": "1.0",
+      "status": "diagnostic_only",
+      "formal_pilot": false,
+      "note": "第四阶段使用的多温度批量求解路径。仅保留为诊断与对照证据，不再作为正式试点计算路径。"
+    }
+  },
+  "component_profile": {
+    "profile_id": "steel_matrix_equilibrium_v1",
+    "version": "1.0",
+    "included_elements": ["Fe", "C", "Mn", "Si", "Cr", "Ni", "Mo", "Cu", "Al", "Nb", "Ti", "V"],
+    "included_element_count": 12,
+    "component_list_length_sent_to_pycalphad": 13,
+    "component_list_length_note": "Fe + the 11 alloying elements + VA (vacancy). 13 is exactly the measured upper bound of pycalphad 0.11.2 on this host; 14 aborts, see docs/T86_PHASE3_COMMUNITY_COMPATIBILITY.md.",
+    "excluded_elements": [
+      {
+        "elements": ["B", "N", "P", "S"],
+        "category": "capacity_reduction",
+        "has_measurements": true,
+        "reason": "存在测量值，但为了建立低于 pycalphad 实测容量上限（13 个组元条目）的基体相计算体系而排除。排除决定属于本固定政策，不是按运行任意选择。"
+      },
+      {
+        "elements": ["As", "Sn", "Sb"],
+        "category": "database_not_covered",
+        "has_measurements": true,
+        "reason": "mc_fe v2.062 不含 As/Sn/Sb 的 ELEMENT 条目，数据库无法建模。"
+      },
+      {
+        "elements": ["O", "W"],
+        "category": "input_unknown",
+        "has_measurements": false,
+        "reason": "当前没有测量值，不能按 0 处理，因此不进入计算。"
+      }
+    ],
+    "mismatch_rule": "计算体系必须与 included_elements 完全一致（不多、不少、不改名）。任何其他元素缺失、数据库不覆盖、被临时删除或额外出现，都以 CALPHAD-COMP-012 阻断，不自动替换、不静默省略、不补零。",
+    "zero_fill_forbidden": true,
+    "generic_element_selection_switch": false
+  },
+  "phase_profile": {
+    "profile_id": "steel_matrix_major_carbides_v1",
+    "version": "1.0",
+    "phases": ["LIQUID", "FCC_A1", "BCC_A2", "CEMENTITE", "M23C6", "M7C3", "M6C"],
+    "phase_count": 7,
+    "selection_rule": "只允许经过独立探针验证的基体相与主要碳化物。相名以数据库解析结果为准；不存在、不可构造或未通过验证的相不得自动替换，只能从第一版相集合中移除并记录原因；不得通过修改 TDB 强行启用。",
+    "verification_script": "scripts/calphad_phase_profile_probe.py",
+    "verification_evidence": "config/calphad_phase_profile_evidence_v1.0.json",
+    "generic_phase_selection_switch": false,
+    "not_computed_in_this_phase": [
+      "BCC_B2 有序-无序相",
+      "MC/MX 组合碳氮化物",
+      "氮化物（如 ALN、BN_HP4、FE4N、SI3N4）",
+      "硼化物（如 M2B、FEB、MNB2、TIB2）",
+      "硫化物（如 MNS_Q、FES_P、CU2S）",
+      "磷化物（如 M2P、M3P）",
+      "氧化物与夹杂物（如 CORUND、SPINEL、SIO2、各类 Y/La/Ti 氧化物）",
+      "As/Sn/Sb 相关相",
+      "析出动力学、偏聚、晶界脆化与实际组织含量"
+    ],
+    "excluded_phases_are_not_a_claim": "不计算这些相不代表它们不存在或影响可忽略；它们的相分数与影响在本阶段一律未评估。"
+  },
+  "required_approval_fields": [
+    "reviewer_id",
+    "approved_at",
+    "approval_reason",
+    "component_profile_id",
+    "component_profile_version",
+    "excluded_elements",
+    "phase_profile_id",
+    "phase_profile_version",
+    "database_id",
+    "database_version_or_date",
+    "database_sha256"
+  ],
+  "approval_gate": {
+    "blocking_code": "CALPHAD-COMP-011",
+    "rule": "真实 B-DQ/R-DQ 运行前必须由项目负责人逐项填写 reviewer_id、批准时间与批准理由，并勾选确认文本；代码不代填姓名，也不提供默认值。缺任一项即保持 CALPHAD-COMP-011 阻断。",
+    "no_default_reviewer_in_code": true
+  },
+  "acknowledgement_text": "我确认本次计算采用 12 组元缩减体系。B、N、P、S、As、Sn、Sb、O、W 未进入计算；结果只能用于 Fe 基体相和已验证主要碳化物的平衡趋势探索，不能用于评价这些被排除元素、夹杂物、碳氮化物、晶界偏聚或实际组织。",
+  "result_naming": {
+    "label": "12-component reduced-system matrix equilibrium prediction",
+    "prohibited_labels": [
+      "完整钢种热力学计算",
+      "完整相图",
+      "全成分平衡",
+      "实际组织预测",
+      "析出动力学结果"
+    ]
+  },
+  "required_result_fields": [
+    "component_profile",
+    "phase_profile",
+    "solver_mode",
+    "reduced_component_system",
+    "included_elements",
+    "excluded_elements_with_reasons",
+    "prohibited_interpretations",
+    "model_losses",
+    "component_versions_and_hashes",
+    "review_status",
+    "writes_back_formal_experimental_data"
+  ],
+  "model_losses": {
+    "bcc_b2_order_disorder_coupling": "ATTACH_CONTRIBUTION 被注释，BCC_B2 未与 BCC_A2 耦合；本阶段不计算 BCC_B2。",
+    "matcalc_composition_sets": "ADD_COMPOSITION_SET 被注释，MC/MX 组合碳氮化物不可达；本阶段不计算 MC/MX。",
+    "hmva_parameters": "21 条 HMVA 参数被注释，pycalphad 无此参数类型；这些参数从未进入任何一次计算。",
+    "reference_element": "REFERENCE_ELEMENT FE 被注释，参考态设置丢失。",
+    "impact": "unknown_model_impact"
+  },
+  "database_identity": {
+    "upstream_database_id": "MATCALC-MC-FE-V2062",
+    "selected_database_id": "MATCALC-MC-FE-V2062-COMMUNITY-CLEAN-19B1164",
+    "selected_database_sha256": "7cf37dd423e14264ee67467011b6cb0ea90647fc365823899c29f7e827a12042",
+    "community_derivative_note": "上游 ODbL 1.0 + DbCL 1.0 原样保留；候选只登记为第三方社区派生数据库候选，不是 TU Wien 官方 pycalphad 兼容版。",
+    "pycalphad_version": "0.11.2"
+  },
+  "privacy_note": "本提交文件不含任何实测成分数值。含实测值的逐次运行记录写入 Git 忽略的 outputs/ 目录。"
+}

@@ -2,6 +2,8 @@
 
 日期：2026-09-17
 
+> 本文件描述 **SteelAI 自身的应用能力**。平台级 Agent/Preset/工具权限的当前状态以 [`../../SHIDAO_WORKBENCH_CURRENT_STATUS.md`](../../SHIDAO_WORKBENCH_CURRENT_STATUS.md) 为准；§“当前开发协作方式”已于 2026-09-25 按该入口页核对更新。
+
 ## 当前能力矩阵
 
 | 能力 | 状态 | 当前边界 |
@@ -12,12 +14,14 @@
 | Double-hit 有效加载段 | 已完成 T73 | 两道次局部应变、基线修正应力、接触/终点候选和全路径对照；16 个 DH 采集的 32 个分段均已具名复核并进入 T74 特征表 |
 | 热模拟特征表 | 已完成 T74 | 16 个 DH 采集已具名批准并正式入库；一行一个采集，含两道次峰值、定点流动应力、时间/温度/间隔、位移/应变和全链路哈希 |
 | Double-hit 软化分析 | 已完成 T75 | 已批准 2% 偏移主方法和 5% 定真应变对照；16 行正式结果已由复核人 `yjh` 具名复核并写入 `thermal_simulation_softening.csv`，其中 12 行 `passed`，A79、A80、A84、A85 保留 `warning_needs_human_review`；四个超过 100% 的原始值未截断、未删除，不据此声称额外冶金机制或生产结论 |
+| 双道次案例分析草稿 | 已实现只读纵向案例 | 从正式 T75、T74、T71 重新核对 16 行与方法批准状态，验证张玲论文副本哈希，生成待人工复核的治理结果包；Workbench Research Agent 可按案例编号通过证据网关读取。联网模型调用仍取决于本机代理依赖与服务可用性；不是通用 PDF RAG。 |
 | 标准表导入 | 已实现并保留 | 接受受控五类长表，经过预检、人工确认和仅追加写入 |
 | SteelData v0.2 拉伸接入 | 已实现 | 通过独立环境 CLI 和结果契约读取结果包，明确映射 `sample_id` 后写入性能长表 |
 | SteelData 成分和曲线接入 | 只读预览 | 不自动写入长表，不从曲线推断性能 |
 | Research Data Contract 与质量门禁 | 已实现 | 当前 B/R 证据仍为 `directional_evidence_only`，不支持因果或机器学习结论 |
 | Research Agent 与 DSH 旁路 | 已实现为只读 | 不允许写数据、审批配置、启动重型任务或读取未登记原始文件 |
 | Physics Model Registry | 已实现 | 公式输出是经验估算，不是实验真值；缺输入不补零 |
+| CALPHAD 平衡相分数（可选 T86） | 作品集：`portfolio_exploration_complete`（已签署）；科研：`scientific_use_blocked_by_solver_stability` | **公开合成演示可用**：Fe–C（Fe-0.45 wt.% C）、4 个已验证相、25 点、400–1600 °C、`independent_single_point_process_v1`（每温度点独立进程），两次运行最大差 **0.0**，页面展示相分数—温度曲线并可下载 Markdown/JSON/CSV；结果携带 `portfolio_demo`、`public_synthetic_input`、`model_prediction_not_experimental_measurement`、`not_for_scientific_conclusion`、`is_complete_phase_diagram=false`、`writes_back_formal_experimental_data=false`，不读取私人数据、不写回 `data/processed/`。作品集验收已由负责人 **世道** 于 **2026-09-25**（Asia/Shanghai）签署，范围 `portfolio_engineering_acceptance_only`（`config/calphad_owner_acceptance_v1.0.json`），**不构成**真实钢种科研审批：`scientific_use_approved=false`、`real_sample_curves_published=false`、`materials_conclusion_approved=false`。**真实样品探索保持阻断、不发布曲线、不形成材料结论**：全组元 16 个条目超过本机实测容量上界 13；缩减体系在 B-DQ 875/900 °C 附近不稳定收敛（全新进程 900 °C 成功 1/8、875 °C 2/4）；批量与独立模式在 R-DQ 675 °C 相差 1.069×10⁻⁴（容差 1e-7）。登记社区派生数据库 `mc_fe_v2062_clean`（SHA-256 `7cf37dd4…`，上游 ODbL 1.0 + DbCL 1.0，不随仓库分发、未被修改）与固定 `steel_matrix_equilibrium_v1`（12 组元 + `VA`）、`steel_matrix_major_carbides_v1`（7 相，独立探针 7/7）。页面明确分为「区域 1 · 公开合成演示」与「区域 2 · 真实样品探索」 |
 | 获准真实拉伸批次端到端验收 | 已完成 T10 | 一批脱敏 DQ 结果已通过 human 批准、SteelData 完整性/QC/重放和 Workbench 18 条观测暂存预检；正式长表未自动提交 |
 | 真实格式公开回归 | 已完成 T11 | SteelData 合成夹具覆盖中英文表头、空行、多工作表、模板歧义、单位冲突、重复和坏值；Workbench 入库门禁不变 |
 | 毕业主线数据契约 | 已完成 T12 | `SteelAI-Graduation-Core-v1.0` 冻结材料/炉次/条件/试样/报告/观测关系；当前只含拉伸 YS、UTS、EL，尚未迁移真实数据 |
@@ -64,6 +68,7 @@ SteelAI 负责研究工作流、权限闸门、样品对应、统计审核和结
 
 ## 当前开发协作方式
 
-- Codex 负责单项任务规划与结果复核。
-- DSH 内置标准模式负责 SteelAI-Workbench 内的代码实现与测试。
-- 自定义 Engineer 与 Reviewer 暂不作为当前默认开发链路。
+- 代码修改由平台 Agent `software_engineering_agent`（Preset `shidao-engineer`）在 `SteelAI-Workbench` 工作区内完成；该 Agent 当前启用，并以 construction preset 直接使用文件系统与 PowerShell 工具，负责实现、最小相关测试和自复查。
+- 自定义 Engineer 已进入当前默认开发链路；**Reviewer（`software_code_reviewer`）当前为 `staged` 且未部署**，其独立只读复查链路保持 fail-closed 休眠，需重新激活后才可路由。
+- 单项任务规划与结果复核仍可由 Codex 承担。
+- 精确的启用状态、工具权限与人工审批点见 [`../../SHIDAO_WORKBENCH_CURRENT_STATUS.md`](../../SHIDAO_WORKBENCH_CURRENT_STATUS.md)。

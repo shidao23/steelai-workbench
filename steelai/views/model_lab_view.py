@@ -91,13 +91,26 @@ focus = st.selectbox(
     help="一次只展示一类工作，避免把模型状态、复核任务和试验结果混在同一长页面。",
 )
 with st.expander("查看候选模型登记册与环境说明"):
-    registry = pd.DataFrame(model_statuses())
+    registry_rows = model_statuses()
+    registry = pd.DataFrame(registry_rows)
     st.dataframe(
         registry[["model", "task", "license", "readiness", "local_status"]],
         width="stretch",
         hide_index=True,
     )
     st.info("重型模型继续使用独立环境。主工作台只读取状态和结果文件，不会被模型依赖拖慢或破坏。")
+    calphad_row = next((row for row in registry_rows if row["model"] == "pycalphad"), None)
+    if calphad_row:
+        message = "pycalphad（CALPHAD 平衡相分数—温度）：" + str(calphad_row.get("headline", ""))
+        if calphad_row.get("state") == "ready":
+            st.info(message)
+        else:
+            st.warning(message)
+        st.caption(
+            "使用入口：物理计算页的“平衡相分数—温度（可选 · T86）”页签。"
+            "未配置独立环境或授权 TDB 时该页签只显示阻断原因，其余物理计算照常运行；"
+            "计算结果始终是待人工复核的模型预测，不写回正式实验数据。"
+        )
 
 if focus in {"人工复核", "全部技术详情"} and REVIEW30_SEED.exists() and REVIEW30_TABLE.exists() and REVIEW30_MAP.exists():
     st.subheader("Review30 人工复核")

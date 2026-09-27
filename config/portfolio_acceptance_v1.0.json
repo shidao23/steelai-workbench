@@ -11,6 +11,16 @@
       "scope": "Public synthetic engineering demonstration only",
       "evidence_class": "synthetic_demo_data",
       "result_level": "synthetic_demo_only"
+    },
+    {
+      "record_id": "T86-PORTFOLIO-OWNER-SIGN-OFF-20260925",
+      "module": "calphad_portfolio_demo",
+      "decision": "approved",
+      "reviewer_id": "世道",
+      "accepted_on": "2026-09-25",
+      "scope": "T86 public synthetic Fe-C portfolio demo engineering acceptance only; no real steel-grade scientific approval",
+      "evidence_class": "public_synthetic_demo",
+      "result_level": "portfolio_demo_only"
     }
   ]
 }

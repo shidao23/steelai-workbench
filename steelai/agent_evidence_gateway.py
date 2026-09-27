@@ -43,6 +43,7 @@ ALLOWED_AGENT_TOOLS = frozenset({
     "get_ebsd_summary",
     "get_autodimple_summary",
     "get_evidence_validation_summary",
+    "get_thermal_softening_case",
 })
 RESTRICTED_OUTPUT_SECTIONS = (
     "已确认事实",
@@ -131,6 +132,7 @@ def _validate_arguments(tool_name: str, arguments: Mapping[str, Any]) -> dict[st
         "get_ebsd_summary": {"scale"},
         "get_autodimple_summary": set(),
         "get_evidence_validation_summary": set(),
+        "get_thermal_softening_case": {"case_id"},
     }[tool_name]
     if set(safe) != allowed_arguments:
         raise _gateway_error("GOV-AI-AUTH-001", "tool arguments do not match the fixed read-only contract")
@@ -305,6 +307,13 @@ class AgentEvidenceGateway:
             })
             evidence_class = EvidenceClass.HUMAN_CONCLUSION.value
             scope = "deterministic evidence and claim boundary policy"
+        elif tool_name == "get_thermal_softening_case":
+            from steelai.thermal_softening_case import load_softening_case
+
+            case = load_softening_case(str(safe_arguments["case_id"]))
+            source_digest = digest_value(case)
+            evidence_class = EvidenceClass.REAL_RESEARCH_DATA.value
+            scope = "hash-verified approved T75 data with literature-linked draft; conclusions need human review"
         else:
             modality = "EBSD" if tool_name == "get_ebsd_summary" else "SEM"
             reviewed = [

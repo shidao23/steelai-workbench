@@ -67,6 +67,7 @@
 | T83 | 事务型 Outbox Dispatcher、租约恢复与至少一次投递基线 | P1 | Done | T82 | `ports/outbox.py`、`application/outbox_dispatcher.py`、`adapters/outbox_memory.py`（含 Recording Transport）、`adapters/postgresql/outbox.py`；复用 `outbox_events` 既有五列、**零迁移**；领取用 `FOR UPDATE SKIP LOCKED` + 短事务 + `attempts = attempts + 1` + 数据库时间租约；`attempts` 作为 fencing token，ack/nack 必须匹配 `event_id + publishing + attempts`；同 run 严格按 `sequence`；过期租约恢复；五种派发结果由 status 唯一推导 `delivered`/`persistence_state_known`/`redelivery_possible`；at-least-once（**不声称 exactly-once**）；离线 67 passed + 74 subtests、真实 PostgreSQL 18.6 集成 17 passed（0 skipped）、全量 608 passed + 8 skipped + 0 failed；ADR-0004（accepted）与 T83 文档；**不接 Kafka，无常驻服务，未接入默认应用** |
 | T84 | Background Job Worker、心跳与过期租约恢复基线 | P1 | Done | T83 | `ports/workers.py`、`application/job_worker.py`、`adapters/worker_memory.py`（含 Recording Handler）、`adapters/postgresql/worker.py`；复用 `background_jobs` 既有表、**零迁移**；领取 `FOR UPDATE SKIP LOCKED` + 全新 `lease_id`（首次领取不增加 `attempts`）；`job_id + lease_id + attempt` fencing，旧 worker 心跳/成功/失败三种写入全部关闭式失败；心跳以数据库时间刷新 `updated_at`；过期租约恢复 `retrying`（`attempts+1`）或 `failed`（`ENT-WORKER-LEASE-EXPIRED`）；失败重试复用 `leased→failed→retrying` 两次合法转换；五种 Worker Outcome 由 status 唯一推导；Handler 只见安全元数据，Registry 显式注册；at-least-once（**不声称 exactly-once**）；**两轮契约修正完成**（Handler 异常边界：`DomainError` 与其他 `Exception` 统一脱敏并隔离，不中断批次、不残留 `leased`、`BaseException` 不吞掉；`JobOutcome` 完整不变量已冻结：status 与 `state`/`attempts`/`error_code` 必须一致）；离线 72 passed + 65 subtests、真实 PostgreSQL 18.6 集成 25 passed + 6 subtests（0 skipped）、全量 705 passed + 8 skipped + 358 subtests + 0 failed、`git diff --check` exit 0；ADR-0005（accepted）与 T84 文档；**不接 Kafka，无常驻服务，未接入默认应用** |
 | T85 | 冻结 Enterprise Lab 企业化演练阶段与后续路线 | P1 | Done | T80–T84 | 阶段能力总结、非生产边界、重新开启条件、后续产品路线；Codex 最终复核通过，T80–T85 企业化演练阶段正式冻结（2026-09-18） |
+| T86 | 将 pycalphad 候选接入物理计算（可选、可关闭） | P1 | 作品集已完成（已签署）/ 真实科研 Blocked | T13、T75 | **双状态**：工程与作品集 `portfolio_exploration_complete`（已由负责人 **世道** 于 **2026-09-25**（Asia/Shanghai）签署，范围 `portfolio_engineering_acceptance_only`，记录 `config/calphad_owner_acceptance_v1.0.json`，并登记于 `config/portfolio_acceptance_v1.0.json`）；真实科研 `scientific_use_blocked_by_solver_stability`。**公开合成演示**（Fe–C，Fe-0.45 wt.% C，4 个已验证相，25 点，400–1600 °C，`independent_single_point_process_v1`）两次运行**最大差 0.0**（容差 1e-7），页面展示曲线并可下载 Markdown/JSON/CSV，不读取私人数据、不写回 `data/processed/`；真实 B-DQ/R-DQ 计算**不发布曲线、不形成材料结论**（容量上界 13、875/900 °C 求解不确定、675 °C 模式差异 1.069×10⁻⁴）。签署**只**覆盖公开演示的工程验收：`scientific_use_approved=false`、`real_sample_curves_published=false`、`materials_conclusion_approved=false`。第五阶段全部失败证据保留不变；未开展第六阶段求解器调试、未更换或升级 pycalphad、未排除温度点、未继续缩减组元或相集合、未重跑 324 点重型验收。证据见 `docs/T86_PORTFOLIO_SUMMARY.md`、`config/calphad_portfolio_demo_evidence_v1.0.json` |
 
 ## 阶段八：企业化架构边界（T80 起）
 
@@ -536,3 +537,113 @@ Codex 复核修正（三项契约）：其一，`MemoryStore.state` 现在始终
 - 测试基线沿用 T84 验收时点：全量 **705 passed、8 skipped、358 subtests、0 failed**（`git diff --check` exit 0，14 项冻结哈希 mismatches = 0），**本轮未重新运行** pytest、Docker、PostgreSQL 或 Streamlit。
 
 边界：本轮只修改 `TASKS.md`、`docs/enterprise/T85_ENTERPRISE_LAB_PHASE_CLOSEOUT.md` 与 `project_log/CHANGELOG.md` 三个文档；未修改任何 Python/PowerShell/BAT/CMD、测试、Schema 或 migration、requirements 文件、科研数据、方法注册表与治理配置、T80–T84 的实现与既有 ADR 技术决策、`app.py`/`pages/`/默认 Streamlit 入口、`docs/ARCHITECTURE.md`、`docs/CURRENT_CAPABILITIES.md`、`docs/KNOWN_LIMITATIONS.md`、T63/T64/T76 的状态与 Git 历史；未启动 Kafka/API/微服务；**未创建 T86**；未 commit/push/tag。详细阶段收尾说明见 `docs/enterprise/T85_ENTERPRISE_LAB_PHASE_CLOSEOUT.md`。
+
+## 受阻任务 T86
+
+任务定位：把模型登记册里已有的 pycalphad 候选（`readiness=database_required`）接入物理计算，做成**可关闭的本地功能**。第一阶段只做“固定样品成分下，平衡相分数随温度变化”的计算与展示，不写回正式实验数据，也不把该曲线称为完整相图。
+
+完成情况：新增 `steelai/calphad_adapter.py`（门禁、单位与输出基准声明、wt.%→摩尔分数换算、TDB 登记校验、请求构造、worker 调度与结果校验，主应用**不导入** pycalphad）、`scripts/calphad_phase_fraction_worker.py`（在独立解释器中运行，复核 pycalphad 版本与 TDB SHA-256 后求解平衡，按基相名聚合相成分集）、`config/calphad_adapter_v1.0.json`（第三方登记 + 方法/单位约定 + 原子量表 + 声明边界）、`config/calphad_tdb.example.json`（本地 TDB 登记模板）；物理计算页新增第 4 个页签“平衡相分数—温度（可选 · T86）”，模型实验室同步显示 CALPHAD 真实本地状态与入口指引。
+
+单位与基准：输入成分 `wt.%`、温度 `°C`（内部 `T_K = T_degC + 273.15`）、压力固定 `101325 Pa`；**输出为各相摩尔分数**（`NP_phase / ΣNP`），不换算质量分数，界面与下载记录都逐项标注。
+
+关闭式规则：TDB 缺少任何**非零**元素一律阻断且没有覆盖开关（不省略、不补零）；“已声明但无值”的元素不得按 0 处理，必须补值或由具名用户声明排除；Fe 按余量计算必须由具名用户确认；成分中 `0 wt.%` 且不在 TDB 内的元素记录为排除项但不阻断；超出 TDB 声明温度区间只警告并标注“模型外推”。结果统一标为 `model_prediction_not_experimental_measurement` + `pending_human_review`，不写回 `data/processed/`。
+
+第三方登记（2026-09-24 核对官方 PyPI JSON 元数据与固定 tag 上的 LICENSE.txt，并用 GitHub REST API 解析 tag 提交）：`pycalphad 0.11.2`、MIT、仓库 `https://github.com/pycalphad/pycalphad`、源码引用 `2d4c744ddb890e179542894d070150797e13b325`、sdist SHA-256 `588ad2c0…`、`cp312 win_amd64` wheel SHA-256 `53f65477…`、`requires-python >=3.11`；未下载、未安装、未复制任何第三方代码，三个 requirements 文件未修改。
+
+测试证据：`tests/test_t86_calphad_adapter.py` **42 passed**（登记/许可证/哈希、缺失环境、缺失依赖、版本不符、缺失与非法 TDB 登记、哈希不符、未授权数据库、非零元素未覆盖、无值元素、Fe 余量确认、单位与基准声明、温度区间门禁、worker 结果校验、相成分集聚合、阻断预览不调用 worker、结果标注与“不是完整相图”、模型登记册集成、worker 脚本契约）。`tests/test_physics.py` 与 `tests/test_streamlit_pages.py` 通过（页面测试实际渲染含阻断分支的物理页）。全量入口 `.\scripts\test.ps1` 在受限文件沙箱中会因所有 `tempfile` 夹具 `WinError 5` 失败（与本项目 T76 记录的环境限制相同），**不得改写既有夹具绕过**，需在普通用户终端重跑。
+
+受阻原因与解除条件：项目当前**没有 TDB，也没有安装 pycalphad**。解除条件为：(1) 用户提供有使用授权且适用于目标钢种的 TDB（含来源、版本、授权依据、覆盖元素、温度区间与 SHA-256）；(2) 用户明确同意把 `pycalphad==0.11.2` 安装到独立环境。**在此之前不安装软件，也不声称完成真实钢种计算验收**；真实成分的相分数结果、TDB 适用性判断与相分数—温度的冶金解释都仍待人工复核。
+
+边界：未修改 `requirements*.txt`、既有经验公式注册表与计算路径、`data/processed/` 科研数据、T52 治理内核与发布流程、T40/v0.2 冻结边界、T76/T85 状态；未新增 Streamlit 页面；未 commit/push/tag。
+
+### 第二阶段（2026-09-25）：独立环境、数据库与兼容性门禁
+
+项目负责人正式确定技术路线（`pycalphad==0.11.2` + MatCalc `mc_fe v2.062`），并批准在独立环境安装固定版本依赖、从 TU Wien 官方来源取得该数据库用于本地验证。
+
+完成情况：
+
+- 建立 `.venv-pycalphad`（CPython 3.12.14），安装 `pycalphad==0.11.2`；实测 **34 个包**全部锁定版本与 wheel SHA-256（`requirements-calphad-win-py312.lock`）。pycalphad wheel 的 SHA-256 与第一阶段登记值完全一致。主应用三个 requirements 文件未改动，主应用仍不导入 pycalphad。
+- 从 TU Wien / MatCalc 官方发布位置取得 `mc_fe v2.062`（2024-11-08，489,296 字节，SHA-256 `aa02077eac3f602dd7479cbeafb09b450e282716752b3ae2b1fc3a57d9c64865`），放入 Git 忽略的 `model_lab/calphad/databases/`，并登记官方 URL、版本、日期、SHA-256、ODbL 1.0 + DbCL 1.0、版权与署名要求（`config/calphad_tdb.local.json`、`model_lab/calphad/README.md`）。**数据库不随仓库分发**，公开仓库只保留模板、来源记录与获取说明。
+- 新增只读工具 `scripts/calphad_tdb_inspect.py`（结构/许可/关键字探测，从不改写数据库）与 `scripts/calphad_compatibility_gate.py`（两道门禁 + 关键字隔离探针）。
+- 建立**受控元素排除政策** `config/calphad_exclusion_policy_v1.0.json`：逐条枚举 (样品, 元素, 类别) 共 10 项，与数据库身份绑定，**无通配符、无通用忽略开关**；其他未覆盖的非零元素仍然 `CALPHAD-COMP-002` 阻断；每次运行需具名确认人，并把排除清单、原始值/缺失状态、类别、原因、数据库版本与 SHA-256 写入结果记录。公开政策文件**不含实测成分数值**。
+- 结果限制（缩减成分体系、As/Sn/Sb 未建模、O/W 无测量值、不能用于偏聚/夹杂/晶界脆化/相稳定性/性能判断）已嵌入页面、Markdown、JSON 与 **CSV 的前导注释与每一数据行**；同时保留 `reduced_component_system`、`excluded_elements`、`pending_human_review`、`is_complete_phase_diagram=false`、`writes_back_formal_experimental_data=false`。
+- 兼容性门禁结果写入登记与证据：`config/calphad_gate_evidence_v1.0.json`（可提交的净化版）、`docs/T86_PHASE2_ENVIRONMENT_AND_GATES.md`（完整报告）。适配器新增 `CALPHAD-TDB-007`（兼容性未通过即阻断）、`CALPHAD-COMP-011`（使用受控排除必须具名确认）与 `CALPHAD-POLICY-001`（政策非法）三个关闭式门禁。
+
+**第一道门禁未通过**，因此**未进入第二道门禁，未执行任何真实钢种计算，T86 保持 `Blocked`**：
+
+1. `Database(path)` → `UnicodeDecodeError: 'gbk' codec can't decode byte 0x96 in position 485974`（pycalphad 按平台 locale 打开文件；厂商文件是 cp1252，含 9 个非 ASCII 字节，首个在偏移 828）。
+2. 显式按 cp1252 解码后再加载（两条 pycalphad 官方入口，**文件字节未改动**）→ `pyparsing.exceptions.ParseException: Invalid TDB syntax`，**第 180 行第 18 列，关键字 `REFERENCE_ELEMENT`**。
+3. 关键字隔离探针（合成 TDB、内存内、不写文件、不计算）：基线通过，而 `REFERENCE_ELEMENT`、`ADD_COMPOSITION_SET`、`ATTACH_CONTRIBUTION`、`CREATE_NEW_PHASE`、`PARAMETER HMVA(...)` **逐条都失败** —— 不是"第一个挡住后面的能过"。
+
+明确未做的事：**没有删除或注释任何关键字、没有改写数据库、没有制作"兼容版 TDB"、没有执行任何平衡计算**。第二道门禁本应核对元素/相/有序无序/碳氮化物/温区/成分限/相分数合计与收敛，由于没有可解析对象而**未评估**。
+
+测试证据：`tests/test_t86_calphad_adapter.py` **55 passed**（第一阶段 42 项 + 第二阶段 13 项：锁文件哈希与 wheel 一致性、门禁证据内容、本地登记的门禁判定、`CALPHAD-TDB-007` 阻断与状态上报、兼容性版本漂移关闭式失败、排除政策枚举/绑定/通配符拒绝、受控排除与具名确认、限制声明嵌入记录/Markdown/CSV、阻断记录仍带限制）。`tests/test_physics.py`、`tests/test_streamlit_pages.py`、`tests/test_model_lab.py`、`tests/test_third_party_registry.py`、`tests/test_t52_governed_data_physics.py` 共 **25 passed**。
+
+解除条件：(1) 项目负责人决定是否批准**有记录、可复现的受控预处理**（派生数据库），并接受其物理模型变化与 ODbL 派生公开义务；或改用 pycalphad 原生开源钢库（如 MIT 的 LibreCalphad，但同样缺 As/Sn/Sb 评估参数）；或向 TU Wien/MatCalc 询问是否有官方 pycalphad 兼容版本；或把 T86 冻结为技术框架。
+
+边界：未提交或再分发数据库文件；未修改 `requirements*.txt`、既有经验公式路径、`data/processed/` 科研数据、T52 治理内核；未 commit/push/tag。
+
+### 第三阶段（2026-09-25）：社区兼容版数据库候选审查与兼容性验证
+
+项目负责人确定：**不自行预处理原始 `mc_fe v2.062`**，改用已有的社区兼容派生文件，只登记为"第三方社区派生数据库候选"。
+
+完成情况：
+
+- 登记候选 `MATCALC-MC-FE-V2062-COMMUNITY-CLEAN-19B1164`：仓库 `adityamoolya/maraging-steel-calphad-dft`、文件 `2databases/mc_fe_v2062_clean.tdb`、固定提交 `19b11640253543fe412145498438cb8355a32561`、479,418 字节、SHA-256 `7cf37dd423e14264ee67467011b6cb0ea90647fc365823899c29f7e827a12042`、utf-8；上游 ODbL 1.0 + DbCL 1.0 原样保留在文件头第 26–29 行，保留原评估者与社区修改者署名。文件存在 Git 忽略的 `model_lab/calphad/databases/community/`，**未修改**该文件，**未制作**任何"兼容版 TDB"。来源仓库无 LICENSE 文件，**未复制任何第三方代码**。
+- 全量差异审计（`scripts/calphad_tdb_diff_audit.py`）：判据 `passed_syntax_repairs_only`，4,515 条共享语句，**0 条未解释差异**。逐条归类：`reference_key_normalisation` 4、`invalid_delimiter_repair` 1、`invalid_numeric_literal_repair` 2、`duplicate_fragment_repair_verified` 2、`duplicate_or_stray_fragment_removal` 1、`missing_terminator_split` 1、`structural_change_numbers_preserved` 1、`matcalc_only_command_removed` 7、`matcalc_only_parameter_removed` 21（HMVA）。77 行 `$ Cleaned by script:` 注释块重新拼装为 35 条语句并**全部匹配**上游。**未发现**任何 Gibbs 能量、相互作用参数、磁性参数、温度断点或数值系数被改动。**没有**用作者"未改动参数"的声明替代本地验证。
+- 兼容性门禁（`scripts/calphad_compatibility_gate.py`）：解析通过（显式 utf-8 解码；`Database(path)` 因本机 GBK 区域设置失败、加 `-X utf8` 后通过——主机区域设置问题）。计数：25 合金元素（含 VA 共 26）、132 相、26 物种、123 函数、4,094 参数。有序-无序链接 **0**（BCC_B2 未耦合）；组合集相 **0**（MC/MX 不可达）。Workspace 构造通过（16 组元 × 132 相）。
+- 独立验证（`scripts/calphad_candidate_validation.py`，每次平衡在**独立子进程 + 墙钟超时**中运行，实现崩溃隔离）：上游 5 个二元体系 15 项检查 **15/15 复现**（判据按条件重新实现，未用作者图片/结论/源码）；项目相关 9 个体系 **18/18 通过**（Fe-C 稳定系与亚稳系各 2 项、Fe-Cr-C 2 项、Fe-Mn/Fe-Si/Fe-Nb/Fe-V/Fe-B/Fe-N 各 2 项）；MC/MX 可达性探针结果为"不可达"，与文档化模型损失一致（`agrees_with_expectation = true`）；温度请求 400–1725 °C = 673.15–1998.15 K 落在数据库声明区间内。这些检查**只证明软件行为与基本合理性，不是钢种实验验收**。
+- **阻断级新发现**：本机 `pycalphad==0.11.2` 对**组元列表长度 ≥14** 的体系无法求解，实测上界 13（Fe + 11 合金元素 + VA）。排除性对照：在 pycalphad 自带独立数据库 `COST507.tdb` 上**边界完全相同**（13 可解 / 14 失败）；与相列表无关（单相/两相/132 相都中止）、与 `pdens` 无关（10/50/200/2000 都中止）、与具体元素无关（第 14 个组元换成 B/N/P/S/Co/Ta/Y/W/Hf 全部中止）、与线程栈无关（4/16/64 MB 均中止）。失败形态：`MemoryError`（无法分配 10.9 GiB，形状 `(1, 1, 54, 933583, 29)`，产品路径 worker 退出码 2）、`pycalphad/core/minimizer.cp312-win_amd64.pyd` 内 `0xC0000005` ACCESS_VIOLATION 与 `0xC0000374` HEAP_CORRUPTION、以及无结果的内存无界增长。中止点定位精确：**Workspace 构造成功，首次求解即中止**。
+- 产品路径修复与关闭式失败：worker 原先用 `Database(path)`（平台 locale）打开 TDB，导致注册候选在真实请求下报 GBK 解码错误——已改为**从文件字节显式解码**（utf-8 → cp1252 兜底），与门禁证据口径一致。修复后真实请求进入求解并在容量上限处失败，worker 报 `CALPHAD-WORKER-MEMORY-001`、适配器报 `CALPHAD-RUN-001`、`state=blocked`，消息写明实测容量上限与"减少组元/更换环境必须先经具名批准并更新受控元素排除声明"。**未丢弃组元、未裁剪相列表、未代入默认值**。适配器另新增原生中止（ACCESS_VIOLATION / HEAP_CORRUPTION 等）的可读解释字段 `worker_returncode` / `native_abort`。
+- 受控元素排除政策升级为 `config/calphad_exclusion_policy_v1.1.json`：批准的三元组不变（10 项），只把绑定身份换成社区派生候选，并记录 `supersedes` v1.0；适配器默认指向 v1.1。
+- 证据：`config/calphad_gate_evidence_v1.1.json`（可提交净化版）、`docs/T86_PHASE3_COMMUNITY_COMPATIBILITY.md`（完整报告）；原始报告写入 Git 忽略的 `outputs/`。
+
+**状态判定**：数据库候选 `compatibility_candidate`；**T86 保持 `Blocked`**。未声明 `validated`、`production_ready`、`pilot_ready_pending_scientific_review`。理由：候选可解析、差异审计与验证复现均通过，但两个真实炉次（16 个组元条目）在本环境**无法求解**，门禁中与声明成分相关的项无法评估，功能无法对真实样品产出结果。
+
+解除条件（需具名决定，任一都不得静默执行）：(1) 修复或更换隔离环境，使 ≥16 组元体系可解；或 (2) 具名批准**缩减成分体系**并同步新版本政策；或 (3) 具名批准**受限相列表**并说明科学依据与边界；或 (4) 把 T86 冻结为技术框架。第 2、3 项都会改变科学声明。
+
+边界：未提交或再分发任何数据库内容；未修改 `requirements*.txt`、既有经验公式路径、`data/processed/` 科研数据、T52 治理内核；未处理临时目录 ACL 与随机 ID 抖动断言（独立任务）；未 commit/push/tag。
+
+### 第四阶段（2026-09-25）：固定缩减成分体系与固定相范围
+
+项目负责人批准：**不换环境、不升级 pycalphad、不尝试全 16 组元求解**，建立固定缩减体系 `steel_matrix_equilibrium_v1` 与固定相集合 `steel_matrix_major_carbides_v1`，用途限定为研究 B-DQ/R-DQ 在数据库有效温区内的基体相与主要碳化物平衡趋势。
+
+完成情况：
+
+- 固定成分体系（`config/calphad_reduced_system_v1.0.json`，`SteelAI-CALPHAD-Reduced-System-Policy-v1.0`）：纳入 `Fe, C, Mn, Si, Cr, Ni, Mo, Cu, Al, Nb, Ti, V` 共 12 个组元；排除 `B/N/P/S`（新类别 `capacity_reduction`，**有测量值**，为满足容量上限而排除）、`As/Sn/Sb`（数据库未覆盖）、`O/W`（无测量值，不按 0）。**没有**任何通用元素选择开关：适配器把成分推导出的组元集与政策逐项比对，不一致即 `CALPHAD-COMP-012` 阻断；政策本身用模块常量校验，改文件也无法悄悄放宽。
+- 固定相集合（同文件 `phase_profile`）：`LIQUID, FCC_A1, BCC_A2, CEMENTITE, M23C6, M7C3, M6C`。相名以解析后的数据库为准，全部存在；新增 `scripts/calphad_phase_profile_probe.py` 独立探针（名称存在 / 有参数 / 相记录可构造 / 体系内可达），**7/7 通过、无相被移除**（若任一相不通过则必须从第一版移除并记录原因，不得改写 TDB 强行启用）。
+- 具名批准：真实运行前必须填写 `reviewer_id`、批准时间、批准理由并勾选确认文本；`config/calphad_exclusion_policy_v1.2.json` 记录缩减体系版本、排除元素列表、相集合版本、数据库版本与 SHA-256；**代码不代填姓名**，缺失即 `CALPHAD-COMP-011` 阻断。
+- 输出与限制：统一命名 `12-component reduced-system matrix equilibrium prediction`；页面、Markdown、JSON、CSV 与运行记录均包含 `component_profile`、`phase_profile`、`reduced_component_system`、纳入元素、排除元素及原因、禁止解释的问题、BCC_B2/HMVA/MC-MX 模型损失、pycalphad 与数据库（含社区派生提交）版本与 SHA-256、`pending_human_review`、`writes_back_formal_experimental_data=false`。CSV 每一数据行都带这些字段。
+- 受控排除政策升级为 v1.2（supersedes v1.1，批准三元组 18 项，新增 `capacity_reduction` 类别与容量型排除范围）；`capacity_reduction` 只能与固定缩减体系政策共用，否则 `CALPHAD-COMP-013` 阻断。
+- 新增 `scripts/calphad_phase4_validation.py`（十步验证，驱动真实适配器与隔离 worker）与 `config/calphad_phase4_evidence_v1.0.json`（可提交证据）。
+- **十步验证结果**：第 0 步（无具名批准必须阻断）**通过**；第 1–5 步（12 组元单相、固定相集合单点、温度扫描、逐点合计、重复一致性）**通过**；**第 6 步 B-DQ 失败**（875 °C 批量求解不收敛，已实现有界单点重算，重算后仍未收敛）；第 7 步 R-DQ **通过**（54 点、合计 0.9999999998–1.0000000004、重复运行最大绝对差 3×10⁻⁹、稳定相组合一致）；第 8、10 步因第 6 步失败而**未评估**；第 9 步（被排除元素未进入 worker）**通过**。→ **T86 保持 `Blocked`**，不标记 `pilot_ready_pending_scientific_review`。
+- **本轮修复的关键缺陷**：组元列表缺少空位 `VA` 时 pycalphad **不报错**，而是返回物理错误的结果（B-DQ 在 400 °C 报 LIQUID 0.97），且相分数合计仍为 0.99942，**只检查合计无法发现**。worker 现已在数据库声明 `VA` 时总是加入并输出 `pycalphad_components`；验证脚本新增物理合理性检查（1000 °C 以下不得出现液相、1500 °C 以上必须出现液相、700 °C 以下必须有 BCC_A2/FCC_A1 基体）。
+- 另一个环境级限制被记录：在同一解释器中构造大量不同相记录会触发 symengine 的 `LLVM ERROR: IMAGE_REL_AMD64_ADDR32NB relocation requires an ordered section layout` 原生中止，因此相探针按"每相一个子进程"运行、可达性网格用单次多轴调用求值。
+
+**状态**：固定成分体系"已批准并登记"，固定相集合"已验证并登记"，数据库候选 `compatibility_candidate`，**T86 保持 `Blocked`**。解除条件（需具名决定）：解决 B-DQ 在 875 °C 附近的批量求解不收敛并使重复运行稳定通过；或具名批准把该温区排除并说明影响；或进一步缩减成分体系/相集合；或冻结为技术框架。**不得**通过删除温度点、放宽合计判据或改写 TDB 来"通过"验证。
+
+边界：未更换环境、未升级 pycalphad、未尝试全 16 组元；未增删组元或相以让运行成功；未改写 TDB；未写回 `data/processed/`；未处理临时目录 ACL 与随机 ID 抖动断言；未 commit/push/tag。
+
+### 第五阶段（2026-09-25）：每个温度点独立进程求解
+
+项目负责人决定：正式路径改为**每个温度点独立进程求解**；保持 12 组元、固定相集合、温度网格与所有科研限制不变；批量 Workspace 热启动路径只保留为诊断证据。
+
+完成情况：
+
+- 新增版本化模式 `solver_mode=independent_single_point_process_v1`（`config/calphad_reduced_system_v1.0.json` 的 `solver_modes`，`status=formal_pilot`）：每个温度点使用同一份规范化成分、相同 12 组元加 `VA`、相同固定相集合、相同压力/数据库/pycalphad 版本与配置，启动**全新 worker 进程**并在其中重新创建 `Database`、模型与 `Workspace`，只求解一个温度点，退出后再处理下一个；**按温度顺序串行，禁止并行**。worker 侧以 `CALPHAD-WORKER-MODE-001/002` 拒绝多温度请求或缺声明；测试断言最大并发为 1。
+- 旧批量路径 `batch_workspace_warm_start` 标记为 `diagnostic_only`（`formal_pilot=false`），仅用于诊断与模式对照。
+- 科学输入不可变更：政策 `forbidden` 列表逐条禁止删除失败点、改温度步长、插值、平滑、动态增删组元或相、按结果调整 `pdens`、挑选成功的一次、用前一点作下一点初值；实现中每个点只改温度，其余字段逐点相同（有测试逐字段比对）。
+- 重试规则：正式验收要求每点首次独立进程调用即成功；允许 1 次诊断重试，但首次失败仍记为失败，重试成功不改变正式结果、不拼接进正式曲线（有专门测试断言 `points=[]` 且 `first_attempt_success=false`）。
+- 单点结果契约：`request_hash`、温度 °C/K、组元与相集合、`va_present`、数据库 SHA-256、worker PID/退出码、求解状态、活跃相与摩尔分数、相分数合计、运行时间、脱敏 stderr 摘要、`first_attempt_success`、`solver_mode`；父进程只合并全部首次成功且契约验证通过的点，缺少任何点即不输出部分正式曲线（`partial_curve_returned=false`）。新增运行清单完整性哈希 `manifest_digest`。
+- 新增重型验收脚本 `scripts/calphad_phase5_acceptance.py`（324 个独立点：B-DQ 3 轮 + R-DQ 3 轮 × 54 点；另做 R-DQ 批量 vs 独立模式对照），机器可读报告写入 Git 忽略的 `outputs/`；**定向测试不启动重型求解**（第五阶段测试全部使用单点 worker 替身）。
+- **验收结论：`blocked`**。324 个独立点中 **320 个首次调用即成功（成功率 0.9877）**，**4 个失败点全部是 B-DQ 的 875 °C 与 900 °C**（run 1、run 3 各两个），诊断为 0 个 native abort、0 个 `MemoryError`、0 个超时；R-DQ 三轮全部 54/54，三轮最大重复差 1.3×10⁻⁹（容差 1e-7）。决定性证据：在**全新进程**中重复求解同一单点条件，B-DQ 900 °C 成功 1/8、875 °C 成功 2/4，失败形态是"没有任何相摩尔数"。这修正了第四阶段"失败来自批量热启动"的判断：该体系在本机 pycalphad 0.11.2 下于 α/γ 相界附近**本身求解不确定**。
+- **第二阻断项（模式差异）**：R-DQ 批量模式与独立点模式在 54 个共同收敛点中有 1 个点（675 °C）相差 **1.069×10⁻⁴**，远超 1×10⁻⁷；两种模式得到相同的 BCC_A2+CEMENTITE+FCC_A1 三相组合但相分数不同。按"不得自行选择其中一条曲线"的规则，**两条曲线都不发布**，差异如实记录。
+- 未采取任何规避：没有删除 875/900 °C、没有改步长、没有插值或平滑、没有挑选成功的那一次、没有把诊断重试结果拼进正式曲线。
+- 总运行时间 **4013 秒（约 66.9 分钟）**；B/R 在请求层完全一致（组元、相集合、温度网格、profile、求解模式）。
+- 文件读写统一使用显式 UTF-8（Python `encoding="utf-8"` 与编辑工具），不再使用依赖系统 ANSI 码页的 PowerShell 文本 cmdlet 批量改写源码或测试文件。
+
+**状态**：独立单点模式已版本化为正式试点路径，批量模式降级为诊断；固定成分体系与固定相集合不变；数据库候选 `compatibility_candidate`；**T86 保持 `Blocked`**，不标记 `pilot_ready_pending_scientific_review`。
+
+解除条件（需具名决定）：解决 875/900 °C 附近的求解不确定性并使 324 点全部首次成功；或具名批准排除该温区并说明影响；或进一步缩减成分体系/相集合；或冻结为技术框架。
+
+边界：未更改科研输入与限制；未更换环境、未升级 pycalphad；未改写 TDB；未写回 `data/processed/`；未处理临时目录 ACL 与随机 ID 抖动断言；未 commit/push/tag。

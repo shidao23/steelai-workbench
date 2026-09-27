@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "registry_id": "SteelAI-CALPHAD-Owner-Acceptance-v1.0",
+  "task": "T86",
+  "created_at": "2026-09-25",
+  "convention_note": "沿用项目既有治理方式：与 config/portfolio_acceptance_v1.0.json 相同的 registry 结构（schema_version + registry_id + entries），并同时登记进该作品集验收索引。每条记录都是追加式、版本化、具名的验收决定，不含任何实测成分数值。",
+  "entries": [
+    {
+      "record_id": "T86-PORTFOLIO-OWNER-SIGN-OFF-20260925",
+      "module": "calphad_portfolio_demo",
+      "decision": "approved",
+      "result_level": "portfolio_demo_only",
+      "evidence_class": "public_synthetic_demo",
+      "responsible_person_id": "世道",
+      "reviewer_id": "世道",
+      "signed_at": "2026-09-25",
+      "accepted_on": "2026-09-25",
+      "timezone": "Asia/Shanghai",
+      "decision_scope": "portfolio_engineering_acceptance_only",
+      "scope": "Public synthetic Fe-C portfolio demo engineering acceptance only. NOT a real steel-grade scientific approval, NOT a materials conclusion, NOT a production decision.",
+      "accepted_conclusion": "T86 的公开合成 Fe–C 演示已通过工程与作品集验收，可作为求职作品展示。T86 不承担真实钢种科研分析；B-DQ/R-DQ 继续保持 scientific_use_blocked_by_solver_stability，不发布真实曲线，不形成材料结论。",
+      "portfolio_demo_evidence_version": "SteelAI-T86-Portfolio-Demo-Evidence-v1.0",
+      "portfolio_demo_evidence_file": "config/calphad_portfolio_demo_evidence_v1.0.json",
+      "demo_configuration": {
+        "demo_id": "fec_public_synthetic_v1",
+        "demo_policy_id": "SteelAI-CALPHAD-Portfolio-Demo-Policy-v1.0",
+        "demo_policy_file": "config/calphad_portfolio_demo_v1.0.json",
+        "system": "Fe-C public synthetic (metastable, graphite suspended)",
+        "composition_wt_pct": {"C": 0.45, "Fe": "balance"},
+        "components": ["FE", "C", "VA"],
+        "phases": ["LIQUID", "FCC_A1", "BCC_A2", "CEMENTITE"],
+        "temperature_range_C": [400, 1600],
+        "temperature_step_C": 50,
+        "temperature_point_count": 25,
+        "pressure_Pa": 101325,
+        "solver_mode": "independent_single_point_process_v1",
+        "pycalphad_version": "0.11.2"
+      },
+      "database": {
+        "database_id": "MATCALC-MC-FE-V2062-COMMUNITY-CLEAN-19B1164",
+        "sha256": "7cf37dd423e14264ee67467011b6cb0ea90647fc365823899c29f7e827a12042",
+        "upstream": "MatCalc mc_fe v2.062 (TU Wien IMST), ODbL 1.0 + DbCL 1.0",
+        "registration": "third-party community derivative candidate; not a TU Wien official pycalphad-compatible build"
+      },
+      "acceptance_evidence": {
+        "script": "scripts/calphad_portfolio_demo_acceptance.py",
+        "result": "portfolio_exploration_complete",
+        "checks_passed": 7,
+        "checks_total": 7,
+        "runs": 2,
+        "max_abs_difference_between_runs": 0.0,
+        "tolerance": 1e-7,
+        "reads_private_data": false,
+        "writes_back_to_processed_data": false
+      },
+      "scientific_use_approved": false,
+      "real_sample_curves_published": false,
+      "materials_conclusion_approved": false,
+      "engineering_status_after_signature": "portfolio_exploration_complete",
+      "scientific_status_after_signature": "scientific_use_blocked_by_solver_stability",
+      "explicitly_not_approved_for": [
+        "真实钢种科研计算",
+        "论文结论",
+        "真实 B-DQ/R-DQ 相分数曲线",
+        "材料结论或生产决策",
+        "BCC_B2 / MC-MX 碳氮化物 / 夹杂物相关判断"
+      ],
+      "signature_note": "签署内容由项目负责人在对话中直接提供（姓名/ID：世道；日期：2026-09-25；时区：Asia/Shanghai），非 Agent 代填。本记录只覆盖公开合成演示的工程与作品集验收。"
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "policy_id": "SteelAI-CALPHAD-Exclusion-Policy-v1.0",
+  "schema_version": "1.0",
+  "task": "T86 phase 2",
+  "approved_at": "2026-09-25",
+  "approved_by": "SteelAI Workbench project owner (approved in the T86 phase-2 work order of 2026-09-25)",
+  "database_scope": {
+    "database_id": "MATCALC-MC-FE-V2062",
+    "version": "2.062",
+    "note": "The approval is bound to this database identity. If the database changes, this policy no longer applies and a new versioned decision is required."
+  },
+  "generic_element_ignore_switch": false,
+  "requires_named_confirmer": true,
+  "rationale": "pycalphad 0.11.2 with mc_fe v2.062 cannot describe every element present in the two heats. Rather than silently dropping elements or filling missing values with zero, the Workbench records a versioned, per-sample, per-element exclusion decision. Elements outside this enumerated list keep the strict behaviour: a non-zero element that the database does not cover blocks the run with CALPHAD-COMP-002, and an element declared without a value blocks with CALPHAD-COMP-001.",
+  "allowed_categories": {
+    "database_not_covered": "the element is non-zero in the sample composition but the registered database contains no ELEMENT entry for it",
+    "measured_zero": "the element was measured and its registered value is exactly 0 wt.% while the database does not cover it",
+    "input_unknown": "the element is declared in the composition table but has no measured value; it is NOT treated as zero"
+  },
+  "approved_exclusions": [
+    {
+      "sample_id": "R-DQ",
+      "elements": ["As", "Sn", "Sb"],
+      "category": "database_not_covered",
+      "reason": "mc_fe v2.062 contains no ELEMENT entry for As, Sn or Sb, so the database cannot model them. Values were measured and are non-zero; they stay recorded in the run record and are excluded from the thermodynamic component system only."
+    },
+    {
+      "sample_id": "B-DQ",
+      "elements": ["As", "Sn", "Sb"],
+      "category": "measured_zero",
+      "reason": "The registered values for this heat are exactly 0 wt.%, so the elements contribute nothing to the component system."
+    },
+    {
+      "sample_id": "B-DQ",
+      "elements": ["O", "W"],
+      "category": "input_unknown",
+      "reason": "The composition table declares these columns but holds no measured value. They are not treated as zero; they are excluded from the model system until a measurement exists."
+    },
+    {
+      "sample_id": "R-DQ",
+      "elements": ["O", "W"],
+      "category": "input_unknown",
+      "reason": "The composition table declares these columns but holds no measured value. They are not treated as zero; they are excluded from the model system until a measurement exists."
+    }
+  ],
+  "not_approved": [
+    "Any element not listed above, for any sample.",
+    "Any non-zero element that the registered database does not cover, unless it is one of the triples above.",
+    "Any wildcard, pattern or 'ALL' form of exclusion.",
+    "Any exclusion that would apply across databases: the decision is scoped to MATCALC-MC-FE-V2062."
+  ],
+  "required_run_record_fields": [
+    "excluded element",
+    "value status (measured or missing) and the measured value when present",
+    "exclusion category and reason",
+    "named confirmer",
+    "confirmation timestamp",
+    "database version and SHA-256",
+    "statement of the impact on result applicability"
+  ],
+  "limitation_notice": {
+    "zh": "本结果是基于 pycalphad 0.11.2 与 mc_fe v2.062 的缩减成分体系平衡热力学预测。R-DQ 中 As、Sn、Sb 未被数据库建模；O、W 因缺少测量值未进入计算。结果不能用于判断这些元素对偏聚、夹杂、晶界脆化、相稳定性或性能的影响。",
+    "en": "This result is an equilibrium thermodynamic prediction for a REDUCED component system, computed with pycalphad 0.11.2 and mc_fe v2.062. As, Sn and Sb are not modelled by the database for R-DQ, and O and W are not part of the calculation because no measured values exist. The result must not be used to judge the effect of these elements on segregation, inclusions, grain-boundary embrittlement, phase stability or properties."
+  },
+  "privacy_note": "This committed policy deliberately contains no measured composition values. The per-run record, which does contain the measured values, is written to the git-ignored outputs/ directory."
+}

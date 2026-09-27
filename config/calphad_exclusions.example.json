@@ -1,0 +1,32 @@
+{
+  "policy_id": "SteelAI-CALPHAD-Exclusion-Policy-v1.0",
+  "schema_version": "1.0",
+  "task": "T86",
+  "approved_at": "YYYY-MM-DD",
+  "approved_by": "REPLACE_WITH_THE_NAMED_RESPONSIBLE_PERSON",
+  "database_scope": {
+    "database_id": "REPLACE_WITH_the_database_id_from_config/calphad_tdb.local.json",
+    "version": "REPLACE_WITH_THE_DATABASE_VERSION"
+  },
+  "generic_element_ignore_switch": false,
+  "requires_named_confirmer": true,
+  "rationale": "REPLACE_WITH_WHY_THESE_EXCLUSIONS_ARE_SCIENTIFICALLY_ACCEPTABLE",
+  "allowed_categories": {
+    "database_not_covered": "the element is non-zero in the sample but the database has no ELEMENT entry for it",
+    "measured_zero": "the element was measured as exactly 0 wt.% and the database does not cover it",
+    "input_unknown": "the element is declared but has no measured value; it is never treated as zero"
+  },
+  "_template_note": "Copy to a new versioned file, for example config/calphad_exclusion_policy_v1.1.json, and point the adapter at it. There is deliberately no wildcard or 'ignore any element' form: every exclusion is an enumerated (sample_id, element, category) triple with a reason. This committed template must not contain measured composition values.",
+  "approved_exclusions": [
+    {
+      "sample_id": "REPLACE_WITH_SAMPLE_ID",
+      "elements": ["REPLACE_WITH_ELEMENT_SYMBOLS"],
+      "category": "database_not_covered",
+      "reason": "REPLACE_WITH_THE_REASON"
+    }
+  ],
+  "limitation_notice": {
+    "zh": "本结果是基于 pycalphad 0.11.2 与 <数据库版本> 的缩减成分体系平衡热力学预测。<被排除元素> 未被数据库建模或缺少测量值。结果不能用于判断这些元素对偏聚、夹杂、晶界脆化、相稳定性或性能的影响。",
+    "en": "This result is an equilibrium thermodynamic prediction for a REDUCED component system. The excluded elements are either not modelled by the database or have no measured value. The result must not be used to judge their effect on segregation, inclusions, grain-boundary embrittlement, phase stability or properties."
+  }
+}

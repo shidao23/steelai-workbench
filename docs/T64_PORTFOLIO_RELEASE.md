@@ -6,6 +6,14 @@ T64 的目标是把 SteelAI Workbench、T62 公开真实钢板数据案例和 T6
 
 T64 已建立发布契约、能力—证据映射、双语入口、演示脚本、面试讲解清单和可追溯发布准备包。当前状态仍是 `needs_human`，因为以下事项必须由项目负责人完成：全新环境复现、T63 24 条真实测量、视频、技术报告初稿、许可证与隐私终审。
 
+## T86 开源计算热力学探索（作品集资产）
+
+- 单页中英总结：[T86 作品集总结：开源计算热力学探索](T86_PORTFOLIO_SUMMARY.md)。
+- 状态：工程与作品集 `portfolio_exploration_complete`（已由负责人 **世道** 于 **2026-09-25**（Asia/Shanghai）签署，范围 `portfolio_engineering_acceptance_only`）；真实科研 `scientific_use_blocked_by_solver_stability`。
+- 入口：**分析与报告 → 物理计算 → 页签「平衡相分数—温度（可选 · T86）」**，内含「区域 1 · 公开合成演示」与「区域 2 · 真实样品探索」。
+- 公开合成演示可运行、可下载（Markdown/JSON/CSV），两次运行最大差 0.0；真实 B-DQ/R-DQ 计算保持阻断，不发布曲线、不形成材料结论。
+- 负责人验收记录：`config/calphad_owner_acceptance_v1.0.json`（`responsible_person_id = 世道`，`decision_scope = portfolio_engineering_acceptance_only`），并登记于 `config/portfolio_acceptance_v1.0.json`。该签署**不构成**真实钢种计算审批或科研结论批准（`scientific_use_approved=false`、`real_sample_curves_published=false`、`materials_conclusion_approved=false`）。
+
 ## 一键准备发布包
 
 双击项目根目录的 `Run_T64_Portfolio_Prep.cmd`，或者执行：

@@ -1,0 +1,81 @@
+{
+  "policy_id": "SteelAI-CALPHAD-Exclusion-Policy-v1.2",
+  "schema_version": "1.0",
+  "task": "T86 phase 4",
+  "approved_at": "2026-09-25",
+  "approved_by": "SteelAI Workbench project owner (T86 phase-4 work order, 2026-09-25)",
+  "database_scope": {
+    "database_id": "MATCALC-MC-FE-V2062-COMMUNITY-CLEAN-19B1164",
+    "version": "derivative of mc_fe v2.062, source commit 19b11640253543fe412145498438cb8355a32561",
+    "sha256": "7cf37dd423e14264ee67467011b6cb0ea90647fc365823899c29f7e827a12042",
+    "note": "v1.2 keeps the v1.1 database identity and adds the B/N/P/S capacity-reduction exclusion required by the fixed reduced-system policy. v1.0 and v1.1 remain on record as history."
+  },
+  "reduced_system_policy": {
+    "policy_file": "config/calphad_reduced_system_v1.0.json",
+    "component_profile_id": "steel_matrix_equilibrium_v1",
+    "component_profile_version": "1.0",
+    "phase_profile_id": "steel_matrix_major_carbides_v1",
+    "phase_profile_version": "1.0",
+    "note": "capacity_reduction exclusions are only valid together with this fixed policy; the adapter blocks if it is missing or invalid."
+  },
+  "generic_element_ignore_switch": false,
+  "requires_named_confirmer": true,
+  "rationale": "pycalphad 0.11.2 with mc_fe v2.062 cannot describe every element present in the two heats, and on this host it cannot solve more than 13 component-list entries at all. Rather than silently dropping elements or filling missing values with zero, the Workbench records a versioned, per-sample, per-element exclusion decision inside one fixed, approved profile. Elements outside this enumerated list keep the strict behaviour: a non-zero element that the database does not cover blocks the run with CALPHAD-COMP-002, an element declared without a value blocks with CALPHAD-COMP-001, and any element set that differs from the profile blocks with CALPHAD-COMP-012.",
+  "allowed_categories": {
+    "database_not_covered": "the element is non-zero in the sample composition but the registered database contains no ELEMENT entry for it",
+    "measured_zero": "the element was measured and its registered value is exactly 0 wt.% while the database does not cover it",
+    "input_unknown": "the element is declared in the composition table but has no measured value; it is NOT treated as zero",
+    "capacity_reduction": "the element HAS a measured non-zero value and IS covered by the database, but it is excluded because the fixed reduced-system profile keeps the component list at or below the measured pycalphad solver capacity limit. This category is only valid for the elements enumerated in the reduced-system policy and only together with that policy."
+  },
+  "capacity_reduction_scope": {
+    "elements": ["B", "N", "P", "S"],
+    "category": "capacity_reduction",
+    "reason": "存在测量值，但为了建立低于 pycalphad 实测容量上限（13 个组元条目）的基体相计算体系而排除。",
+    "not_a_free_choice": true,
+    "impact_statement": "这些元素已测量且非零，被排除后其结果中不含它们；因此不能据此评价它们对偏聚、夹杂、晶界脆化、相稳定性或性能的影响。"
+  },
+  "approved_exclusions": [
+    {
+      "sample_id": "R-DQ",
+      "elements": ["As", "Sn", "Sb"],
+      "category": "database_not_covered",
+      "reason": "mc_fe v2.062 contains no ELEMENT entry for As, Sn or Sb, so the database cannot model them. Values were measured and are non-zero; they stay recorded in the run record and are excluded from the thermodynamic component system only."
+    },
+    {
+      "sample_id": "B-DQ",
+      "elements": ["As", "Sn", "Sb"],
+      "category": "measured_zero",
+      "reason": "The registered values for this heat are exactly 0 wt.%, so the elements contribute nothing to the component system."
+    },
+    {
+      "sample_id": "B-DQ",
+      "elements": ["O", "W"],
+      "category": "input_unknown",
+      "reason": "The composition table declares these columns but holds no measured value. They are not treated as zero; they are excluded from the model system until a measurement exists."
+    },
+    {
+      "sample_id": "R-DQ",
+      "elements": ["O", "W"],
+      "category": "input_unknown",
+      "reason": "The composition table declares these columns but holds no measured value. They are not treated as zero; they are excluded from the model system until a measurement exists."
+    },
+    {
+      "sample_id": "B-DQ",
+      "elements": ["B", "N", "P", "S"],
+      "category": "capacity_reduction",
+      "reason": "Measured and non-zero, but excluded by the fixed steel_matrix_equilibrium_v1 profile so that the component list stays within the measured pycalphad solver capacity limit. Bound to config/calphad_reduced_system_v1.0.json."
+    },
+    {
+      "sample_id": "R-DQ",
+      "elements": ["B", "N", "P", "S"],
+      "category": "capacity_reduction",
+      "reason": "Measured and non-zero, but excluded by the fixed steel_matrix_equilibrium_v1 profile so that the component list stays within the measured pycalphad solver capacity limit. Bound to config/calphad_reduced_system_v1.0.json."
+    }
+  ],
+  "limitation_notice": {
+    "zh": "本结果是 12 组元缩减成分体系的基体相与主要碳化物平衡趋势预测（pycalphad 0.11.2 + mc_fe v2.062 社区派生库）。B、N、P、S 有测量值但为满足求解器容量上限而排除；As、Sn、Sb 未被数据库建模；O、W 因缺少测量值未进入计算。结果不能用于判断这些元素对偏聚、夹杂、晶界脆化、相稳定性或性能的影响，也不能用于评价碳氮化物、硼化物、硫化物、磷化物、氧化物与夹杂物。",
+    "en": "This result is a 12-component reduced-system matrix-phase and major-carbide equilibrium-trend prediction (pycalphad 0.11.2 with the community-derived mc_fe v2.062 database). B, N, P and S carry measured values but are excluded to stay within the measured solver capacity limit; As, Sn and Sb are not modelled by the database; O and W have no measured value and are not part of the calculation. The result must not be used to judge the effect of these elements on segregation, inclusions, grain-boundary embrittlement, phase stability or properties, nor to assess carbo-nitrides, borides, sulphides, phosphides, oxides or inclusions."
+  },
+  "privacy_note": "This committed policy deliberately contains no measured composition values. The per-run record, which does contain the measured values, is written to the git-ignored outputs/ directory.",
+  "supersedes": "SteelAI-CALPHAD-Exclusion-Policy-v1.1"
+}

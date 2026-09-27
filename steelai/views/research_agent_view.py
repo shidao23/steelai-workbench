@@ -29,6 +29,7 @@ status_labels = {
     "online_ready": "在线可用",
     "offline_missing_key": "离线：未配置密钥",
     "offline_missing_package": "离线：缺少程序包",
+    "offline_missing_proxy_dependency": "离线：代理依赖缺失",
     "disabled": "已关闭",
 }
 

@@ -1,0 +1,35 @@
+{
+  "name": "@steelai/dsh-client-deepseek-offpeak",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Display-only DeepSeek peak/off-peak schedule indicator for the DSH Web GUI.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "config",
+    "lib",
+    "src",
+    "README.md"
+  ],
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs --check && node --test test/*.test.cjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

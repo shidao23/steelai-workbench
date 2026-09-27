@@ -1,0 +1,35 @@
+{
+  "registry_id": "SteelAI-CALPHAD-TDB-Local-v1.0",
+  "schema_version": "1.0",
+  "_readme": "把本文件复制为 config/calphad_tdb.local.json 后逐项填写。本模板只登记授权与来源，不包含数据库内容；TDB 本体不进入仓库。缺少任何必填项、文件不存在、SHA-256 不匹配或授权状态不符时，物理计算页的 CALPHAD 功能一律阻断，主应用照常运行。",
+  "databases": [
+    {
+      "database_id": "REPLACE_WITH_STABLE_ID",
+      "path": "D:/path/to/authorized/thermodynamic_database.tdb",
+      "sha256": "REPLACE_WITH_64_HEX_SHA256_OF_THE_TDB_FILE",
+      "format": "thermo-calc_tdb",
+      "provider": "REPLACE_WITH_DATABASE_PROVIDER_OR_AUTHOR",
+      "version_or_date": "REPLACE_WITH_DATABASE_VERSION_OR_RELEASE_DATE",
+      "license_or_authorization": "REPLACE_WITH_THE_LICENSE_OR_WRITTEN_AUTHORIZATION_BASIS",
+      "authorization_status": "user_confirmed_authorized_for_this_steel_grade",
+      "authorized_by": "REPLACE_WITH_NAMED_RESPONSIBLE_PERSON",
+      "authorized_at": "YYYY-MM-DD",
+      "applicable_steel_grades": ["REPLACE_WITH_STEEL_GRADE_OR_SAMPLE_FAMILY"],
+      "covered_elements": ["Fe", "C", "Mn", "Si", "Cr", "Ni", "Mo", "Nb", "V", "Ti", "Al"],
+      "covered_phases": ["REPLACE_WITH_A_PHASE_NAME_PARSED_FROM_THE_TDB", "REPLACE_WITH_ANOTHER_PHASE_NAME"],
+      "declared_temperature_range_C": [200, 1600],
+      "declared_pressure_Pa": 101325,
+      "citation": "REPLACE_WITH_FULL_CITATION_OR_DATABASE_REFERENCE",
+      "notes": "REPLACE_WITH_SCOPE_LIMITS, PHASE LIST RESTRICTIONS OR KNOWN DEFICIENCIES",
+      "pycalphad_compatibility": {
+        "status": "REPLACE_WITH_passed_OR_failed",
+        "pinned_pycalphad_version": "0.11.2",
+        "python": "CPython 3.12.14",
+        "checked_at": "YYYY-MM-DD",
+        "checked_with": "scripts/calphad_compatibility_gate.py",
+        "evidence": "REPLACE_WITH_THE_EVIDENCE_FILE_OR_OUTPUT_PATH",
+        "blocked_reason": "REPLACE_WHEN_status_IS_NOT_passed"
+      }
+    }
+  ]
+}

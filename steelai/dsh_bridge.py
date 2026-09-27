@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any
 
-from steelai.research_agent import TOOL_DEFINITIONS, execute_readonly_tool
+from steelai.research_tools import TOOL_DEFINITIONS, execute_readonly_tool
 
 
 BRIDGE_NAME = "SteelAI DSH Read-Only Bridge"

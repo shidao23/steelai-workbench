@@ -1,5 +1,6 @@
 .venv/
 .venv-frictionless/
+.venv-pycalphad/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -14,6 +15,10 @@ htmlcov/
 .streamlit/secrets.toml
 config/settings.toml
 config/local-tools.cmd
+# Local authorized TDB registration (third-party database contents are never committed).
+config/calphad_tdb.local.json
+# Local CALPHAD database files (ODbL/DbCL licensed, obtained from the vendor; not redistributed).
+model_lab/calphad/databases/
 streamlit-smoke.log
 streamlit-smoke.err.log
 .env

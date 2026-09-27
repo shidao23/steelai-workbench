@@ -1,0 +1,73 @@
+{
+  "policy_id": "SteelAI-CALPHAD-Portfolio-Demo-Policy-v1.0",
+  "schema_version": "1.0",
+  "task": "T86 portfolio demo",
+  "created_at": "2026-09-25",
+  "demo_id": "fec_public_synthetic_v1",
+  "purpose": "求职作品集用的公开合成演示：展示开源计算热力学工具链、许可与来源登记、独立环境与依赖锁定、TDB 方言兼容性审计、关闭式失败与结果溯源。不代表任何真实钢种计算。",
+  "not_for": [
+    "论文结论",
+    "真实钢种分析",
+    "生产决策",
+    "材料结论"
+  ],
+  "system": "Fe-C 亚稳系（悬置石墨），固定成分下的相分数—温度截面",
+  "public_synthetic_input": true,
+  "synthetic_note": "成分是公开的合成参考值，不读取 B-DQ/R-DQ 或任何私人实验数据。",
+  "composition_wt_pct": {
+    "C": 0.45,
+    "Fe": "balance"
+  },
+  "composition_basis": "wt_pct",
+  "component_profile": {
+    "profile_id": "portfolio_demo_fec_v1",
+    "version": "1.0",
+    "included_elements": ["Fe", "C"],
+    "included_element_count": 2,
+    "component_list_length_sent_to_pycalphad": 3,
+    "component_list_length_note": "Fe + C + VA = 3 个组元条目，远低于本机实测求解容量上限，因此该演示稳定可重放。",
+    "purpose_note": "这是公开合成演示体系，与真实样品的固定缩减体系 steel_matrix_equilibrium_v1 相互独立，不构成对真实体系的进一步缩减。"
+  },
+  "phase_profile": {
+    "profile_id": "portfolio_demo_fec_verified_phases_v1",
+    "version": "1.0",
+    "phases": ["LIQUID", "FCC_A1", "BCC_A2", "CEMENTITE"],
+    "phase_provenance": "四个相全部属于第四阶段独立探针已验证的 steel_matrix_major_carbides_v1 集合；未引入任何未验证相。",
+    "generic_phase_selection_switch": false
+  },
+  "temperature": {
+    "range_C": [400, 1600],
+    "step_C": 50,
+    "point_count": 25,
+    "within_database_declared_range": true,
+    "declared_range_note": "数据库声明 673-2000 K（400-1727 degC），本演示区间完全落在其中。"
+  },
+  "pressure_Pa": 101325,
+  "solver_mode": "independent_single_point_process_v1",
+  "database": {
+    "database_id": "MATCALC-MC-FE-V2062-COMMUNITY-CLEAN-19B1164",
+    "sha256": "7cf37dd423e14264ee67467011b6cb0ea90647fc365823899c29f7e827a12042",
+    "upstream": "MatCalc mc_fe v2.062 (TU Wien IMST), ODbL 1.0 + DbCL 1.0",
+    "derivative_note": "第三方社区派生候选；只登记为候选，不是 TU Wien 官方 pycalphad 兼容版。"
+  },
+  "required_result_flags": {
+    "portfolio_demo": true,
+    "public_synthetic_input": true,
+    "model_prediction_not_experimental_measurement": true,
+    "not_for_scientific_conclusion": true,
+    "is_complete_phase_diagram": false,
+    "writes_back_formal_experimental_data": false
+  },
+  "required_result_fields": [
+    "pycalphad_version",
+    "database_name_and_source",
+    "database_sha256",
+    "components",
+    "phases",
+    "temperature",
+    "pressure_Pa",
+    "solver_mode"
+  ],
+  "no_write_back": "演示结果不写入 data/processed/，也不进入任何科研结果路径。",
+  "privacy_note": "本文件不含任何实测成分数值。"
+}

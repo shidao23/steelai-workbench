@@ -1,0 +1,3 @@
+- insert:
+    - id: steelai-deepseek-offpeak
+      name: '@steelai/dsh-client-deepseek-offpeak'

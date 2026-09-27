@@ -1,16 +1,27 @@
+import ast
 import json
 import os
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from steelai.research_agent import (
-    AgentStatus,
-    TOOL_DEFINITIONS,
-    agent_status,
-    execute_readonly_tool,
-    run_research_agent,
-)
+from steelai.research_agent import AgentStatus, agent_status, run_research_agent
+from steelai.research_tools import TOOL_DEFINITIONS, execute_readonly_tool
+
+
+PACKAGE = Path(__file__).resolve().parents[1] / "steelai"
+
+
+def _module_dependencies(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.add(node.module)
+    return names
 
 
 class FakeResponses:
@@ -53,6 +64,23 @@ class ResearchAgentTests(unittest.TestCase):
         self.assertEqual(status.provider, "deepseek")
         self.assertEqual(status.model, "deepseek-v4-flash")
 
+    def test_status_detects_missing_socks_proxy_dependency(self):
+        settings = {"ai": {
+            "enabled": True, "provider": "deepseek", "model": "deepseek-v4-flash",
+            "api_key_env": "DEEPSEEK_API_KEY", "base_url": "https://api.deepseek.com/beta",
+        }}
+        with patch("steelai.research_agent.load_settings", return_value=settings), patch(
+            "steelai.research_agent.importlib.util.find_spec",
+            side_effect=lambda name: None if name == "socksio" else object(),
+        ), patch.dict(
+            os.environ,
+            {"DEEPSEEK_API_KEY": "test-key", "HTTPS_PROXY": "socks5://127.0.0.1:7890"},
+            clear=True,
+        ):
+            status = agent_status()
+        self.assertEqual(status.state, "offline_missing_proxy_dependency")
+        self.assertFalse(status.ready)
+
     def test_tool_schemas_are_strict_and_closed(self):
         names = {item["name"] for item in TOOL_DEFINITIONS}
         self.assertEqual(
@@ -65,6 +93,7 @@ class ResearchAgentTests(unittest.TestCase):
                 "get_ebsd_summary",
                 "get_autodimple_summary",
                 "get_evidence_validation_summary",
+                "get_thermal_softening_case",
             },
         )
         for item in TOOL_DEFINITIONS:
@@ -176,6 +205,29 @@ class ResearchAgentTests(unittest.TestCase):
         tool_messages = [item for item in completions.calls[1]["messages"] if isinstance(item, dict) and item.get("role") == "tool"]
         self.assertEqual(len(tool_messages), 1)
         self.assertEqual(json.loads(tool_messages[0]["content"])["count"], 2)
+
+
+class ResearchToolBoundaryTests(unittest.TestCase):
+    """The tool catalogue and executor must stay independent of the agent module."""
+
+    def test_research_tools_never_depends_on_the_agent_module(self):
+        self.assertNotIn(
+            "steelai.research_agent",
+            _module_dependencies(PACKAGE / "research_tools.py"),
+        )
+
+    def test_bridge_and_protocol_import_tools_not_the_agent(self):
+        for name in ("dsh_bridge.py", "research_protocol.py"):
+            dependencies = _module_dependencies(PACKAGE / name)
+            self.assertNotIn("steelai.research_agent", dependencies, name)
+            self.assertIn("steelai.research_tools", dependencies, name)
+
+    def test_agent_module_still_reexports_the_owned_tool_objects(self):
+        from steelai import research_agent, research_tools
+
+        self.assertIs(research_agent.TOOL_DEFINITIONS, research_tools.TOOL_DEFINITIONS)
+        self.assertIs(research_agent.TOOL_FUNCTIONS, research_tools.TOOL_FUNCTIONS)
+        self.assertIs(research_agent.execute_readonly_tool, research_tools.execute_readonly_tool)
 
 
 if __name__ == "__main__":

@@ -95,8 +95,24 @@ def smoke_test_report() -> dict:
     return _read_json(MICRO_SAM_REPORT_FILE)
 
 
+def calphad_status() -> dict[str, str | bool]:
+    """Local status of the optional T86 CALPHAD adapter without importing pycalphad."""
+    try:
+        from steelai.calphad_adapter import status_row
+
+        return dict(status_row())
+    except Exception as exc:  # never let the optional adapter break the registry view
+        return {
+            "state": "blocked",
+            "local_status": "adapter_status_unavailable",
+            "headline": f"CALPHAD 适配器状态不可用：{type(exc).__name__}",
+            "has_authorized_database": False,
+        }
+
+
 def model_statuses() -> list[dict[str, str]]:
     micro_sam = micro_sam_status()
+    calphad = calphad_status()
     rows = []
     for model in MODEL_REGISTRY:
         if model["model"] == "micro-sam":
@@ -106,10 +122,15 @@ def model_statuses() -> list[dict[str, str]]:
                 local_status = "isolated_gpu_environment_ready"
             else:
                 local_status = "isolated_install_pending"
+            extra: dict[str, str] = {}
+        elif model["model"] == "pycalphad":
+            local_status = str(calphad["local_status"])
+            extra = {"state": str(calphad["state"]), "headline": str(calphad["headline"])}
         else:
             installed = importlib.util.find_spec(model["package"]) is not None
             local_status = "installed" if installed else "isolated_install_pending"
-        rows.append({**model, "local_status": local_status})
+            extra = {}
+        rows.append({**model, "local_status": local_status, **extra})
     return rows
 
 

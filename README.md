@@ -17,10 +17,32 @@ SteelAI Workbench 现在把“外部文件标准化入库”作为数据入口�
 
 当前真实热模拟批次已通过负责人确认和治理门禁，正式接入 18 条运行记录与 14,352 个曲线点；后续新批次仍必须重新完成单位、身份和偏差审批。
 
+T86 是**可选、可关闭**的 CALPHAD 相分数功能。第一阶段已接入物理计算页；第二阶段按负责人批准把 `pycalphad==0.11.2` 装入独立环境 `.venv-pycalphad`（34 个包全部哈希锁定，主应用仍不导入它）并从 TU Wien 官方来源取得 MatCalc `mc_fe v2.062`（SHA-256 `aa02077e…`，**ODbL 1.0 + DbCL 1.0，与 pycalphad 的 MIT 相互独立，且不随本仓库分发**）；pycalphad 0.11.2 无法解析该原件（第 180 行 `REFERENCE_ELEMENT` 等 MatCalc 扩展不在 TDB 文法内）。第三阶段按负责人决定**不自行预处理原件**，改登记第三方社区派生候选 `mc_fe_v2062_clean`（提交 `19b1164…`，SHA-256 `7cf37dd4…`，上游 ODbL/DbCL 原样保留）。该候选**未修改**，差异审计为"仅语法修复、0 条未解释差异"，上游 5 个二元体系 15 项检查 **15/15** 复现、项目相关检查 **18/18** 通过；**但本机 pycalphad 0.11.2 对组元列表长度 ≥14 的体系无法求解（实测上界 13，在 pycalphad 自带数据库 COST507 上同样复现），而 B-DQ 与 R-DQ 都需要 16 个组元条目**，因此真实炉次仍算不出结果。**没有删除任何关键字、没有改写数据库、没有制作"兼容版 TDB"、没有为迁就求解器而静默丢弃组元或裁剪相列表**，T86 保持 `Blocked`。受控元素排除政策（R-DQ/B-DQ 的 As/Sn/Sb 与 O/W，逐条枚举、无通用忽略开关）与"缩减成分体系 + BCC_B2/HMVA/MC-MX 模型损失"限制声明已嵌入页面、Markdown、JSON 与 CSV 导出。
+
+第四阶段按负责人批准建立**固定、版本化**的缩减成分体系 `steel_matrix_equilibrium_v1`（12 组元：`Fe, C, Mn, Si, Cr, Ni, Mo, Cu, Al, Nb, Ti, V`；送入 pycalphad 时另加空位 `VA`，共 13 个条目 = 本机实测容量上界）与**固定**相集合 `steel_matrix_major_carbides_v1`（`LIQUID, FCC_A1, BCC_A2, CEMENTITE, M23C6, M7C3, M6C`，独立探针 7/7 验证通过、无相被移除）。排除 `B/N/P/S`（新类别 `capacity_reduction`：**有测量值**，但为满足容量上限而排除）、`As/Sn/Sb`（数据库未覆盖）、`O/W`（无测量值，**不按 0**）。**没有任何通用元素/相选择开关**：成分与政策不一致即 `CALPHAD-COMP-012` 阻断，相缺失即 `CALPHAD-PHASE-001` 阻断，真实运行缺少具名批准即 `CALPHAD-COMP-011` 阻断（**代码不代填姓名**）。结果统一命名为 `12-component reduced-system matrix equilibrium prediction`，并强制携带缩减成分体系、排除元素及原因、BCC_B2/HMVA/MC-MX 模型损失、版本与哈希、待人工复核、不写回、非完整相图。
+
+**十步验证结果**：第 1–5、9 步通过；**R-DQ 全部 54 个温度点收敛**（相分数合计 0.9999999998–1.0000000004，重复运行最大绝对差 3×10⁻⁹，稳定相组合逐点一致，形态为铁素体+渗碳体 → 铁素体+奥氏体 → 奥氏体 → δ 铁素体+液相 → 液相）；**但 B-DQ 在 875 °C 的多温度批量求解不收敛**（已实现有界单点重算，重算后仍未收敛；同一请求在不同进程中分别出现 0/1/2/3 个未收敛点，`pdens` 500–8000 均无法消除），因此**第 6 步失败，T86 保持 `Blocked`，不标记 `pilot_ready_pending_scientific_review`**。
+
+本轮还发现并修复一个会让**错误结果通过合计检查**的缺陷：组元列表缺少空位 `VA` 时 pycalphad **不报错**，而是返回物理错误的结果（B-DQ 在 400 °C 报 LIQUID 0.97），相分数合计却仍是 0.99942。worker 现已在数据库声明 `VA` 时总是加入，并输出 `pycalphad_components`；验证脚本新增物理合理性检查（1000 °C 以下不得出现液相、1500 °C 以上必须出现液相、700 °C 以下必须有基体相）。**没有**删除温度点、放宽判据或改写 TDB 来"通过"验证。
+
+第五阶段把正式路径改为**每个温度点独立进程求解**：`solver_mode=independent_single_point_process_v1`（每个温度点一个全新 worker 进程、每进程只解一个温度、**严格串行**、无热启动；输入除温度外逐点相同），旧的批量热启动路径降级为 `diagnostic_only` 仅作诊断。每个点保存完整契约（请求哈希、worker PID/退出码、`VA` 是否存在、数据库 SHA-256、求解状态、活跃相与摩尔分数、相分数合计、运行时间、脱敏 stderr、是否首次成功、求解模式），运行带独立点清单与完整性哈希 `manifest_digest`；**缺少任何点时不输出部分正式曲线**，1 次诊断重试**不会**把失败点改成通过、也**不会**拼进正式曲线。政策逐条禁止删除失败点、改步长、插值、平滑、动态增删组元或相、按结果调整 `pdens`、挑选成功的一次、用前一点作下一点初值。
+
+**第五阶段验收结论仍是 `blocked`**：324 个独立点中 **320 个首次成功（98.77%）**，**4 个失败点全部是 B-DQ 的 875 °C 与 900 °C**（诊断重试也失败），无 native abort、`MemoryError` 或超时；R-DQ 三轮全部 54/54，三轮最大重复差 1.3×10⁻⁹。决定性证据是**全新进程**中重复求解同一单点条件——B-DQ 900 °C 成功 1/8、875 °C 成功 2/4——失败形态为"没有任何相摩尔数"。这修正了第四阶段"失败来自批量热启动"的判断：该体系在本机 pycalphad 0.11.2 下于 α/γ 相界附近**本身求解不确定**，与求解模式无关。另有第二阻断项：R-DQ 批量模式与独立点模式在 675 °C 的共同收敛点上相差 **1.069×10⁻⁴**（容差 1×10⁻⁷），两种模式得到相同三相组合但相分数不同；按"不得自行取舍"的规则，**两条曲线都不发布**。因此 **T86 保持 `Blocked`，不标记 `pilot_ready_pending_scientific_review`**。总运行时间 4013 秒（约 66.9 分钟）。
+
+**最终状态（双状态）**：工程与作品集状态 `portfolio_exploration_complete`（已由负责人 **世道** 于 **2026-09-25**（Asia/Shanghai）签署，范围 `portfolio_engineering_acceptance_only`，记录 `config/calphad_owner_acceptance_v1.0.json`）；真实科研状态 `scientific_use_blocked_by_solver_stability`。**签署只覆盖公开合成演示的工程与作品集验收**：`scientific_use_approved=false`、`real_sample_curves_published=false`、`materials_conclusion_approved=false`，不得解释为真实钢种计算审批或科研结论批准。公开合成演示（Fe–C，25 点，独立单点进程）两次运行**最大差 0.0**，页面可展示曲线并下载 Markdown/JSON/CSV；真实 B-DQ/R-DQ 计算不发布曲线、不形成材料结论。
+
 - [当前能力与旧入口状态](docs/CURRENT_CAPABILITIES.md)
 - [毕业主线数据契约 v1](docs/GRADUATION_DATA_CONTRACT_V1.md)
 - [第三方开源复用登记](THIRD_PARTY.md)
 - [T14 Frictionless 可选适配器](docs/T14_FRICTIONLESS_ADAPTER.md)
+- [T86 作品集总结：开源计算热力学探索（中英）](docs/T86_PORTFOLIO_SUMMARY.md)
+- [T86 CALPHAD 相分数（可选、可关闭）](docs/T86_CALPHAD_PHASE_FRACTION.md)
+- [T86 第二阶段：独立环境、数据库来源与兼容性门禁](docs/T86_PHASE2_ENVIRONMENT_AND_GATES.md)
+- [T86 第三阶段：社区兼容版数据库候选审查与兼容性验证](docs/T86_PHASE3_COMMUNITY_COMPATIBILITY.md)
+- [T86 第四阶段：固定缩减成分体系与固定相范围](docs/T86_PHASE4_REDUCED_SYSTEM.md)
+- [T86 第五阶段：每个温度点独立进程求解](docs/T86_PHASE5_INDEPENDENT_POINTS.md)
+- [T86 耐磨钢 CALPHAD 数据库候选审查](docs/T86_CALPHAD_DATABASE_CANDIDATE_REVIEW.md)
+- [CALPHAD 数据库本地获取说明](model_lab/calphad/README.md)
 - [T20 DSH × SteelData v0.2 预览接入](docs/T20_DSH_STEELDATA_V02.md)
 - [T21 映射建议契约与状态机](docs/T21_MAPPING_SUGGESTION_STATE.md)
 - [T22 SteelData 映射建议人工审批](docs/T22_STEELDATA_HUMAN_REVIEW.md)
@@ -52,6 +74,7 @@ SteelAI Workbench 现在把“外部文件标准化入库”作为数据入口�
 - [T73 Double-hit 文献口径曲线处理](docs/T73_DOUBLE_HIT_LITERATURE_PROCESSING.md)
 - [T74 热模拟特征表](docs/T74_THERMAL_SIMULATION_FEATURE_TABLE.md)
 - [T75 双道次软化方法选择门](docs/T75_SOFTENING_METHOD_DECISION.md)
+- [双道次软化实验可追溯分析流程](docs/THERMAL_SOFTENING_CASE_WORKFLOW.md)
 - [隐私与版本边界](docs/PRIVACY_BOUNDARY.md)
 - [阶段零测试基线](docs/BASELINE_2026-09-04.md)
 - [开发任务看板](TASKS.md)
