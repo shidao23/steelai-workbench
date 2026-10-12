@@ -37,6 +37,12 @@ life_knowledge_root = ""
 # shared Shidao platform directory. Empty keeps the legacy sibling lookup
 # (../_agent_platform next to the Workbench root).
 agent_platform_root = ""
+# calphad_python: absolute path to the isolated pycalphad interpreter. Empty keeps the
+# repository default <workbench root>/.venv-pycalphad/Scripts/python.exe. The isolated
+# environment is protected in place while the source tree moves, so point this at the
+# existing interpreter instead of recreating it. The STEELAI_CALPHAD_PYTHON environment
+# variable takes precedence. Keep real machine paths in ignored config/settings.toml only.
+calphad_python = ""
 microsam_python = ""
 review30_root = ""
 matlab_exe = ""
