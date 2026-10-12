@@ -13,6 +13,30 @@ wearsteel_v01_root = ""
 
 [tools]
 # Keep machine-specific executables and research file paths in ignored config/settings.toml.
+# steeldata_project: absolute path, or a path relative to the Workbench root, pointing at
+# the SteelData project. Empty keeps the legacy sibling lookup (../SteelData next to the
+# Workbench root). A configured but invalid location fails closed; it never silently
+# falls back to the sibling. Keep real machine paths in ignored config/settings.toml only.
+steeldata_project = ""
+# steeldata_python: absolute path to the SteelData interpreter. Empty keeps
+# <steeldata_project>/.venv. Useful when SteelData keeps its virtual environment
+# in place while its source tree moves.
+steeldata_python = ""
+# steelstats_project: absolute path, or a path relative to the Workbench root, pointing at
+# the SteelStats project. Empty keeps the legacy sibling lookup (../SteelStats next to the
+# Workbench root). A configured but invalid location fails closed; it never silently
+# falls back to the sibling. Keep real machine paths in ignored config/settings.toml only.
+steelstats_project = ""
+# life_knowledge_root: absolute path, or a path relative to the Workbench root, to the
+# container directory that holds the LifeAgents and AI_assistant owner projects. Empty
+# keeps the legacy sibling lookup (the directory next to the Workbench root). The owners
+# and the shared platform no longer share one parent, so both roots are configured
+# separately. Keep real machine paths in ignored config/settings.toml only.
+life_knowledge_root = ""
+# agent_platform_root: absolute path, or a path relative to the Workbench root, to the
+# shared Shidao platform directory. Empty keeps the legacy sibling lookup
+# (../_agent_platform next to the Workbench root).
+agent_platform_root = ""
 microsam_python = ""
 review30_root = ""
 matlab_exe = ""

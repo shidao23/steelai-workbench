@@ -9,12 +9,20 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from steelai.steeldata_bridge import SteelDataClient, _steeldata_subprocess_env, inspect_run
+from steelai.steeldata_bridge import (
+    SteelDataClient, _steeldata_subprocess_env, inspect_run,
+    resolve_steeldata_project, resolve_steeldata_python,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
-STEELDATA = ROOT.parent / "SteelData"
-STEELDATA_PYTHON = STEELDATA / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
+# The migrated layout keeps SteelData inside the Engineering container under a
+# numbered name, so resolution goes through the same config-first helper the
+# production client uses. When nothing is available the path simply does not
+# exist and the tests that need a real checkout skip instead of failing.
+STEELDATA = resolve_steeldata_project() or (ROOT.parent / "02_SteelData")
+STEELDATA_PYTHON = resolve_steeldata_python(STEELDATA)
 
 
 class OfflineBoundaryTests(unittest.TestCase):
@@ -54,11 +62,16 @@ class OfflineBoundaryTests(unittest.TestCase):
         paths = [
             ROOT / "steelai/steeldata_bridge.py",
             ROOT / "steelai/views/steeldata_panel.py",
-            STEELDATA / "steeldata/pipeline.py",
-            STEELDATA / "steeldata/preview.py",
-            STEELDATA / "steeldata/normalize.py",
-            STEELDATA / "steeldata/qc.py",
         ]
+        # The SteelData-side modules only exist in a checkout that also carries
+        # the sibling project; the public CI checkout carries neither.
+        if STEELDATA.is_dir():
+            paths += [
+                STEELDATA / "steeldata/pipeline.py",
+                STEELDATA / "steeldata/preview.py",
+                STEELDATA / "steeldata/normalize.py",
+                STEELDATA / "steeldata/qc.py",
+            ]
         imported = set()
         for path in paths:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

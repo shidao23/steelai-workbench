@@ -11,14 +11,14 @@ from steelai.run_center import accepted_portfolio_results, collect_run_records
 from steelai.ui import setup_page
 
 setup_page(st, "Career Portfolio", "💼")
-st.subheader("材料数据闭环 · 后续架构规划")
-st.caption("面试展示｜后续开发设计，具体实现进度以各功能页面与验证记录为准。")
-architecture_path = Path(__file__).resolve().parents[1] / "docs" / "assets" / "steelai_future_architecture.png"
-st.image(str(architecture_path), width="content")
+st.subheader("SteelAI · 材料科研系统框架")
+st.caption("当前系统框架｜科研输入、确定性分析、AI 证据协作与可追溯成果；可选扩展单独标注。")
+architecture_path = Path(__file__).resolve().parents[1] / "docs" / "assets" / "steelai_system_architecture.png"
+st.image(str(architecture_path), width="stretch")
 st.download_button(
     "下载架构图（PNG）",
     architecture_path.read_bytes(),
-    file_name="SteelAI_后续架构规划.png",
+    file_name="SteelAI_系统框架.png",
     mime="image/png",
 )
 st.divider()

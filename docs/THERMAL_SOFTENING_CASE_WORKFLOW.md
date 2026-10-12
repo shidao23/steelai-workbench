@@ -23,6 +23,46 @@ cd '<SteelAI-Workbench项目根目录>'
 
 真实 DeepSeek 往返也已完成：案例 `TSC-9DF11B41FB31FF5C6C08` 经 `get_thermal_softening_case` 和 `get_evidence_validation_summary` 两个只读工具送入模型，证据网关审计包为 `outputs/agent_gateway/AGENTGW-5462F00AB8C5AC0A7246/`，状态 `completed`，结构化输出契约通过，仍要求人工复核。模型建议 2% 已批准方法作主报告口径、5% 作敏感性对照，保留 4 个主结果超界警告，并指出论文与本项目的 `sigma_m` 定义不同。人工检查同时发现模型有一处**列表归属表述错误**：它把 A90 写进“方法差至少 10 个百分点”的列表；案例证据中的准确列表只有 **A82、A87、A88**。这说明网关通过只代表来源和输出形式合规，不能取代逐句科研复核。模型还引用了本项目其他 EBSD/SEM 证据门禁；这些不是本次软化实验的直接组织证据。
 
+## 受限只读引用接口（PAOS-004B1 / 004B1R / 004B1R2）
+
+给平台侧登记用的**最小只读引用**，只接受案例编号，不接受任何文件路径。从仓库根目录直接运行，**无需设置 `PYTHONPATH`**：
+
+```powershell
+.\.venv\Scripts\python.exe -B .\scripts\export_thermal_softening_case_ref.py <case_id>
+```
+
+**包根目录不可由调用方指定**：接口只使用 SteelAI 自有的固定案例根目录；既没有路径参数，也不读取任何环境变量（早期版本的环境变量覆盖已移除）。脚本的参数解析同样遵守该边界。
+
+成功时向 stdout 打印机器可读 JSON，字段仅限：
+
+| 字段 | 含义 |
+| --- | --- |
+| `case_id` | 案例编号（`TSC-` + 20 位大写十六进制） |
+| `package_verification` | 复用 `verify_package` 的完整性核验结果，成功时恒为 `passed` |
+| `manifest_digest` | **已核验**治理 Manifest 的 SHA-256（取自核验结果，非调用方参数） |
+| `review_state` | 成功时恒为 `needs_human` |
+| `row_count` / `artifact_count` | 非敏感计数：整理后证据行数、Manifest 声明的工件数 |
+
+拒绝时 **stdout 为空、退出码非零**，stderr 只输出一行稳定的路径无关错误码（**不打印 traceback、不回显用户输入、不转发治理层内部错误文本、不含本机路径**）：
+
+| 退出码 | 错误码 | 含义 |
+| --- | --- | --- |
+| `2` | `CASE_ARGUMENT_UNKNOWN` | 出现未知命令行参数（含任何试图指定路径的参数） |
+| `2` | `CASE_ARGUMENT_INVALID` | 命令行不是单个案例编号（缺参数等） |
+| `2` | `CASE_ID_INVALID` | 编号不符合 `TSC-[A-F0-9]{20}` |
+| `2` | `CASE_PACKAGE_MISSING` | 该编号没有对应的受治理案例包 |
+| `2` | `CASE_EVIDENCE_UNAVAILABLE` | 包的整理后证据无法读取 |
+| `2` | `CASE_PACKAGE_INVALIDATED` | 包未通过治理完整性核验（含被篡改、Manifest 缺失） |
+| `2` | `CASE_IDENTITY_MISMATCH` | 身份不符：Manifest 身份不是请求编号，**或**包内证据的 `case_id` 不是请求编号 |
+| `2` | `CASE_REVIEW_STATE_NOT_NEEDS_HUMAN` | 治理状态不是 `needs_human` |
+| `3` | `CASE_REFERENCE_INTERNAL_ERROR` | 非预期内部失败（同样不打印 traceback） |
+
+**身份语义是唯一的**：包完整且 Manifest 身份正确、但**包内 `evidence.json` 的 `case_id` 与请求编号不同**时，固定返回 `CASE_IDENTITY_MISMATCH`（不是完整性失效）。这是复用既有 `load_softening_case` 的证据身份核对结果——它会在已核验包内交叉检查证据 `case_id` 与 Manifest／请求编号。
+
+**语义边界（必须保持）**：本接口只表示“**此时该包的治理完整性已核验**”，**不等于科研结论已批准**，也不等于人工关口已满足；平台侧登记时人工关口必须保持 `open`。本接口只读：不重跑 T71/T74/T75、不创建或修改结果包、不写任务记录、不调用模型、不满足任何关口，输出不含原始数据行、实验值、文献正文、本机绝对路径或草稿正文。
+
+合成测试见 `tests/test_thermal_softening_case_ref.py`（正常导出；非法编号；未知编号；缺失 Manifest；缺失／不可读证据；包篡改；Manifest 身份不一致；证据编号不符但包重新封存有效；`needs_human` 之外状态；公开 CLI 的 `--help`、成功输出与全部拒绝路径均不含本机路径与 traceback；含路径的未知参数在干净进程中不回显输入；旧环境变量不再改变包根选择）。
+
 ## 本批状态与科学边界
 
 - 16 个 DH 采集均已有正式 T75 结果；A79、A80、A84、A85 的主结果超过 100%，继续保留为警告。A80、A84 的 5% 对照同样超过 100%。

@@ -34,8 +34,10 @@ HEALTH_PROBE = ROOT / "scripts" / "check_local_streamlit_health.ps1"
 DEAD_PROXY = "http://127.0.0.1:9"
 
 # The exact command line a launcher must not reach while an instance is running.
+# The interpreter comes from the local, Git-ignored config (WO-28 migration keeps
+# the virtual environment in place instead of inside the repository).
 STREAMLIT_COMMAND = (
-    '".venv\\Scripts\\python.exe" -m streamlit run app.py '
+    '"%STEELAI_PYTHON%" -m streamlit run app.py '
     "--server.address=127.0.0.1 --server.port=%STEELAI_PORT% --server.headless=false"
 )
 START_MARKER = "STEELAI_START_ATTEMPTED"
@@ -67,17 +69,12 @@ class WindowsLauncherProxyTests(unittest.TestCase):
         self.launcher.write_bytes(
             text.replace(STREAMLIT_COMMAND, f"echo {START_MARKER}").encode("utf-8")
         )
-        # The launcher requires a local ".venv\Scripts\python.exe" before it
-        # enters the start branch, so link the repository environment.  The stub
-        # start command never touches it.
-        try:
-            os.symlink(ROOT / ".venv", self.workdir / ".venv", target_is_directory=True)
-        except (OSError, NotImplementedError):
-            shutil.copytree(
-                ROOT / ".venv" / "Scripts",
-                self.workdir / ".venv" / "Scripts",
-                symlinks=True,
-            )
+        # The launcher requires a local interpreter path before it enters the
+        # start branch. The stub start command never runs it, so a placeholder is
+        # enough and the real environment (protected in place) is not touched.
+        placeholder = self.workdir / ".venv" / "Scripts" / "python.exe"
+        placeholder.parent.mkdir(parents=True, exist_ok=True)
+        placeholder.write_bytes(b"")
         # The probe script lives in scripts\ next to the launcher's own copy, so
         # keep the directory layout of the repository.
         target_scripts = self.workdir / "scripts"

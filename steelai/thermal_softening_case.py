@@ -201,57 +201,192 @@ def build_softening_case(*, project_root: Path = ROOT, literature_pdf: Path) -> 
 
 
 def _draft_markdown(case: Mapping[str, Any]) -> str:
+    """Render the draft strictly from the case's own rows, QC, warnings and sources.
+
+    Every factual statement below is derived from the case mapping: counts come from
+    ``row_count``/``passed_count``, the review list from the actual warning rows, and the
+    1000-degree comparison only appears when the case's own passed rows support it. Nothing
+    about specific acquisitions (IDs, temperatures, ranges) is hardcoded, so a one-row
+    synthetic case can never inherit the approved batch's narrative.
+    """
+    rows = list(case.get("rows") or [])
+    warning_rows = [row for row in rows if str(row.get("qc_status", "")) != "passed"]
+    sensitivity_over_100 = [
+        str(row["acquisition_id"]) for row in warning_rows
+        if float(row.get("sensitivity_percent", 0.0)) > 100.0
+    ]
+    window_rows = [
+        row for row in rows
+        if 995.0 <= float(row.get("temperature_c", 0.0)) <= 1005.0
+        and 9.0 <= float(row.get("deformation_gap_s", 0.0)) <= 11.0
+        and str(row.get("qc_status", "")) == "passed"
+    ]
+    outside_rows = [row for row in rows if row not in window_rows]
+    outside_above_100 = [row for row in outside_rows if float(row.get("primary_percent", 0.0)) > 100.0]
+    by_sample: dict[str, list[float]] = {}
+    for row in window_rows:
+        by_sample.setdefault(str(row.get("sample_id")), []).append(float(row["primary_percent"]))
+    synthetic_demo = str(case.get("evidence_class", "")) == "synthetic_demo_data"
+    literature = case.get("literature") or {}
+
     lines = [
         "# 双道次软化实验分析草稿", "",
-        f"案例：`{case['case_id']}`；状态：待人工科研复核。", "",
-        "## 方法与证据", "",
-        "使用已批准的 T75 正式结果，逐项与标准化曲线重新计算的结果核对。",
-        "主方法为 2% 偏移法；5% 定真应变法的参考应力来自 Hollomon 投影。",
-        "论文式 (4.1) 的 σm 为第一道次结束应力；当前 T75 主方法取第一道次峰值，"
-        "因此属于文献启发的方法实现，不能声称逐项复现论文。",
-        "文献：张玲（2007），《TSDR 工艺热加工过程的组织演变与控制》，"
-        "第 4.1.2.1 节，图 4.4、图 4.5、式 (4.1)，印刷页 68–70（PDF 页 81–83）。", "",
-        "## 可确认的描述性结果", "",
-        f"共 {case['row_count']} 个采集；{case['passed_count']} 个范围 QC 通过；"
-        f"{len(case['warning_ids'])} 个仍需复核：{', '.join(case['warning_ids'])}。",
+        f"案例：`{case['case_id']}`；状态：待人工科研复核。",
     ]
-    group = case["observations"]["near_1000_c_9_to_11_s"]
+    if synthetic_demo:
+        lines += [
+            "",
+            "> **合成演示标记**：本包属于 `synthetic_demo_data`——全部内容由固定合成输入生成，"
+            "不含任何真实测量；文献条目（如有）仅作方法依据占位，不代表已核验真实论文 PDF；"
+            "本包不进入正式证据库。",
+        ]
+    lines += ["", "## 方法与证据", ""]
+    if synthetic_demo:
+        # A synthetic demo must not imply reviewed-data work that never happened: the percentages
+        # and QC flags are FIXED SYNTHETIC INPUT, and no T75 recalculation, formal approval or
+        # literature verification ran anywhere in this path.
+        lines += [
+            "本演示的百分比与 QC 标记直接来自固定合成输入。",
+            "未运行 T75 曲线重算；没有已批准的正式结果；也没有真实文献 PDF 核验。",
+        ]
+    elif literature:
+        lines += [
+            "使用已批准的 T75 正式结果，逐项与标准化曲线重新计算的结果核对。",
+            "主方法为 2% 偏移法；5% 定真应变法的参考应力来自 Hollomon 投影。",
+            "论文式 (4.1) 的 σm 为第一道次结束应力；当前 T75 主方法取第一道次峰值，"
+            "因此属于文献启发的方法实现，不能声称逐项复现论文。",
+            f"文献（仅作方法依据）：{literature.get('author', '')}（{literature.get('year', '')}），"
+            f"《{literature.get('title', '')}》，{literature.get('method_reference', '')}。",
+        ]
+    else:
+        lines += [
+            "使用 T75 冻结方法重新计算：主方法为 2% 偏移法；"
+            "5% 定真应变法的参考应力来自 Hollomon 投影。",
+            "本案例未绑定文献条目，不作任何文献核验声明。",
+        ]
     lines += [
-        "约 1000 ℃、有效变形间隔 9–11 s 的四个通过项中，"
-        f"B-DQ 主软化率为 {group['b_dq_primary_percent_range'][0]:.2f}–"
-        f"{group['b_dq_primary_percent_range'][1]:.2f}%，R-DQ 为 "
-        f"{group['r_dq_primary_percent_range'][0]:.2f}–"
-        f"{group['r_dq_primary_percent_range'][1]:.2f}%；此处只作描述性比较。",
-        "约 1100 ℃的短、长间隔结果存在明显波动和超界值，暂不拟合动力学或排序材料。", "",
-        "## 逐采集结果", "",
+        "", "## 可确认的描述性结果", "",
+        f"共 {case['row_count']} 个采集；{case['passed_count']} 个范围 QC 通过；"
+        f"{len(case['warning_ids'])} 个仍需复核：{', '.join(case['warning_ids']) or '无'}。",
+    ]
+    if len(by_sample) >= 2 and len(window_rows) >= len(by_sample):
+        parts = [
+            f"{sample_id} 主软化率为 {min(values):.2f}–{max(values):.2f}%（n={len(values)}）"
+            for sample_id, values in sorted(by_sample.items())
+        ]
+        lines += [
+            f"约 1000 ℃、有效变形间隔 9–11 s 的 {len(window_rows)} 个通过项中，"
+            + "，".join(parts) + "；此处只作描述性比较。",
+        ]
+    elif len(window_rows) == 1:
+        only = window_rows[0]
+        lines += [
+            f"约 1000 ℃、有效变形间隔 9–11 s 仅有 1 个通过项（{only.get('sample_id')} "
+            f"主软化率 {float(only['primary_percent']):.2f}%），无法作组间比较。",
+        ]
+    else:
+        lines += ["无法作组间比较：没有同时满足约 1000 ℃、有效变形间隔 9–11 s 且范围 QC 通过的采集。"]
+    if outside_rows:
+        temps = [float(row.get("temperature_c", 0.0)) for row in outside_rows]
+        lines += [
+            f"其余 {len(outside_rows)} 个采集（温度 {min(temps):.0f}–{max(temps):.0f} ℃）中 "
+            f"{len(outside_above_100)} 个 2% 主结果超过 100%（原始结果不截断），"
+            "暂不拟合动力学或排序材料。",
+        ]
+    lines += [
+        "", "## 逐采集结果", "",
         "| 采集 | 样品 | 温度 ℃ | 有效间隔 s | 2% 主结果 % | 5% 对照 % | QC |",
         "| --- | --- | ---: | ---: | ---: | ---: | --- |",
     ]
-    for row in case["rows"]:
+    for row in rows:
         lines.append(
             f"| {row['acquisition_id']} | {row['sample_id']} | {row['temperature_c']:.2f} | "
             f"{row['deformation_gap_s']:.4f} | {row['primary_percent']:.2f} | "
             f"{row['sensitivity_percent']:.2f} | {row['qc_status']} |"
         )
-    lines += [
-        "", "## 待复核", "",
-        "- A79、A80、A84、A85：核对两道次局部应变零点、2% 交点、温度与应变速率；"
-        "原始结果不截断。",
-        "- A80、A84：5% 对照也超过 100%，需要同时核对 Hollomon 拟合与曲线。",
+    lines += ["", "## 待复核", ""]
+    if warning_rows:
+        for row in warning_rows:
+            flags = [str(flag) for flag in (row.get("qc_flags") or [])]
+            flag_note = f"（QC 标记：{'、'.join(flags)}）" if flags else ""
+            lines.append(
+                f"- {row['acquisition_id']}（{row.get('sample_id')}）：范围 QC 未通过{flag_note}；"
+                "核对两道次局部应变零点、2% 交点、温度与应变速率；原始结果不截断。"
+            )
+        if sensitivity_over_100:
+            lines.append(
+                "- " + "、".join(sensitivity_over_100)
+                + "：5% 对照同样超过 100%，需同时核对 Hollomon 投影与曲线。"
+            )
+    else:
+        lines.append("- 无待复核采集。")
+    lines.append(
         "- 范围 QC 已通过但方法差至少 10 个百分点的采集："
-        + ("、".join(case["large_method_difference_passed_ids"]) or "无") + "。",
-        "- 用金相组织或其他独立证据验证回复与再结晶的贡献；"
-        "论文的约 20% 回复、超过 90% 完全再结晶判据不直接移植到本批。", "",
-        "## 结论状态", "",
-        "这是由已复核数据生成的分析草稿。机制判断、论文表述及是否纳入正式科研结论仍需具名人工审核。", "",
-    ]
+        + ("、".join(case["large_method_difference_passed_ids"]) or "无") + "。"
+    )
+    if literature:
+        lines.append(
+            "- 用金相组织或其他独立证据验证回复与再结晶的贡献；"
+            "论文的约 20% 回复、超过 90% 完全再结晶判据不直接移植到本批。"
+        )
+    else:
+        lines.append(
+            "- 用金相组织或其他独立证据验证回复与再结晶的贡献；任何文献判据不直接移植到本批。"
+        )
+    if synthetic_demo:
+        lines += [
+            "", "## 结论状态", "",
+            "这是由固定合成输入生成的演示草稿：其中没有任何经人工复核的真实数据，"
+            "没有已获批准的正式结果，也未运行 T75 曲线重算；"
+            "一切内容待具名人工复核，且不构成科研结论，本包不进入正式证据库。", "",
+        ]
+    else:
+        lines += [
+            "", "## 结论状态", "",
+            "这是由已复核数据生成的分析草稿。机制判断、论文表述及是否纳入正式科研结论仍需具名人工审核。", "",
+        ]
     return "\n".join(lines)
 
 
-def publish_softening_case(case: Mapping[str, Any], *, output_root: Path = CASE_ROOT) -> Path:
+def publish_softening_case(
+    case: Mapping[str, Any], *, output_root: Path = CASE_ROOT, synthetic_demo: bool = False
+) -> Path:
+    """Publish a governed case package.
+
+    The formal path (default) is unchanged: real approved inputs, ``real_research_data``
+    classification, human-approved source wording. ``synthetic_demo=True`` is an EXPLICIT,
+    default-off branch for the public demo (STEEL-V1-03B): it changes ONLY the governance
+    classification and source wording - every source becomes ``synthetic_demo_data`` /
+    ``synthetic_demo_input``, the Manifest is classified ``synthetic_demo_data``, the case itself
+    is stamped ``evidence_class=synthetic_demo_data`` (which also switches the draft's demo
+    marker on), and the caller must point ``output_root`` at a demo root (never the formal
+    evidence library). Calculation, package format, staging, seal and append-only publication
+    are shared with the formal path.
+
+    A case that ALREADY declares ``evidence_class=synthetic_demo_data`` is refused in the
+    default branch: when the explicit ``synthetic_demo=True`` opt-in is missing (omitted or
+    ``False``), publication is rejected before any directory creation, staging or write -
+    the caller must fix the call, the parameter is never silently corrected.
+    """
+    # Read the case's EXPLICIT classification before any byte is written: a pre-marked
+    # synthetic case must never fall into the default real-research branch.
+    if not synthetic_demo and str(case.get("evidence_class", "")) == "synthetic_demo_data":
+        raise ValueError(
+            "a case explicitly classified as synthetic_demo_data requires the explicit "
+            "synthetic_demo=True opt-in; publication is refused before any write"
+        )
     case_id = str(case["case_id"])
     if not _CASE_ID.fullmatch(case_id):
         raise ValueError("invalid case ID")
+    if synthetic_demo:
+        case = dict(case)
+        case["evidence_class"] = "synthetic_demo_data"
+        # Refuse equality AND any location INSIDE the formal library (through "..", symlinks or
+        # junctions - resolve() normalises all of them). This runs before any byte is written.
+        case_root_resolved = CASE_ROOT.resolve()
+        demo_root_resolved = output_root.resolve()
+        if demo_root_resolved == case_root_resolved or demo_root_resolved.is_relative_to(case_root_resolved):
+            raise ValueError("a synthetic demo package must not enter the formal evidence library")
     destination = output_root / case_id
     if destination.exists():
         if verify_package(destination).status != "passed":
@@ -267,30 +402,43 @@ def publish_softening_case(case: Mapping[str, Any], *, output_root: Path = CASE_
     identity = ResearchObjectIdentity.from_content(
         "thermal_softening_case", case_id, 1, case, "SteelAI thermal_softening_case"
     )
-    sources = (
-        SourceReference("approved-t71-runs", 1, digests["runs_sha256"],
-                        EvidenceClass.REAL_RESEARCH_DATA, "human_approved",
-                        "data/processed/thermal_simulation_runs.csv"),
-        SourceReference("approved-t71-points", 1, digests["points_sha256"],
-                        EvidenceClass.REAL_RESEARCH_DATA, "human_approved",
-                        "data/processed/thermal_simulation_points.csv"),
-        SourceReference("approved-t74-features", 1, digests["features_sha256"],
-                        EvidenceClass.REAL_RESEARCH_DATA, "human_approved",
-                        FEATURES_RELATIVE.as_posix()),
-        SourceReference("approved-t75-results", 1, digests["formal_results_sha256"],
-                        EvidenceClass.REAL_RESEARCH_DATA, "human_approved",
-                        SOFTENING_RELATIVE.as_posix()),
-        SourceReference("zhang-ling-2007-thesis", 1, digests["literature_pdf_sha256"],
-                        EvidenceClass.REAL_RESEARCH_DATA, "literature_digest_verified"),
-        SourceReference("approved-t75-method", 1, digests["method_registry_sha256"],
-                        EvidenceClass.HUMAN_CONCLUSION, "method_approved",
-                        REGISTRY_RELATIVE.as_posix()),
-    )
+    if synthetic_demo:
+        demo_class = EvidenceClass.SYNTHETIC_DEMO_DATA.value
+        demo_status = "synthetic_demo_input"
+        sources = (
+            SourceReference("synthetic-runs", 1, digests["runs_sha256"], demo_class, demo_status),
+            SourceReference("synthetic-points", 1, digests["points_sha256"], demo_class, demo_status),
+            SourceReference("synthetic-features", 1, digests["features_sha256"], demo_class, demo_status),
+            SourceReference("synthetic-formal-results", 1, digests["formal_results_sha256"], demo_class, demo_status),
+            SourceReference("synthetic-literature-placeholder", 1, digests["literature_pdf_sha256"], demo_class, demo_status),
+            SourceReference("synthetic-method", 1, digests["method_registry_sha256"], demo_class, demo_status),
+        )
+    else:
+        sources = (
+            SourceReference("approved-t71-runs", 1, digests["runs_sha256"],
+                            EvidenceClass.REAL_RESEARCH_DATA, "human_approved",
+                            "data/processed/thermal_simulation_runs.csv"),
+            SourceReference("approved-t71-points", 1, digests["points_sha256"],
+                            EvidenceClass.REAL_RESEARCH_DATA, "human_approved",
+                            "data/processed/thermal_simulation_points.csv"),
+            SourceReference("approved-t74-features", 1, digests["features_sha256"],
+                            EvidenceClass.REAL_RESEARCH_DATA, "human_approved",
+                            FEATURES_RELATIVE.as_posix()),
+            SourceReference("approved-t75-results", 1, digests["formal_results_sha256"],
+                            EvidenceClass.REAL_RESEARCH_DATA, "human_approved",
+                            SOFTENING_RELATIVE.as_posix()),
+            SourceReference("zhang-ling-2007-thesis", 1, digests["literature_pdf_sha256"],
+                            EvidenceClass.REAL_RESEARCH_DATA, "literature_digest_verified"),
+            SourceReference("approved-t75-method", 1, digests["method_registry_sha256"],
+                            EvidenceClass.HUMAN_CONCLUSION, "method_approved",
+                            REGISTRY_RELATIVE.as_posix()),
+        )
     manifest = build_manifest(
         stage, publication_id=case_id, identity=identity,
         state=GovernanceState.NEEDS_HUMAN,
         result_level=ResultLevel.WORKING_CANDIDATE,
-        evidence_class=EvidenceClass.REAL_RESEARCH_DATA,
+        evidence_class=(EvidenceClass.SYNTHETIC_DEMO_DATA if synthetic_demo
+                        else EvidenceClass.REAL_RESEARCH_DATA),
         sources=sources, generated_by="SteelAI thermal_softening_case",
         metadata={"case_version": CASE_VERSION, "row_count": case["row_count"]},
     )

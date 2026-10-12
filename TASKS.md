@@ -647,3 +647,26 @@ Codex 复核修正（三项契约）：其一，`MemoryStore.state` 现在始终
 解除条件（需具名决定）：解决 875/900 °C 附近的求解不确定性并使 324 点全部首次成功；或具名批准排除该温区并说明影响；或进一步缩减成分体系/相集合；或冻结为技术框架。
 
 边界：未更改科研输入与限制；未更换环境、未升级 pycalphad；未改写 TDB；未写回 `data/processed/`；未处理临时目录 ACL 与随机 ID 抖动断言；未 commit/push/tag。
+## 配置化 SteelStats 定位（2026-10-10，B03-B 迁移接线）
+
+完成情况：SteelStats 项目整体迁至工作空间 `05_Engineering/03_SteelStats` 后，`SteelStatsClient` 默认定位改为三级解析——显式 `project` 参数 > 现有 `load_settings()` 的 `tools.steelstats_project` 字段（相对路径按 Workbench 根解释）> 未配置时旧同级 `../SteelStats` 兼容查找。未新增第二份配置系统、未改 `steelai/settings.py` 解析器；`isolated_cli`、`report`/`verify-report` 固定命令、cwd=项目根、子进程环境剥离、180 秒超时与输入不回写均保持不变。
+
+验收结果：`config/settings.example.toml` 新增公开空字段 `steelstats_project`（注释说明解析顺序与关闭式失败语义，不含本机盘符）；被 Git 忽略的 `config/settings.toml` 仅新增本机指向字段，其余内容原样。专项测试覆盖显式优先、配置绝对/相对路径、空值/缺省回落旧同级、配置无效时关闭式报未就绪且不回落、以及经真实默认 `SteelStatsClient()` 的跨项目合成端到端（合成审核人明确标识为仅测试夹具）。
+
+边界：不改 SteelStats 模块契约、统计实现与 T40 冻结演示；不把本机盘符写入版本化源码或公开示例；不提交/推送。
+
+## 配置错误边界补修（2026-10-10，WO-16 / B03-B-R1）
+
+完成情况：修复查收指出的混淆——原实现把"设置读取/解析失败、`[tools]` 非表、`tools.steelstats_project` 非字符串"与"未配置"同样回落旧同级。现改为新增 `SteelStatsConfigError`：只有字段缺失/空/空白算未配置并保留旧同级兼容；配置存在但不可用改为构造时保留错误（不抛出、不出 traceback），`availability()` 返回 `reason=config_error` 并给简洁原因（不回显配置正文），`_call` 拒绝并提示修正 `tools.steelstats_project` 或显式传路径。显式 `project` 参数仍最高优先级；正常 UI 因配置错误只看到未就绪提示，不出现未处理异常。`load_settings` 全局解析器、`settings.toml`、公开示例与 `test.ps1` 未动。
+
+验收结果：`tests/test_steelstats_bridge.py` 24 项通过（含 6 项新边界回归：TOML 解析错/非字符串/`[tools]` 非表/读取失败均关闭式不回落且不泄漏配置值，仅空白=未配置回落，显式路径在坏配置下仍可用，合成夹具证明坏配置不会选中有效旧同级）；T53+治理核心 19 过 1 跳；真实默认 `SteelStatsClient()` 消费链独立复验通过（报告生成/复核/篡改拒绝，输出隔离）。规定入口 `.\scripts\test.ps1` 全量两轮实跑均 **exit 1：49 failed / 170 errors / 764 passed / 79 skipped**——完整门槛未满足，按诚实保留。已逐类归因：170 errors 为沙箱强制 Python 临时目录到系统 `Temp\pytest-of-pc`（WinError 5，环境级）；43 项 t86 全量失败在隔离复现全部通过（套件内沙箱删除钩子中断，环境级）；4 项 UI/文档断言失败与 1 项 launcher 失败为既有用户 dirty/历史状态，与本改无关；**1 项 t40 演示测试失败为迁移相关真实问题**——`steelai/flagship_demo.py` 硬编码旧同级 `SteelStats/steelstats.module.json` 溯源拷贝，超出本轮允许写入范围，留下一单授权修复。
+
+边界：不为追零改跨模块功能、不加 skip/xfail、不放宽断言；原 WO-15 在完整门槛未过即退出源属流程偏差，历史证据保留，不因此回滚新根。
+
+## T40 实际消费身份修复（2026-10-11，WO-17 / B03-B-R2）
+
+完成情况：修复查收确认的迁移相关真实问题——`flagship_demo.py` 的 `_code_fingerprint()` 用旧同级硬编码路径（`ROOT.parent/SteelData|SteelStats`）读取模块 descriptor 并枚举包源码，SteelStats 迁至工作空间后 `demo_identity()` 真实 FileNotFoundError，且生成指纹早于实际客户端选择。现改为：`demo_identity()` 增加可选 `steeldata`/`steelstats` 客户端参数，`_code_fingerprint(steeldata_project, steelstats_project)` 从实际被调用客户端实例的 project 根读取 descriptor 与枚举 `*.py`（键仍为 `SteelData/...`、`SteelStats/...` 相对键，不写盘符/绝对位置进 manifest 或身份）；`run_flagship_demo` 初始化顺序改为先解析实际客户端再算身份，显式参数与指纹保证同一实例/同一根，不再自造路径解析器。默认入口保留：未传参时沿现有 `SteelDataClient()`/`SteelStatsClient()` 三级解析（本机真实根由 `tools.steelstats_project` 指向新根）。配置坏（project=None）、模块 descriptor 缺失、必需文件缺失在创建生产输出前以可操作 ValueError 失败（错误只含逻辑键名，不泄漏配置正文）；不靠符号链接/复制描述/伪造指纹绕过。文件读取失败统一包装为含逻辑键的可操作错误。冻结六夹具、6 试样/6 组/每组 n=3、synthetic 标记、人工审核夹具、未知单位 needs_human 且不执行、输出不可覆盖/篡改检测全部未动。
+
+验收结果：定向测试（t40+t53+steelstats_bridge+steeldata_bridge）**67 passed / 1 skipped / 14 subtests**，其中真实三模块端到端（生成→复核→同根复用→篡改拒绝/不覆盖）由 skip 风格转为真实通过（默认配置根+旧根仅剩迁移说明下）。新增 5 项指纹行为回归：显式客户端根与指纹逐键一致、相同内容换位置身份不变且键全相对（无盘符/绝对路径/..）、被调用模块源码改变改变 demo_id（隔离副本，不改活仓库）、缺失 descriptor 可操作拒绝、config_error 客户端拒绝且不回落。规定入口 `.\scripts\test.ps1` 一次完整回归（PYTEST_ADDOPTS 仅改 basetemp）：**exit 1 诚实保留——52 failed / 936 passed / 79 skipped**。逐类归因与 WO-16 基线（53F/930P）对比：47 项环境级删除守卫拒绝（43 t86 + 4 thermal，机制与隔离复现同 WO-16）、5 项既有用户 dirty 断言与 WO-16 五项完全一致、**0 项由本轮引起**；WO-16 的 1 项 T40 迁移失败已转通过（+6 passed = 1 真实端到端 + 5 新回归）。完整门槛仍未满足，不为追绿改断言/禁守卫。
+
+边界：不改 bridge、settings、test.ps1、pytest.ini 与科学夹具；不把绝对路径写进身份或 manifest；不处理 47 项环境拒绝与 5 项用户 dirty 断言（留证不修）；本轮只随 WO-28 授权提交推送，不改写既有结论。证据：迁移批次归档目录 `Batch_B03B/repair_R2/`（本地归档，不随仓库发布；公开副本已移除本机绝对路径）。

@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from steelai.paths import OUTPUTS, ROOT
+from steelai.settings import load_settings
 from steelai.steeldata_bridge import (
     SYNTHETIC_PREVIEW_BLOCKER, Inspection, inspect_run, mapping_rows,
 )
@@ -288,14 +289,83 @@ def prepare_statistical_input(
     }
 
 
+class SteelStatsConfigError(RuntimeError):
+    """``tools.steelstats_project`` is configured but cannot be used.
+
+    Raised only for real configuration faults (settings read/parse failure,
+    non-mapping ``[tools]`` table, non-string path value). Genuinely
+    unconfigured states (missing field, empty or whitespace-only value)
+    return ``None`` from :func:`configured_steelstats_project` so callers may
+    keep the legacy sibling lookup. Error text never quotes the configured
+    value, so settings contents or secrets cannot leak through it.
+    """
+
+
+def configured_steelstats_project() -> Path | None:
+    """Resolve ``tools.steelstats_project`` from the existing settings loader.
+
+    Missing field, empty string or whitespace-only counts as *unconfigured*
+    and returns ``None`` (callers keep the legacy sibling lookup). A value
+    that exists but is unusable — settings file unreadable or unparsable,
+    ``[tools]`` not a table, or a non-string path — raises
+    :class:`SteelStatsConfigError` instead of silently falling back.
+    Relative configured paths are interpreted against the Workbench ROOT.
+    """
+    try:
+        settings = load_settings()
+    except (OSError, ValueError) as exc:
+        raise SteelStatsConfigError(
+            "Workbench 设置文件读取或解析失败，无法确定 SteelStats 项目位置。") from exc
+    tools = settings.get("tools")
+    if tools is None:
+        return None
+    if not isinstance(tools, dict):
+        raise SteelStatsConfigError(
+            "Workbench 设置中的 [tools] 段不是表，无法读取 steelstats_project 字段。")
+    value = tools.get("steelstats_project")
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise SteelStatsConfigError(
+            "tools.steelstats_project 已配置但不是字符串路径，拒绝回退到旧同级位置。")
+    if not value.strip():
+        return None
+    path = Path(value.strip()).expanduser()
+    return (path if path.is_absolute() else (ROOT / path)).resolve()
+
+
 class SteelStatsClient:
     """Call only the documented SteelStats CLI using its independent runtime."""
 
     def __init__(self, project: Path | None = None):
-        self.project = (project or ROOT.parent / "SteelStats").resolve()
-        self.python = self.project / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        self.config_error: str | None = None
+        if project is not None:
+            self.project: Path | None = Path(project).resolve()
+            self.project_source = "explicit"
+        else:
+            try:
+                configured = configured_steelstats_project()
+            except SteelStatsConfigError as exc:
+                self.project = None
+                self.project_source = "config_error"
+                self.config_error = str(exc)
+            else:
+                if configured is not None:
+                    self.project = configured
+                    self.project_source = "configured"
+                else:
+                    self.project = (ROOT.parent / "SteelStats").resolve()
+                    self.project_source = "legacy_sibling"
+        if self.project is not None:
+            self.python = self.project / ".venv" / (
+                "Scripts/python.exe" if os.name == "nt" else "bin/python")
 
     def availability(self) -> dict[str, Any]:
+        if self.project is None:
+            return {
+                "ready": False, "project": None, "python": None,
+                "reason": "config_error", "detail": self.config_error,
+            }
         result = {"ready": False, "project": str(self.project), "python": str(self.python)}
         try:
             descriptor = json.loads((self.project / "steelstats.module.json").read_text(encoding="utf-8"))
@@ -333,8 +403,14 @@ class SteelStatsClient:
         return {**result, "ready": True, "reason": "ready", "runtime": payload}
 
     def _call(self, args: list[str], *, accepted: tuple[int, ...] = (0,)) -> dict[str, Any]:
+        if self.project is None:
+            raise ValueError(
+                f"SteelStats 未就绪：{self.config_error}"
+                "请修正 config/settings.toml 的 tools.steelstats_project，"
+                "或在调用时显式传入有效的 SteelStats 项目路径。")
         if not self.availability()["ready"]:
-            raise ValueError("未找到同级 SteelStats 项目、模块描述或其独立 .venv。")
+            raise ValueError(
+                f"SteelStats 未就绪：未找到有效项目、模块描述或其独立 .venv（当前定位 {self.project}）。")
         env = {
             key: value for key, value in os.environ.items()
             if key.upper() not in {"PYTHONPATH", "PYTHONHOME", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"}

@@ -1,6 +1,7 @@
 @echo off
 setlocal
-set "STEELAI_PYTHON=%~dp0.venv\Scripts\python.exe"
+if exist "%~dp0config\local-tools.cmd" call "%~dp0config\local-tools.cmd"
+if not defined STEELAI_PYTHON set "STEELAI_PYTHON=%~dp0.venv\Scripts\python.exe"
 
 if not exist "%STEELAI_PYTHON%" (
   echo [FAILED] Missing .venv. Follow docs\INSTALL.md first.

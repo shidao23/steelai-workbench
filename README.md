@@ -183,7 +183,7 @@ flowchart LR
 
 入口：**数据与物理 → 可追溯统计**。Workbench 先校验完整 SteelData 结果包，再要求用户逐一确认试样到研究样品的对应、填写实验方法版本和人工审核身份。只有这些条件齐全，才会生成冻结的 SteelStats T30 输入包。
 
-SteelStats 保持同级独立项目和独立 `.venv`。Workbench 不导入其内部 Python 代码，只调用 `steelstats.module.json` 声明的固定 `report` 与 `verify-report` 命令。T53 起，独立复核通过的结果会进一步封装到 `outputs/governed_statistics/<governance_id>/`，其中保存统计单位、逐值观测、纳入决定、方法版本、SteelData 源 Manifest 摘要、SteelStats 原始报告、证据等级、允许/谨慎/禁止表述和 Governance Manifest。
+SteelStats 保持同级独立项目和独立 `.venv`。Workbench 不导入其内部 Python 代码，只调用 `steelstats.module.json` 声明的固定 `report` 与 `verify-report` 命令。定位解析顺序：显式 `SteelStatsClient(project=...)` 优先；其次读取现有 `load_settings()` 的 `tools.steelstats_project` 字段（相对路径按 Workbench 根解释，本机真实路径只写在被 Git 忽略的 `config/settings.toml`，公开 `settings.example.toml` 保持空值）；仅"未配置"（字段缺失/空/空白）时保留旧的同级 `../SteelStats` 查找兼容。**配置存在但不可用**（设置读取/解析失败、`[tools]` 非表、字段非字符串）按关闭式失败处理：构造不抛出、`availability()` 报 `config_error`、调用给出可操作的未就绪原因，不悄悄回落到同级查找，也不在错误中回显配置内容。T40 演示身份（`demo_identity`/`_code_fingerprint`）同样跟随实际被调用客户端实例的 project 根读取模块 descriptor 并枚举包源码，键保持 `SteelData/...`、`SteelStats/...` 相对形式——manifest 与演示身份不含盘符或绝对位置，模块源码变化自然形成新 demo_id，旧演示包只增不改。T53 起，独立复核通过的结果会进一步封装到 `outputs/governed_statistics/<governance_id>/`，其中保存统计单位、逐值观测、纳入决定、方法版本、SteelData 源 Manifest 摘要、SteelStats 原始报告、证据等级、允许/谨慎/禁止表述和 Governance Manifest。
 
 治理统计报告仍只做描述统计。描述性组间差异不会自动变成统计显著性、总体判断或因果结论；warning 必须由具名审核人显式接受。报告被修改后会变为 `invalidated`，证据验证页不再引用。任何失败都不会写回 SteelData、`data/processed/` 或原始观测。
 
@@ -270,7 +270,7 @@ Windows 完整研发环境可双击 `Freeze_v0.2_Candidate.cmd`，依次验证�
 
 当前工作目录若已包含 `.venv`，可直接双击 `Start_SteelAI.bat`（仓库中只有这一个 Windows 启动器）。应用只监听本机 `127.0.0.1`，不会主动暴露到局域网；若已运行，启动器会直接打开现有页面。启动器对本机健康端点做检查时会显式绕过系统 HTTP 代理，因此设置了 `HTTP_PROXY` 但没有 localhost 例外时，也能正确识别已在运行的实例，不会在 8501 上启动第二个实例。
 
-T40 毕业作品主演示可直接双击 `Run_Flagship_Demo.cmd`。它只读取仓库中的公开合成资料，跨独立 SteelData / SteelStats 环境生成审计包，并同时验证成功案例和“未知单位被拦截”的失败案例；详细清单见 [T40 文档](docs/T40_FLAGSHIP_DEMO.md)。
+T40 毕业作品主演示可直接双击 `Run_Flagship_Demo.cmd`。它只读取仓库中的公开合成资料，跨独立 SteelData / SteelStats 环境生成审计包，并同时验证成功案例和“未知单位被拦截”的失败案例；演示身份沿实际被调用的客户端项目根溯源（迁移后经 `tools.steelstats_project` 指向新根），同名包完整复核通过才复用、否则拒绝覆盖；详细清单见 [T40 文档](docs/T40_FLAGSHIP_DEMO.md)。
 
 首次安装可用 Windows PowerShell：
 

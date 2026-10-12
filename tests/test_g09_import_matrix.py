@@ -15,13 +15,17 @@ from steelai.steeldata_bridge import (
     inspect_run,
     mapping_rows,
     prepare_intake,
+    resolve_steeldata_project,
+    resolve_steeldata_python,
 )
 from steelai.views.steeldata_panel import steeldata_state_presentation
 
 
 ROOT = Path(__file__).resolve().parents[1]
-STEELDATA = ROOT.parent / "SteelData"
-STEELDATA_PYTHON = STEELDATA / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+# Same config-first resolution as production: the migrated SteelData lives in the
+# Engineering container and keeps its virtual environment in place.
+STEELDATA = resolve_steeldata_project() or (ROOT.parent / "02_SteelData")
+STEELDATA_PYTHON = resolve_steeldata_python(STEELDATA)
 FIXTURES = ROOT / "tests/fixtures/g09_import_matrix"
 
 

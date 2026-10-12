@@ -1,6 +1,8 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+if exist "%~dp0config\local-tools.cmd" call "%~dp0config\local-tools.cmd"
+if not defined STEELAI_PYTHON set "STEELAI_PYTHON=%~dp0.venv\Scripts\python.exe"
 
 if not defined STEELAI_PORT set "STEELAI_PORT=8501"
 set "STEELAI_URL=http://127.0.0.1:%STEELAI_PORT%"
@@ -20,7 +22,7 @@ if not errorlevel 1 (
   exit /b 0
 )
 
-if not exist ".venv\Scripts\python.exe" (
+if not exist "%STEELAI_PYTHON%" (
   echo Local Python environment was not found.
   echo Read README.md and install the requirements first.
   pause
@@ -29,7 +31,7 @@ if not exist ".venv\Scripts\python.exe" (
 
 echo Starting SteelAI Workbench at %STEELAI_URL%
 echo Keep this window open while using the app.
-".venv\Scripts\python.exe" -m streamlit run app.py --server.address=127.0.0.1 --server.port=%STEELAI_PORT% --server.headless=false
+"%STEELAI_PYTHON%" -m streamlit run app.py --server.address=127.0.0.1 --server.port=%STEELAI_PORT% --server.headless=false
 
 if errorlevel 1 (
   echo.

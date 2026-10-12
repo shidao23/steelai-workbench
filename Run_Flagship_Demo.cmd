@@ -2,8 +2,9 @@
 setlocal
 chcp 65001 >nul
 cd /d "%~dp0"
+if exist "%~dp0config\local-tools.cmd" call "%~dp0config\local-tools.cmd"
 
-set "STEELAI_PYTHON=%~dp0.venv\Scripts\python.exe"
+if not defined STEELAI_PYTHON set "STEELAI_PYTHON=%~dp0.venv\Scripts\python.exe"
 if not exist "%STEELAI_PYTHON%" (
   echo [失败] 找不到 SteelAI-Workbench 的独立 Python：%STEELAI_PYTHON%
   echo 请先按 README 的“首次环境准备”完成安装。

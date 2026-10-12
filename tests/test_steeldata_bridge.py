@@ -10,10 +10,25 @@ from unittest.mock import patch
 
 from steelai.data_intake import commit_intake, validate_intake_csv
 from steelai.steeldata_bridge import (
-    SteelDataClient, _digest, commit_run, inspect_run, mapping_rows, prepare_intake,
+    SteelDataClient, _digest, commit_run, inspect_run, mapping_rows,
+    prepare_intake, resolve_steeldata_project,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def steeldata_project() -> Path:
+    """Resolve the SteelData project exactly like the production client does.
+
+    The migrated layout keeps SteelData inside the Engineering container under a
+    numbered name, so resolution goes through the same config-first helper the
+    client uses. Tests that need a real SteelData project skip cleanly when no
+    usable checkout is present (for example the public CI checkout).
+    """
+    resolved = resolve_steeldata_project()
+    if resolved is None:
+        raise unittest.SkipTest("SteelData 项目不可用：既未在 settings 中配置，也不在同级目录。")
+    return resolved
 
 
 def write_json(path, value):
@@ -350,7 +365,7 @@ class BridgeTests(unittest.TestCase):
 
 class ClientTests(unittest.TestCase):
     def test_availability_probes_runtime_instead_of_trusting_stale_executable(self):
-        client = SteelDataClient(ROOT.parent / "SteelData")
+        client = SteelDataClient(steeldata_project())
         with patch("steelai.steeldata_bridge.subprocess.run", side_effect=OSError("stale launcher")):
             report = client.availability()
         self.assertFalse(report["ready"])

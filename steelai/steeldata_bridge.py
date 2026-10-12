@@ -22,8 +22,9 @@ from steelai.data_intake import (
     ID_POLICY_PATH, commit_intake, finalize_intake_package, save_intake_package,
     validate_intake_csv,
 )
-from steelai.paths import ROOT
+from steelai.paths import ROOT, legacy_steeldata_project
 from steelai.research_data_contract import CONTRACT_PATH
+from steelai.settings import load_settings
 
 ADAPTER_VERSION = "1.0"
 PROPERTIES = (("ys_mpa", "ys_mpa", "MPa"), ("uts_mpa", "uts_mpa", "MPa"),
@@ -458,15 +459,136 @@ def commit_run(run_dir, bindings, source_status, expected_preview_sha256, *, rev
             "manifest_sha256": inspection.manifest_sha256}
 
 
-class SteelDataClient:
-    """Fixed sibling location and fixed CLI verbs, not an arbitrary shell bridge."""
+class SteelDataConfigError(RuntimeError):
+    """``tools.steeldata_project`` is configured but cannot be used.
 
-    def __init__(self, project: Path | None = None):
-        self.project = (project or ROOT.parent / "SteelData").resolve()
-        self.python = self.project / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    Raised only for real configuration faults (settings read/parse failure,
+    non-mapping ``[tools]`` table, non-string path value). Genuinely
+    unconfigured states (missing field, empty or whitespace-only value) return
+    ``None`` so callers keep the legacy sibling lookup. Error text never quotes
+    the configured value, so settings contents cannot leak through it.
+    """
+
+
+def _configured_tool_path(key: str, what: str) -> Path | None:
+    """Read ``tools.<key>`` from the existing settings loader.
+
+    Missing field, empty string or whitespace-only counts as *unconfigured* and
+    returns ``None`` (callers keep the legacy lookup). A value that exists but is
+    unusable raises :class:`SteelDataConfigError` instead of silently falling
+    back. Relative configured paths are interpreted against the Workbench ROOT.
+    """
+    try:
+        settings = load_settings()
+    except (OSError, ValueError) as exc:
+        raise SteelDataConfigError(f"Workbench 设置文件读取或解析失败，无法确定{what}。") from exc
+    tools = settings.get("tools")
+    if tools is None:
+        return None
+    if not isinstance(tools, dict):
+        raise SteelDataConfigError(f"Workbench 设置中的 [tools] 段不是表，无法读取 {key} 字段。")
+    value = tools.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise SteelDataConfigError(f"tools.{key} 已配置但不是字符串路径，拒绝回退到旧位置。")
+    if not value.strip():
+        return None
+    path = Path(value.strip()).expanduser()
+    return (path if path.is_absolute() else (ROOT / path)).resolve()
+
+
+def configured_steeldata_project() -> Path | None:
+    """SteelData project root (``tools.steeldata_project``), else legacy sibling."""
+    return _configured_tool_path("steeldata_project", "SteelData 项目位置")
+
+
+def configured_steeldata_python() -> Path | None:
+    """SteelData interpreter (``tools.steeldata_python``).
+
+    SteelData keeps its own virtual environment in place while its source moves;
+    this lets the migrated Workbench call that existing interpreter explicitly.
+    Empty keeps ``<project>/.venv``.
+    """
+    return _configured_tool_path("steeldata_python", "SteelData 解释器位置")
+
+
+def resolve_steeldata_project() -> Path | None:
+    """Configured SteelData root, else the first existing sibling checkout.
+
+    ``None`` means no usable checkout is present, so callers can report the
+    project as unavailable (or skip) instead of pointing at a phantom path.
+    """
+    try:
+        configured = configured_steeldata_project()
+    except SteelDataConfigError:
+        configured = None
+    if configured is not None and configured.is_dir():
+        return configured
+    return legacy_steeldata_project()
+
+
+def resolve_steeldata_python(project: Path) -> Path:
+    """Configured SteelData interpreter, else the project's own ``.venv``.
+
+    The virtual environment stays in place while the source moves, so the
+    configured interpreter is preferred over ``<project>/.venv``.
+    """
+    try:
+        configured = configured_steeldata_python()
+    except SteelDataConfigError:
+        configured = None
+    if configured is not None and configured.is_file():
+        return configured
+    return Path(project) / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
+
+class SteelDataClient:
+    """Fixed location (configured root, else legacy sibling) and fixed CLI verbs,
+    not an arbitrary shell bridge."""
+
+    def __init__(self, project: Path | None = None, python: Path | None = None):
+        self.config_error: str | None = None
+        if project is not None:
+            self.project = Path(project).resolve()
+            self.project_source = "explicit"
+        else:
+            try:
+                configured = configured_steeldata_project()
+            except SteelDataConfigError as exc:
+                self.project = legacy_steeldata_project() or (ROOT.parent / "SteelData").resolve()
+                self.project_source = "config_error"
+                self.config_error = str(exc)
+            else:
+                if configured is not None:
+                    self.project = configured
+                    self.project_source = "configured"
+                else:
+                    self.project = legacy_steeldata_project() or (ROOT.parent / "SteelData").resolve()
+                    self.project_source = "legacy_sibling"
+        default_python = self.project / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        if python is not None:
+            self.python = Path(python).resolve()
+            self.python_source = "explicit"
+        else:
+            try:
+                configured_python = configured_steeldata_python()
+            except SteelDataConfigError as exc:
+                self.python = default_python
+                self.python_source = "config_error"
+                self.config_error = self.config_error or str(exc)
+            else:
+                if configured_python is not None:
+                    self.python = configured_python
+                    self.python_source = "configured"
+                else:
+                    self.python = default_python
+                    self.python_source = "project_venv"
 
     def availability(self) -> dict:
         result = {"ready": False, "project": str(self.project), "python": str(self.python)}
+        if self.config_error:
+            return {**result, "reason": "config_error", "message": self.config_error}
         try:
             descriptor = _json(_read(self.project / "steeldata.module.json", 65536))
             declared = (
@@ -495,8 +617,11 @@ class SteelDataClient:
         return {**result, "ready": True, "reason": "ready", "runtime": payload}
 
     def _call(self, args: list[str], *, accepted=(0,)) -> dict:
-        if not self.availability()["ready"]:
-            raise ValueError("未找到同级 SteelData 项目及其独立 .venv；已有结果包仍可只读检查。")
+        availability = self.availability()
+        if not availability["ready"]:
+            if self.config_error:
+                raise ValueError(self.config_error)
+            raise ValueError("未找到配置的 SteelData 项目及其独立 .venv；已有结果包仍可只读检查。")
         env = _steeldata_subprocess_env()
         try:
             completed = subprocess.run([str(self.python), "-B", "-m", "steeldata", *args],

@@ -15,6 +15,8 @@ from steelai.steeldata_bridge import SYNTHETIC_PREVIEW_BLOCKER, inspect_run, map
 from steelai.steelstats_bridge import (
     INPUT_FILES,
     SteelStatsClient,
+    SteelStatsConfigError,
+    configured_steelstats_project,
     prepare_statistical_input,
     run_statistics_from_steeldata,
 )
@@ -24,6 +26,33 @@ from tests.test_steeldata_bridge import result_fixture, seal
 ROOT = Path(__file__).resolve().parents[1]
 METHOD = "tensile-iso6892-1@1.0.0"
 REVIEWED_AT = "2026-09-08T12:00:00+08:00"
+
+
+def make_fake_steelstats_project(parent: Path) -> Path:
+    """Descriptor + runtime layout without depending on any real sibling path."""
+    project = parent / "SteelStatsFake"
+    (project / "steelstats").mkdir(parents=True)
+    (project / ".venv" / "Scripts").mkdir(parents=True)
+    (project / "steelstats.module.json").write_text(json.dumps({
+        "module_id": "steelstats",
+        "contract_version": 1,
+        "invocation": {
+            "kind": "isolated_cli",
+            "report_command": "report",
+            "verify_command": "verify-report",
+        },
+    }), encoding="utf-8")
+    (project / "steelstats" / "__main__.py").write_text("", encoding="utf-8")
+    (project / ".venv" / "Scripts" / "python.exe").write_bytes(b"")
+    return project
+
+
+def write_settings_toml(path: Path, steelstats_project: str | None) -> None:
+    lines = ["[project]\n", 'name = "settings-fixture"\n']
+    lines.append("[tools]\n")
+    if steelstats_project is not None:
+        lines.append(f'steelstats_project = "{steelstats_project}"\n')
+    path.write_text("".join(lines), encoding="utf-8")
 
 
 def source_snapshot(root: Path) -> dict[str, str]:
@@ -172,21 +201,211 @@ class StatisticalInputBridgeTests(unittest.TestCase):
             self.assertEqual({row["unit_status"] for row in units}, {"synthetic_fixture"})
 
 
-class ModuleClientTests(unittest.TestCase):
-    def test_availability_probes_runtime_instead_of_trusting_stale_executable(self) -> None:
-        client = SteelStatsClient(ROOT.parent / "SteelStats")
-        with patch("steelai.steelstats_bridge.subprocess.run", side_effect=OSError("stale launcher")):
-            report = client.availability()
+class ConfigResolutionTests(unittest.TestCase):
+    """Default SteelStats location resolution: explicit > configured > legacy sibling."""
+
+    def test_explicit_argument_beats_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            parent = Path(temp)
+            settings = parent / "settings.toml"
+            write_settings_toml(settings, (parent / "configured").as_posix())
+            with patch("steelai.settings.SETTINGS_FILE", settings):
+                client = SteelStatsClient(parent / "explicit")
+            self.assertEqual(client.project, (parent / "explicit").resolve())
+            self.assertEqual(client.project_source, "explicit")
+
+    def test_configured_absolute_path_wins_over_legacy_sibling(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            parent = Path(temp)
+            configured = parent / "configured"
+            configured.mkdir()
+            settings = parent / "settings.toml"
+            write_settings_toml(settings, configured.as_posix())
+            with patch("steelai.settings.SETTINGS_FILE", settings):
+                client = SteelStatsClient()
+            self.assertEqual(client.project, configured.resolve())
+            self.assertEqual(client.project_source, "configured")
+
+    def test_configured_relative_path_resolves_against_workbench_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            settings = Path(temp) / "settings.toml"
+            write_settings_toml(settings, "fake_steelstats")
+            with patch("steelai.settings.SETTINGS_FILE", settings):
+                client = SteelStatsClient()
+            self.assertEqual(client.project, (ROOT / "fake_steelstats").resolve())
+
+    def test_empty_or_missing_configuration_keeps_legacy_sibling(self) -> None:
+        for value in ("", None):
+            with self.subTest(value=value):
+                with tempfile.TemporaryDirectory() as temp:
+                    settings = Path(temp) / "settings.toml"
+                    write_settings_toml(settings, value)
+                    with patch("steelai.settings.SETTINGS_FILE", settings):
+                        client = SteelStatsClient()
+                    self.assertEqual(client.project, (ROOT.parent / "SteelStats").resolve())
+                    self.assertEqual(client.project_source, "legacy_sibling")
+
+    def test_configured_but_invalid_fails_closed_without_sibling_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            parent = Path(temp)
+            configured = parent / "configured-but-invalid"
+            configured.mkdir()
+            settings = parent / "settings.toml"
+            write_settings_toml(settings, configured.as_posix())
+            with patch("steelai.settings.SETTINGS_FILE", settings):
+                client = SteelStatsClient()
+                self.assertEqual(client.project, configured.resolve())
+                report = client.availability()
+            self.assertFalse(report["ready"])
+            self.assertEqual(report["reason"], "invalid_module_descriptor")
+            with self.assertRaisesRegex(ValueError, "未就绪"):
+                client._call(["verify-report", "anything"])
+            self.assertEqual(client.project, configured.resolve())
+
+    def test_real_default_client_uses_configured_location_when_available(self) -> None:
+        expected = configured_steelstats_project()
+        client = SteelStatsClient()
+        if expected is None:
+            self.skipTest("tools.steelstats_project is not configured in this environment.")
+        self.assertEqual(client.project, expected)
+        self.assertEqual(client.project_source, "configured")
+        if not client.availability()["ready"]:
+            self.skipTest("Configured SteelStats runtime is unavailable in this environment.")
+
+
+class ConfigErrorBoundaryTests(unittest.TestCase):
+    """Configured-but-broken settings must fail closed; only true absence of
+    configuration keeps the legacy sibling lookup (WO-16 A-stage boundary)."""
+
+    def make_valid_sibling(self, temp: Path) -> Path:
+        """A working fake legacy sibling next to a patched Workbench ROOT."""
+        root = temp / "wb"
+        (root / "steelai").mkdir(parents=True)
+        sibling = temp / "SteelStats"
+        (sibling / "steelstats").mkdir(parents=True)
+        (sibling / ".venv" / "Scripts").mkdir(parents=True)
+        (sibling / "steelstats.module.json").write_text(json.dumps({
+            "module_id": "steelstats",
+            "contract_version": 1,
+            "invocation": {"kind": "isolated_cli", "report_command": "report",
+                           "verify_command": "verify-report"},
+        }), encoding="utf-8")
+        (sibling / "steelstats" / "__main__.py").write_text("", encoding="utf-8")
+        (sibling / ".venv" / "Scripts" / "python.exe").write_bytes(b"")
+        return root
+
+    def assert_closed(self, client: SteelStatsClient, leak_token: str | None = None) -> None:
+        self.assertIsNone(client.project)
+        self.assertEqual(client.project_source, "config_error")
+        report = client.availability()
         self.assertFalse(report["ready"])
-        self.assertEqual(report["reason"], "runtime_probe_failed")
+        self.assertEqual(report["reason"], "config_error")
+        self.assertTrue(report.get("detail"))
+        with self.assertRaisesRegex(ValueError, "未就绪"):
+            client._call(["verify-report", "anything"])
+        if leak_token is not None:
+            self.assertNotIn(leak_token, str(report))
+            self.assertNotIn(leak_token, self.raises_actionable(client))
+
+    def raises_actionable(self, client: SteelStatsClient) -> str:
+        try:
+            client._call(["verify-report", "anything"])
+        except ValueError as exc:
+            return str(exc)
+        self.fail("config_error client._call must raise ValueError")
+
+    def test_toml_parse_error_fails_closed_without_sibling_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp = Path(temp)
+            root = self.make_valid_sibling(temp)
+            settings = temp / "settings.toml"
+            settings.write_text("[tools\nsteelstats_project = \"broken\"\n", encoding="utf-8")
+            with patch("steelai.settings.SETTINGS_FILE", settings), patch(
+                "steelai.steelstats_bridge.ROOT", root,
+            ):
+                client = SteelStatsClient()
+                self.assert_closed(client, leak_token="broken")
+            # explicit valid path still works despite the broken config
+            explicit = SteelStatsClient(temp / "explicit-ss")
+            self.assertEqual(explicit.project_source, "explicit")
+            self.assertEqual(explicit.project, (temp / "explicit-ss").resolve())
+
+    def test_non_string_field_fails_closed_without_sibling_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp = Path(temp)
+            root = self.make_valid_sibling(temp)
+            settings = temp / "settings.toml"
+            settings.write_text("[tools]\nsteelstats_project = 23\n", encoding="utf-8")
+            with patch("steelai.settings.SETTINGS_FILE", settings), patch(
+                "steelai.steelstats_bridge.ROOT", root,
+            ):
+                client = SteelStatsClient()
+                self.assert_closed(client)
+            with patch("steelai.settings.SETTINGS_FILE", settings):
+                with self.assertRaises(SteelStatsConfigError):
+                    configured_steelstats_project()
+
+    def test_tools_not_a_table_fails_closed_without_attribute_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp = Path(temp)
+            root = self.make_valid_sibling(temp)
+            settings = temp / "settings.toml"
+            settings.write_text("tools = \"not-a-table\"\n", encoding="utf-8")
+            with patch("steelai.settings.SETTINGS_FILE", settings), patch(
+                "steelai.steelstats_bridge.ROOT", root,
+            ):
+                client = SteelStatsClient()
+                self.assert_closed(client)
+
+    def test_settings_read_error_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            settings = Path(temp) / "settings.toml"
+            settings.mkdir()  # a directory: open() raises IsADirectoryError (an OSError)
+            with patch("steelai.settings.SETTINGS_FILE", settings):
+                client = SteelStatsClient()
+                self.assert_closed(client)
+
+    def test_whitespace_only_value_counts_as_unconfigured(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            settings = Path(temp) / "settings.toml"
+            settings.write_text("[tools]\nsteelstats_project = \"   \"\n", encoding="utf-8")
+            with patch("steelai.settings.SETTINGS_FILE", settings):
+                self.assertIsNone(configured_steelstats_project())
+                client = SteelStatsClient()
+            self.assertEqual(client.project_source, "legacy_sibling")
+            self.assertEqual(client.project, (ROOT.parent / "SteelStats").resolve())
+
+    def test_error_message_does_not_leak_configured_value(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            settings = Path(temp) / "settings.toml"
+            settings.write_text("[tools]\nsteelstats_project = 42\n", encoding="utf-8")
+            with patch("steelai.settings.SETTINGS_FILE", settings):
+                client = SteelStatsClient()
+            text = self.raises_actionable(client)
+            report = str(client.availability())
+            for token in ("42", "steelstats_project ="):
+                self.assertNotIn(token, text)
+                self.assertNotIn(token, report)
+
+
+
+    def test_availability_probes_runtime_instead_of_trusting_stale_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project = make_fake_steelstats_project(Path(temp))
+            client = SteelStatsClient(project)
+            with patch("steelai.steelstats_bridge.subprocess.run", side_effect=OSError("stale launcher")):
+                report = client.availability()
+            self.assertFalse(report["ready"])
+            self.assertEqual(report["reason"], "runtime_probe_failed")
 
     def test_cli_uses_argument_list_independent_runtime_and_scrubbed_environment(self) -> None:
-        client = SteelStatsClient(ROOT.parent / "SteelStats")
-        response = subprocess.CompletedProcess([], 0, '{"status":"passed","problems":[]}', "")
-        with patch.object(client, "availability", return_value={"ready": True}), patch(
-            "steelai.steelstats_bridge.subprocess.run", return_value=response,
-        ) as run, patch.dict(os.environ, {"DEEPSEEK_API_KEY": "secret", "PYTHONPATH": "unsafe"}):
-            payload = client._call(["verify-report", "path with spaces & text"])
+        with tempfile.TemporaryDirectory() as temp:
+            client = SteelStatsClient(make_fake_steelstats_project(Path(temp)))
+            response = subprocess.CompletedProcess([], 0, '{"status":"passed","problems":[]}', "")
+            with patch.object(client, "availability", return_value={"ready": True}), patch(
+                "steelai.steelstats_bridge.subprocess.run", return_value=response,
+            ) as run, patch.dict(os.environ, {"DEEPSEEK_API_KEY": "secret", "PYTHONPATH": "unsafe"}):
+                payload = client._call(["verify-report", "path with spaces & text"])
         self.assertEqual(payload["status"], "passed")
         args, kwargs = run.call_args
         self.assertEqual(args[0][-2:], ["verify-report", "path with spaces & text"])
@@ -197,7 +416,7 @@ class ModuleClientTests(unittest.TestCase):
 
     def test_missing_module_invalid_json_failure_and_timeout_are_actionable(self) -> None:
         client = SteelStatsClient(Path("missing-module"))
-        with self.assertRaisesRegex(ValueError, "未找到同级 SteelStats"):
+        with self.assertRaisesRegex(ValueError, "未就绪"):
             client._call(["verify-report", "missing"])
         with patch.object(client, "availability", return_value={"ready": True}), patch(
             "steelai.steelstats_bridge.subprocess.run",
@@ -213,10 +432,13 @@ class ModuleClientTests(unittest.TestCase):
 
 
 class EndToEndBoundaryTests(unittest.TestCase):
-    def test_real_sibling_cli_generates_verified_report_without_source_writeback(self) -> None:
-        client = SteelStatsClient(ROOT.parent / "SteelStats")
-        if not client.availability()["ready"]:
-            self.skipTest("Sibling SteelStats independent runtime is unavailable.")
+    def test_real_default_configured_cli_generates_verified_report_without_source_writeback(self) -> None:
+        """Real default SteelStatsClient(): settings-resolved location, full bridge chain."""
+        client = SteelStatsClient()
+        expected = configured_steelstats_project()
+        if expected is None or client.project_source != "configured" or not client.availability()["ready"]:
+            self.skipTest("Configured SteelStats location or its runtime is unavailable.")
+        self.assertEqual(client.project, expected)
         with tempfile.TemporaryDirectory() as temp:
             parent = Path(temp)
             run = parent / "steeldata" / "run-test"
@@ -226,7 +448,7 @@ class EndToEndBoundaryTests(unittest.TestCase):
                 run,
                 bindings_for(run),
                 METHOD,
-                "Researcher A",
+                "Test Synthetic Reviewer (fixture only)",
                 REVIEWED_AT,
                 input_root=parent / "inputs",
                 report_root=parent / "reports",

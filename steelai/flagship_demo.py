@@ -72,29 +72,73 @@ def _relative_files(root: Path) -> dict[str, str]:
     }
 
 
-def _code_fingerprint() -> dict[str, str]:
+def _code_fingerprint(steeldata_project: Path, steelstats_project: Path) -> dict[str, str]:
+    """Hash the workbench code plus the *actually consumed* module material.
+
+    Both module descriptors and every ``*.py`` of the module packages are read
+    from the project roots of the client instances that will really execute the
+    demo (explicit argument or the current configured resolution), never from a
+    hard-coded sibling guess. Keys stay relative to each project root so the
+    manifest and the demo identity never contain drive letters or absolute
+    positions; relocating identical content therefore keeps one identity.
+    """
     sources = {
         "steelai/flagship_demo.py": Path(__file__),
         "steelai/steeldata_bridge.py": ROOT / "steelai" / "steeldata_bridge.py",
         "steelai/steelstats_bridge.py": ROOT / "steelai" / "steelstats_bridge.py",
-        "SteelData/steeldata.module.json": ROOT.parent / "SteelData" / "steeldata.module.json",
-        "SteelStats/steelstats.module.json": ROOT.parent / "SteelStats" / "steelstats.module.json",
+        "SteelData/steeldata.module.json": steeldata_project / "steeldata.module.json",
+        "SteelStats/steelstats.module.json": steelstats_project / "steelstats.module.json",
     }
-    for project_name, package_name in (("SteelData", "steeldata"), ("SteelStats", "steelstats")):
-        package = ROOT.parent / project_name / package_name
+    for project_name, package_name, project_root in (
+        ("SteelData", "steeldata", steeldata_project),
+        ("SteelStats", "steelstats", steelstats_project),
+    ):
+        package = project_root / package_name
         for path in sorted(package.rglob("*.py")):
-            sources[f"{project_name}/{path.relative_to(ROOT.parent / project_name).as_posix()}"] = path
-    return {name: _sha256(path) for name, path in sources.items()}
+            sources[f"{project_name}/{path.relative_to(project_root).as_posix()}"] = path
+    digests: dict[str, str] = {}
+    for name, path in sources.items():
+        try:
+            digests[name] = _sha256(path)
+        except OSError as exc:
+            raise ValueError(
+                f"T40 身份指纹无法读取被调用模块文件：{name}；"
+                "请检查实际项目定位与模块完整性，系统不会在生产输出前继续。"
+            ) from exc
+    return digests
 
 
-def demo_identity() -> tuple[str, dict[str, Any]]:
+def _resolve_identity_clients(
+    steeldata: SteelDataClient | None,
+    steelstats: SteelStatsClient | None,
+) -> tuple[SteelDataClient, SteelStatsClient]:
+    """Default entry keeps the current client resolution (no new path resolver)."""
+    data_client = steeldata if steeldata is not None else SteelDataClient()
+    stats_client = steelstats if steelstats is not None else SteelStatsClient()
+    if getattr(data_client, "project", None) is None:
+        raise ValueError("T40 无法定位 SteelData 项目；请在调用时显式传入有效项目。")
+    if getattr(stats_client, "project", None) is None:
+        detail = stats_client.config_error or "配置读取失败"
+        raise ValueError(
+            "T40 无法定位 SteelStats 项目（" + detail + "）；"
+            "请修正 config/settings.toml 的 tools.steelstats_project，"
+            "或在调用时显式传入有效的 SteelStats 项目。"
+        )
+    return data_client, stats_client
+
+
+def demo_identity(
+    steeldata: SteelDataClient | None = None,
+    steelstats: SteelStatsClient | None = None,
+) -> tuple[str, dict[str, Any]]:
     missing = [name for name in FIXTURE_FILES if not (FIXTURES / name).is_file()]
     if missing:
         raise ValueError("T40 冻结资料不完整：" + "、".join(missing))
+    data_client, stats_client = _resolve_identity_clients(steeldata, steelstats)
     contract = {
         "contract_version": CONTRACT_VERSION,
         "fixture_sha256": {name: _sha256(FIXTURES / name) for name in FIXTURE_FILES},
-        "code_sha256": _code_fingerprint(),
+        "code_sha256": _code_fingerprint(data_client.project, stats_client.project),
     }
     digest = hashlib.sha256(json.dumps(
         contract, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
@@ -252,7 +296,13 @@ def run_flagship_demo(
     steeldata: SteelDataClient | None = None,
     steelstats: SteelStatsClient | None = None,
 ) -> dict[str, Any]:
-    demo_id, contract = demo_identity()
+    # Initialize the real consumers first: the identity fingerprint must come
+    # from the same client instances (and their actual project roots) that will
+    # execute the demo, so an explicit client and its fingerprint can never
+    # diverge across different roots.
+    data_client = steeldata or SteelDataClient()
+    stats_client = steelstats or SteelStatsClient()
+    demo_id, contract = demo_identity(data_client, stats_client)
     output = Path(output_root).resolve()
     destination = output / demo_id
     if destination.exists():
@@ -263,8 +313,6 @@ def run_flagship_demo(
                 "summary": str(destination / "summary.md"), "reused": True,
                 "verification": verification}
 
-    data_client = steeldata or SteelDataClient()
-    stats_client = steelstats or SteelStatsClient()
     if not data_client.availability()["ready"] or not stats_client.availability()["ready"]:
         raise ValueError("T40 需要同级 SteelData、SteelStats 项目及其各自独立 .venv。")
     output.mkdir(parents=True, exist_ok=True)

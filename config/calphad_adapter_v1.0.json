@@ -1,0 +1,460 @@
+{
+  "registry_id": "SteelAI-CALPHAD-Adapter-v1.0",
+  "schema_version": "1.0",
+  "task": "T86",
+  "reviewed_at": "2026-09-25",
+  "status": "portfolio_exploration_complete_and_scientific_use_blocked_by_solver_stability",
+  "status_split": {
+    "portfolio": {
+      "status": "portfolio_exploration_complete",
+      "completed_value": "portfolio_exploration_complete",
+      "pending_value": "portfolio_exploration_complete_pending_owner_signature",
+      "scope": "求职作品集中的开源计算热力学探索功能；公开合成演示通过即完成工程验收。",
+      "owner_signature_required": true,
+      "owner_signature_status": "signed",
+      "owner_signature_note": "已由项目负责人签署，记录见 config/calphad_owner_acceptance_v1.0.json；Agent 未代填姓名。",
+      "owner_acceptance_record": {
+        "record_id": "T86-PORTFOLIO-OWNER-SIGN-OFF-20260925",
+        "file": "config/calphad_owner_acceptance_v1.0.json",
+        "registry_id": "SteelAI-CALPHAD-Owner-Acceptance-v1.0",
+        "responsible_person_id": "世道",
+        "signed_at": "2026-09-25",
+        "timezone": "Asia/Shanghai",
+        "decision_scope": "portfolio_engineering_acceptance_only",
+        "portfolio_demo_evidence_version": "SteelAI-T86-Portfolio-Demo-Evidence-v1.0",
+        "scientific_use_approved": false,
+        "real_sample_curves_published": false,
+        "materials_conclusion_approved": false,
+        "portfolio_acceptance_index": "config/portfolio_acceptance_v1.0.json"
+      },
+      "public_demo": {
+        "policy_file": "config/calphad_portfolio_demo_v1.0.json",
+        "demo_id": "fec_public_synthetic_v1",
+        "acceptance_script": "scripts/calphad_portfolio_demo_acceptance.py",
+        "acceptance_evidence": "config/calphad_portfolio_demo_evidence_v1.0.json",
+        "result": "portfolio_exploration_complete",
+        "runs": 2,
+        "max_abs_difference_between_runs": 0.0,
+        "tolerance": 1e-7,
+        "system": "Fe-C public synthetic (Fe-0.45 wt.% C), 4 verified phases, 25 points, 400-1600 degC",
+        "solver_mode": "independent_single_point_process_v1",
+        "reads_private_data": false,
+        "writes_back_to_processed_data": false
+      }
+    },
+    "scientific": {
+      "status": "scientific_use_blocked_by_solver_stability",
+      "scope": "真实 B-DQ/R-DQ 钢种计算；不开展第六阶段求解器调试，不更换或升级 pycalphad，不排除 875/900 degC，不继续缩减组元或相集合。",
+      "reasons": [
+        "全组元体系 16 个组元条目超过本机 pycalphad 0.11.2 实测求解容量上界 13。",
+        "缩减体系在 B-DQ 875/900 degC 附近不稳定收敛：全新进程重复求解同一单点条件，900 degC 成功 1/8、875 degC 成功 2/4，失败形态为没有任何相摩尔数。",
+        "批量模式与独立点模式在 R-DQ 675 degC 的共同收敛点上相差 1.069e-4（容差 1e-7）：相同三相组合、相分数不同。"
+      ],
+      "published_curves": [],
+      "materials_conclusion": null,
+      "evidence": [
+        "config/calphad_phase4_evidence_v1.0.json",
+        "config/calphad_phase5_evidence_v1.0.json",
+        "docs/T86_PHASE5_INDEPENDENT_POINTS.md"
+      ],
+      "evidence_preserved_unchanged": true
+    }
+  },
+  "feature": {
+    "key": "calphad_phase_fraction",
+    "title": "固定样品成分下平衡相分数随温度变化",
+    "phase": "phase_1_fixed_composition_isobaric_temperature_section",
+    "default_enabled": true,
+    "disable_environment_variable": "STEELAI_CALPHAD_ENABLED",
+    "disable_values": [
+      "0",
+      "false",
+      "no",
+      "off"
+    ],
+    "core_dependency": false,
+    "physics_core_runs_without_it": true
+  },
+  "component": {
+    "name": "pycalphad",
+    "version": "0.11.2",
+    "version_pin_status": "pinned_and_installed_in_isolated_environment",
+    "license_spdx": "MIT",
+    "license_status": "verified_osi",
+    "license_verified_from": "https://raw.githubusercontent.com/pycalphad/pycalphad/0.11.2/LICENSE.txt",
+    "license_url": "https://github.com/pycalphad/pycalphad/blob/0.11.2/LICENSE.txt",
+    "license_holder_line": "Copyright (c) 2014-2023 Richard Otis and Zi-Kui Liu",
+    "official_repo": "https://github.com/pycalphad/pycalphad",
+    "official_docs": "https://pycalphad.org/",
+    "release_url": "https://github.com/pycalphad/pycalphad/releases/tag/0.11.2",
+    "pypi_release_url": "https://pypi.org/project/pycalphad/0.11.2/",
+    "source_ref": "2d4c744ddb890e179542894d070150797e13b325",
+    "source_ref_kind": "commit_sha_resolved_from_git_tag_0.11.2",
+    "artifacts": {
+      "sdist": {
+        "filename": "pycalphad-0.11.2.tar.gz",
+        "sha256": "588ad2c0c207aa35d263c16283559eff566a8fcdf33ecdc77a9ec9176cde1378"
+      },
+      "cp312_win_amd64": {
+        "filename": "pycalphad-0.11.2-cp312-cp312-win_amd64.whl",
+        "sha256": "53f6547738d02abb7349606548cce11747e22fc8a1308a1b866fb627e713ac58",
+        "size_bytes": 2174790
+      }
+    },
+    "requires_python": ">=3.11",
+    "declared_python_classifiers": [
+      "3.11",
+      "3.12",
+      "3.13"
+    ],
+    "workbench_cpython": "3.12.14",
+    "direct_dependency_count": 13,
+    "direct_runtime_dependencies": [
+      "matplotlib>=3.3",
+      "numpy>=1.13",
+      "pint",
+      "pyparsing>=3.0",
+      "runtype",
+      "scipy",
+      "setuptools_scm[toml]>=6.0",
+      "symengine<0.14,>=0.9.2",
+      "tinydb>=3.8",
+      "typing_extensions",
+      "xarray>=0.11.2"
+    ],
+    "test_dependencies_shipped_in_install_requires": [
+      "pytest",
+      "pytest-cov"
+    ],
+    "compiled_dependency_risk": "symengine<0.14,>=0.9.2 is a compiled dependency; a matching wheel for the isolated interpreter must be confirmed before any install.",
+    "code_imported": false,
+    "copied_into_repository": false,
+    "citation": "Otis, R. & Liu, Z.-K. (2017). pycalphad: CALPHAD-based Computational Thermodynamics in Python. Journal of Open Research Software, 5(1), p.1. DOI 10.5334/jors.140"
+  },
+  "source_check": {
+    "checked_at": "2026-09-25",
+    "checked_by": "software_engineering_agent",
+    "method": "Read the official PyPI JSON metadata (project metadata, requires_python, classifiers, requires_dist, per-file sha256) and the LICENSE.txt served from the pinned Git tag; resolved the tag commit through the GitHub REST API; then installed the pinned wheel into an isolated environment and recorded the resolved package set and wheel hashes in requirements-calphad-win-py312.lock.",
+    "untrusted_input_note": "Every value above was reproduced from official upstream sources, not from third-party summaries.",
+    "verified_in_phase_2": [
+      "The pinned pycalphad 0.11.2 wheel was installed into .venv-pycalphad and its sha256 matches the value registered in phase 1.",
+      "All 34 resolved packages are locked with sha256 in requirements-calphad-win-py312.lock.",
+      "pycalphad 0.11.2 imports and exposes Database and Workspace under CPython 3.12.14."
+    ],
+    "not_yet_verified": [
+      "The transitive dependency versions were resolved on this machine only; a clean-room reinstall from the lock file has not been attempted.",
+      "The isolated interpreter is not self-contained (see installed_environment.interpreter_base_note)."
+    ],
+    "verified_in_phase_3": [
+      "The registered community derivative parses with pycalphad 0.11.2 under an explicit utf-8 decode (Database.from_string / Database.from_file); Database(path) also parses when the interpreter runs with -X utf8.",
+      "The independent diff audit against the TU Wien original reports passed_syntax_repairs_only with 0 unexplained deviations over the shared statement set.",
+      "The community repository's five binary systems / fifteen stated checks were re-implemented from the criteria and all fifteen reproduced on our own runs (raw report in the git-ignored outputs/ directory).",
+      "Nine project-relevant binary/ternary systems covering Fe-C (stable and metastable), Fe-Cr-C, Fe-Mn, Fe-Si, Fe-Nb, Fe-V, Fe-B and Fe-N passed 18 of 18 plausibility checks.",
+      "A component-count sweep on the candidate and on the independent COST507 control database reproduced the same solver capacity limit (13 solvable / 14 failing), which is therefore an environment limitation and not a database defect."
+    ],
+    "verified_in_phase_4": [
+      "The fixed 12-component steel_matrix_equilibrium_v1 profile and the fixed 7-phase steel_matrix_major_carbides_v1 range were approved, registered and made non-selectable (no generic element or phase switch).",
+      "Every phase in the profile exists, carries parameters, builds a solvable phase record and is stable somewhere in the declared component system; none had to be removed.",
+      "Without a named reviewer the run blocks with CALPHAD-COMP-011 and produces no request.",
+      "R-DQ solves across all 54 temperature points with phase-fraction sums of 0.9999999998-1.0000000004, a physically correct assemblage sequence, and run-to-run agreement within 3e-9.",
+      "B-DQ does not converge at 875 degC in the batch scan, so T86 stays Blocked.",
+      "A defect was found and fixed: omitting VA from the pycalphad component list returned LIQUID-stable-at-400 degC while the phase-fraction sum stayed 1. A physical plausibility guard was added because a sum-only check cannot catch this."
+    ],
+    "verified_in_phase_5": [
+      "The formal solver mode is independent_single_point_process_v1: one fresh worker process per temperature point, one temperature per process, strictly serial, no warm start, identical inputs except temperature.",
+      "The batch warm-start path is retained as diagnostic_only and never returns a formal pilot result.",
+      "Every point carries the full contract (request hash, worker PID, exit code, VA presence, phase sums, runtime, sanitized stderr, first-attempt flag, solver mode) and the run carries a manifest integrity hash.",
+      "The parent merges only first-attempt-success points that pass contract validation; a missing point yields no partial curve.",
+      "A single diagnostic retry is recorded but never spliced into the formal curve and never turns a failed formal point into a pass.",
+      "Independent-mode acceptance showed that the failure is NOT caused by warm-starting: the same single-point conditions still fail non-deterministically in fresh processes (875 degC and 900 degC for B-DQ), so T86 stays Blocked."
+    ]
+  },
+  "isolated_environment": {
+    "main_requirements_modified": false,
+    "requirement_files_must_not_contain_pycalphad": [
+      "requirements.txt",
+      "requirements-dev.txt",
+      "requirements-enterprise.txt"
+    ],
+    "python_environment_variable": "STEELAI_CALPHAD_PYTHON",
+    "settings_key": "tools.calphad_python",
+    "default_interpreter": ".venv-pycalphad/Scripts/python.exe",
+    "install_requires_explicit_user_approval": true,
+    "proposed_install_command": "\".venv-pycalphad\\Scripts\\python.exe\" -m pip install pycalphad==0.11.2",
+    "probe_flags": "-I -c",
+    "probe_timeout_seconds": 30
+  },
+  "installed_environment": {
+    "path": ".venv-pycalphad",
+    "python": "CPython 3.12.14",
+    "interpreter_base": "not recorded in the committed copy; the local absolute path was removed",
+    "interpreter_base_note": "The isolated environment was created from the CPython 3.12.14 that the local harness caches; it is NOT self-contained, so reproducing it requires an equivalent CPython 3.12 interpreter. Recreate with: <python3.12> -m venv .venv-pycalphad, then install from requirements-calphad-win-py312.lock. Sanitisation: this committed copy drops the local interpreter base path, matching the convention already used by config/calphad_gate_evidence_v1.1.json.",
+    "pycalphad_version": "0.11.2",
+    "pycalphad_wheel_sha256": "53f6547738d02abb7349606548cce11747e22fc8a1308a1b866fb627e713ac58",
+    "installed_package_count": 34,
+    "lock_file": "requirements-calphad-win-py312.lock",
+    "locked_with_hashes": true,
+    "installed_at": "2026-09-25",
+    "install_note": "Installed only after the project owner approved the fixed version in the T86 phase-2 work order; the main Workbench venv is untouched.",
+    "capability_limit": "See solver_capability_limit: this exact pinned environment cannot solve equilibrium for component lists longer than 13 entries."
+  },
+  "database": {
+    "registry_environment_variable": "STEELAI_CALPHAD_TDB_REGISTRY",
+    "default_registry_path": "config/calphad_tdb.local.json",
+    "template_path": "config/calphad_tdb.example.json",
+    "registered_databases": [],
+    "contains_database_content": false,
+    "authorized_database_present": true,
+    "database_not_redistributed": true,
+    "selected_database_id": "MATCALC-MC-FE-V2062-COMMUNITY-CLEAN-19B1164",
+    "selected_database": "Third-party community derivative of MatCalc mc_fe v2.062 (file 2databases/mc_fe_v2062_clean.tdb, repo adityamoolya/maraging-steel-calphad-dft, commit 19b11640253543fe412145498438cb8355a32561); upstream ODbL 1.0 + DbCL 1.0 preserved in the file header",
+    "selected_database_sha256": "7cf37dd423e14264ee67467011b6cb0ea90647fc365823899c29f7e827a12042",
+    "selected_database_naming_rule": "This candidate must never be described as a TU Wien official pycalphad-compatible build, a pycalphad official database, or a validated SteelAI database. It is a third-party community derivative candidate.",
+    "upstream_original": {
+      "database_id": "MATCALC-MC-FE-V2062",
+      "sha256": "aa02077eac3f602dd7479cbeafb09b450e282716752b3ae2b1fc3a57d9c64865",
+      "selectable": false,
+      "reason": "pycalphad 0.11.2 cannot parse the raw vendor file (REFERENCE_ELEMENT at line 180, column 18)."
+    },
+    "local_registration_file": "config/calphad_tdb.local.json (git-ignored)",
+    "local_database_directory": "model_lab/calphad/databases/ (git-ignored)",
+    "get_it_from": "model_lab/calphad/README.md",
+    "pycalphad_compatibility_gate": "passed",
+    "pycalphad_compatibility_gate_scope": "File parsing, TDB grammar and model-structure inspection of the registered candidate with pycalphad 0.11.2 under CPython 3.12.14. It does NOT mean the candidate can solve the project sample compositions; see solver_capability_limit.",
+    "pycalphad_compatibility_evidence": "config/calphad_gate_evidence_v1.1.json",
+    "diff_audit_script": "scripts/calphad_tdb_diff_audit.py",
+    "diff_audit_verdict": "passed_syntax_repairs_only",
+    "diff_audit_unexplained_deviations": 0,
+    "independent_validation_script": "scripts/calphad_candidate_validation.py",
+    "independent_validation_summary": "community binary claims 15/15 reproduced, project-relevant checks 18/18 passed, MC/MX reachability probe agreed with the documented expectation; raw report in the git-ignored outputs/ directory",
+    "required_format": "thermo-calc_tdb",
+    "required_authorization_status": "user_confirmed_authorized_for_this_steel_grade",
+    "user_must_supply": "已由项目负责人指定社区派生候选；若更换数据库，仍需重新登记来源、版本/日期、许可或授权依据、适用钢种、覆盖元素、温度适用区间与 SHA-256。"
+  },
+  "reduced_system": {
+    "policy_file": "config/calphad_reduced_system_v1.0.json",
+    "policy_id": "SteelAI-CALPHAD-Reduced-System-Policy-v1.0",
+    "formal_solver_mode": "independent_single_point_process_v1",
+    "solver_modes": {
+      "independent_single_point_process_v1": {
+        "status": "formal_pilot",
+        "formal_pilot": true,
+        "one_temperature_per_worker_process": true,
+        "fresh_process_per_point": true,
+        "serial_only_no_parallel": true,
+        "no_warm_start": true,
+        "diagnostic_retry_limit": 1,
+        "formal_curve_never_contains_retried_points": true,
+        "acceptance_requires_first_attempt_success_for_every_point": true
+      },
+      "batch_workspace_warm_start": {
+        "status": "diagnostic_only",
+        "formal_pilot": false,
+        "note": "第四阶段的多温度批量路径；仅保留为诊断与模式对照证据。"
+      }
+    },
+    "point_contract": [
+      "request_hash",
+      "temperature_C",
+      "temperature_K",
+      "components",
+      "phases",
+      "va_present",
+      "database_sha256",
+      "worker_pid",
+      "worker_returncode",
+      "solve_status",
+      "active_phases",
+      "phase_fractions_mole",
+      "phase_fraction_sum",
+      "runtime_s",
+      "stderr_summary",
+      "first_attempt_success",
+      "solver_mode"
+    ],
+    "no_partial_curve": true,
+    "manifest_integrity_hash": "manifest_digest = digest_value(point_manifest)",
+    "acceptance_script": "scripts/calphad_phase5_acceptance.py",
+    "acceptance_evidence": "config/calphad_phase5_evidence_v1.0.json",
+    "acceptance_result": "blocked",
+    "acceptance_detail": "324 个独立点中 320 个首次调用即成功（成功率 0.9877）；4 个失败点全部是 B-DQ 的 875 degC 与 900 degC，且诊断重试也失败。同一条件在全新进程中重复调用会随机返回没有任何相摩尔数（B-DQ 900 degC 成功 1/8、875 degC 成功 2/4），说明是该体系在此温区的求解不确定性问题，与求解模式无关。另有第二个阻断项：R-DQ 批量模式与独立点模式在 675 degC 的共同收敛点上相差 1.069e-4（容差 1e-7），两种模式找到相同三相组合但相分数不同，按规则不得自行取舍。详见 docs/T86_PHASE5_INDEPENDENT_POINTS.md 与 config/calphad_phase5_evidence_v1.0.json。",
+    "component_profile": {
+      "profile_id": "steel_matrix_equilibrium_v1",
+      "version": "1.0",
+      "included_elements": ["Fe", "C", "Mn", "Si", "Cr", "Ni", "Mo", "Cu", "Al", "Nb", "Ti", "V"],
+      "included_element_count": 12,
+      "component_list_length_sent_to_pycalphad": 13,
+      "component_list_length_note": "13 = 12 approved elements + VA (vacancy). VA is mandatory for the substitutional phases of this database; omitting it makes pycalphad return a physically wrong assemblage whose phase fractions still sum to 1. See docs/T86_PHASE4_REDUCED_SYSTEM.md section 7.",
+      "excluded_elements": [
+        {"elements": ["B", "N", "P", "S"], "category": "capacity_reduction", "has_measurements": true},
+        {"elements": ["As", "Sn", "Sb"], "category": "database_not_covered", "has_measurements": true},
+        {"elements": ["O", "W"], "category": "input_unknown", "has_measurements": false}
+      ],
+      "generic_element_selection_switch": false,
+      "mismatch_blocking_code": "CALPHAD-COMP-012"
+    },
+    "phase_profile": {
+      "profile_id": "steel_matrix_major_carbides_v1",
+      "version": "1.0",
+      "phases": ["LIQUID", "FCC_A1", "BCC_A2", "CEMENTITE", "M23C6", "M7C3", "M6C"],
+      "phase_count": 7,
+      "verification_script": "scripts/calphad_phase_profile_probe.py",
+      "verification_evidence": "config/calphad_phase_profile_evidence_v1.0.json",
+      "verification_result": "all_seven_phases_verified_none_removed",
+      "generic_phase_selection_switch": false,
+      "missing_phase_blocking_code": "CALPHAD-PHASE-001",
+      "not_computed_in_this_phase": [
+        "BCC_B2 有序-无序相", "MC/MX 组合碳氮化物", "氮化物", "硼化物", "硫化物", "磷化物",
+        "氧化物与夹杂物", "As/Sn/Sb 相关相", "析出动力学、偏聚、晶界脆化与实际组织含量"
+      ]
+    },
+    "result_label": "12-component reduced-system matrix equilibrium prediction",
+    "validation_script": "scripts/calphad_phase4_validation.py",
+    "validation_evidence": "config/calphad_phase4_evidence_v1.0.json",
+    "validation_result": "blocked_step6_b_dq_non_convergence",
+    "phase5_note": "第四阶段的批量路径（batch_workspace_warm_start）自第五阶段起仅用于诊断；正式路径为 independent_single_point_process_v1。",
+    "ten_step_status": {
+      "step0_no_named_approval_blocks": "ok",
+      "step1_12_components_one_phase_single_point": "ok",
+      "step2_12_components_fixed_phase_set_single_point": "ok",
+      "step3_temperature_scan": "ok",
+      "step4_phase_fraction_sums": "ok",
+      "step5_repeat_run_identical": "ok",
+      "step6_b_dq_reduced_system": "failed",
+      "step7_r_dq_reduced_system": "ok",
+      "step8_b_and_r_use_identical_system": "not_evaluated",
+      "step9_excluded_elements_absent_from_worker": "ok",
+      "step10_page_and_exports_carry_limitation": "not_evaluated"
+    },
+    "blocking_reason": "B-DQ does not converge at 875 degC in the multi-temperature batch scan, even after the bounded single-temperature retry. R-DQ passes with identical components and phases.",
+    "known_defect_fixed": "The component list must contain VA. pycalphad silently returns a wrong assemblage (LIQUID stable at 400 degC) when VA is omitted, and the phase-fraction sum still equals 1, so a sum-only check cannot detect it."
+  },
+  "solver_capability_limit": {
+    "summary": "pycalphad 0.11.2 on this host cannot solve an equilibrium whose component list is longer than 13 entries (Fe + 11 alloying elements + VA). At 14 entries it either exhausts memory or aborts the process inside pycalphad/core/minimizer.",
+    "component_list_length_upper_bound_measured": 13,
+    "first_failing_component_list_length_measured": 14,
+    "measured_on_databases": [
+      "MATCALC-MC-FE-V2062-COMMUNITY-CLEAN-19B1164",
+      "pycalphad-bundled COST507.tdb (independent control)"
+    ],
+    "control_database_component_limit": "identical (13 solvable / 14 failing), so this is not caused by the community derivative",
+    "observed_failure_modes": [
+      "MemoryError: Unable to allocate 10.9 GiB for an array with shape (1, 1, 54, 933583, 29) and data type float64 (product path, worker exit code 2)",
+      "0xC0000005 ACCESS_VIOLATION inside pycalphad/core/minimizer.cp312-win_amd64.pyd (validation harness)",
+      "0xC0000374 HEAP_CORRUPTION inside the same native extension",
+      "unbounded memory growth with no result (validation harness, terminated by timeout)"
+    ],
+    "project_sample_impact": "B-DQ and R-DQ both have 16 component entries, so the phase-fraction curve cannot be produced in this environment.",
+    "not_permitted_to_work_around_silently": "Reducing the component system, restricting the phase list or replacing the isolated environment all change the scientific claim; each requires a named owner decision and a versioned update of the controlled element exclusion policy. The adapter and worker never downgrade the calculation on their own.",
+    "worker_error_codes": ["CALPHAD-WORKER-MEMORY-001", "CALPHAD-RUN-001"],
+    "evidence": "config/calphad_gate_evidence_v1.1.json"
+  },
+  "controlled_element_exclusion": {
+    "policy_file": "config/calphad_exclusion_policy_v1.2.json",
+    "policy_supersedes": "config/calphad_exclusion_policy_v1.1.json",
+    "template_file": "config/calphad_exclusions.example.json",
+    "generic_element_ignore_switch": false,
+    "scope": "只有政策中逐条列出的 (sample_id, element, category) 才可排除；其他任何未覆盖的非零元素仍以 CALPHAD-COMP-002 阻断。",
+    "categories": [
+      "database_not_covered",
+      "measured_zero",
+      "input_unknown",
+      "capacity_reduction"
+    ],
+    "run_record_fields": [
+      "element",
+      "value_status_and_value",
+      "category",
+      "reason",
+      "confirmed_by",
+      "confirmed_at",
+      "database_version",
+      "database_sha256",
+      "applicability_impact"
+    ]
+  },
+  "method": {
+    "temperature_input_unit": "degC",
+    "temperature_internal_unit": "K",
+    "temperature_conversion": "T_K = T_degC + 273.15",
+    "pressure_Pa": 101325,
+    "composition_input_unit": "wt_pct",
+    "composition_internal_basis": "mole_fraction",
+    "composition_conversion": "wt_pct_to_mole_fraction_with_registered_atomic_weights",
+    "output_phase_fraction_basis": "mole_fraction_of_phase = NP_phase / sum(NP_over_all_phases)",
+    "output_phase_fraction_basis_note": "输出为各相摩尔分数（相内摩尔数占比），不是质量分数；质量分数换算未在第一阶段实现。",
+    "equilibrium_conditions": "固定成分、固定压力 101325 Pa、温度单变量扫描",
+    "default_temperature_range_C": [
+      600,
+      900
+    ],
+    "default_step_C": 10,
+    "temperature_range_limits_C": [
+      200,
+      1730
+    ],
+    "max_points": 401,
+    "phase_name_aggregation": "pycalphad_composition_set_suffix_is_stripped_and_amounts_are_summed_per_base_phase_name",
+    "fe_balance": {
+      "clause": "Fe_wt_pct = 100 - sum(other_provided_elements_wt_pct)",
+      "requires_named_user_confirmation": true,
+      "recorded_fields": [
+        "fe_balance_wt_pct",
+        "fe_balance_confirmed_by",
+        "fe_balance_confirmed_at"
+      ]
+    },
+    "missing_value_rule": "未提供（空白/NA）的元素不得按 0 参与计算；要么补值，要么由具名用户显式声明其按未检出处理并从体系中排除。",
+    "uncovered_element_rule": "成分中任何非零元素若不在 TDB 覆盖元素内，一律阻断计算，没有覆盖开关，不静默省略、不补零。",
+    "atomic_weights": {
+      "source": "CIAAW/IUPAC standard atomic weights, abridged conventional values",
+      "source_status": "registered_locally_for_this_adapter; not yet re-verified against the current IUPAC publication for formal reporting",
+      "unit": "g/mol",
+      "elements": {
+        "Fe": 55.845,
+        "C": 12.011,
+        "Mn": 54.938044,
+        "Si": 28.085,
+        "Cr": 51.9961,
+        "Ni": 58.6934,
+        "Mo": 95.95,
+        "Nb": 92.90637,
+        "V": 50.9415,
+        "Ti": 47.867,
+        "Al": 26.9815385,
+        "Cu": 63.546,
+        "P": 30.973761998,
+        "S": 32.06,
+        "N": 14.007,
+        "B": 10.81,
+        "As": 74.921595,
+        "Sn": 118.71,
+        "Sb": 121.76,
+        "O": 15.999,
+        "W": 183.84
+      }
+    },
+    "temperature_range_limits_note": "The upper guard was raised from 1600 to 1730 degC in phase 3 because the selected database declares an assessed range of 673-2000 K (400-1727 degC). It remains a Workbench guard rail, not a database property."
+  },
+  "claims": {
+    "result_type": "model_prediction_not_experimental_measurement",
+    "review_status": "pending_human_review",
+    "is_complete_phase_diagram": false,
+    "curve_label": "固定成分下的相分数—温度截面曲线",
+    "writes_back_formal_experimental_data": false,
+    "writes_to_processed_data_layer": false,
+    "replaces_experimental_measurement": false,
+    "silent_zero_fill": false,
+    "silent_element_omission": false
+  },
+  "integration": {
+    "ui": "steelai/views/physics_view.py（物理计算页新增可选页签）",
+    "model_registry": "steelai/model_lab.py MODEL_REGISTRY 的 pycalphad 条目（readiness=database_required）",
+    "governed_result_package": "deferred_until_authorized_database_is_registered",
+    "reuse_instead_of_parallel": [
+      "steelai.physics 的经验公式计算路径不修改：没有隔离环境或 TDB 时照常运行。",
+      "不新增 Streamlit 页面；功能放在既有物理计算页的一个可关闭页签内。",
+      "第三方登记沿用 THIRD_PARTY.md 与 config/*_v1.0.json 的既有登记方式，不复制第三方代码。"
+    ]
+  }
+}

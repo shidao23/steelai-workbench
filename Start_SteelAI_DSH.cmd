@@ -5,10 +5,11 @@ chcp 65001 >nul
 set "APP_ROOT=%~dp0"
 set "DSH_WORKSPACE=%APP_ROOT%dsh_workspace"
 set "DSH_PERMISSION_MODE=read-only"
-set "SHIDAO_PLATFORM=%APP_ROOT%..\_agent_platform"
+if exist "%APP_ROOT%config\local-tools.cmd" call "%APP_ROOT%config\local-tools.cmd"
+if not defined SHIDAO_PLATFORM set "SHIDAO_PLATFORM=%APP_ROOT%..\_agent_platform"
+if not defined STEELAI_PYTHON set "STEELAI_PYTHON=%APP_ROOT%.venv\Scripts\python.exe"
 set "SHARED_LAUNCHER=%SHIDAO_PLATFORM%\scripts\launch-operational-console.ps1"
 set "SHIDAO_PWSH=%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe"
-if exist "%APP_ROOT%config\local-tools.cmd" call "%APP_ROOT%config\local-tools.cmd"
 
 if not exist "%SHARED_LAUNCHER%" (
   echo Shidao Workbench shared launcher was not found:
@@ -23,14 +24,14 @@ if not exist "%SHIDAO_PWSH%" (
   exit /b 1
 )
 
-if not exist "%APP_ROOT%.venv\Scripts\python.exe" (
+if not exist "%STEELAI_PYTHON%" (
   echo SteelAI Python environment was not found:
-  echo %APP_ROOT%.venv\Scripts\python.exe
+  echo %STEELAI_PYTHON%
   pause
   exit /b 1
 )
 
-"%APP_ROOT%.venv\Scripts\python.exe" -m steelai.dsh_mcp_server --self-test >nul
+"%STEELAI_PYTHON%" -m steelai.dsh_mcp_server --self-test >nul
 if errorlevel 1 (
   echo SteelAI DSH bridge self-test failed.
   echo Run the existing SteelAI diagnostics; startup will not install dependencies.
@@ -38,7 +39,7 @@ if errorlevel 1 (
 )
 
 if defined STEELAI_COMPOSITION_MCP (
-  "%APP_ROOT%.venv\Scripts\python.exe" "%STEELAI_COMPOSITION_MCP%" --self-test >nul
+  "%STEELAI_PYTHON%" "%STEELAI_COMPOSITION_MCP%" --self-test >nul
   if errorlevel 1 (
     echo Optional composition intake self-test failed.
     pause

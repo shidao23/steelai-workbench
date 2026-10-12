@@ -169,3 +169,107 @@ def test_agent_model_round_trip_uses_the_case_tool_without_network(monkeypatch: 
     assert result.status == "completed"
     assert result.tool_trace[0]["tool"] == "get_thermal_softening_case"
     assert result.structured_output["contract_status"] == "passed"
+
+
+# --- STEEL-V1-03A: the draft must state only the case's own facts -----------------------------
+
+def _row(acquisition: str, sample: str, temperature: float, gap: float,
+         primary: float, sensitivity: float, qc: str, flags: list[str] | None = None) -> dict[str, object]:
+    row: dict[str, object] = {
+        "acquisition_id": acquisition, "sample_id": sample, "temperature_c": temperature,
+        "deformation_gap_s": gap, "primary_percent": primary,
+        "sensitivity_percent": sensitivity, "qc_status": qc,
+    }
+    if flags is not None:
+        row["qc_flags"] = flags
+    return row
+
+
+def _multi_row_case() -> dict[str, object]:
+    case = _synthetic_case()
+    case["case_id"] = "TSC-" + "B" * 20
+    case.update(row_count=3, passed_count=2, warning_ids=["A7"])
+    case["rows"] = [
+        _row("A2", "B-DQ", 1000.0, 10.0, 48.0, 44.0, "passed"),
+        _row("A3", "R-DQ", 1000.5, 9.5, 61.0, 58.0, "passed"),
+        _row("A7", "B-DQ", 1100.0, 30.0, 130.0, 95.0,
+             "warning_needs_human_review", ["primary_softening_outside_0_to_1"]),
+    ]
+    return case
+
+
+def _real_batch_shape_case() -> dict[str, object]:
+    """Mirror the approved batch's SHAPE (4 window passes + 4 warnings) with synthetic values."""
+    case = _synthetic_case()
+    case["case_id"] = "TSC-" + "C" * 20
+    case.update(row_count=8, passed_count=4, warning_ids=["A79", "A80", "A84", "A85"])
+    case["large_method_difference_passed_ids"] = ["A5"]
+    case["literature"] = {
+        "title": "TSDR 工艺热加工过程的组织演变与控制", "author": "张玲", "year": 2007,
+        "method_reference": "第4.1.2.1节",
+    }
+    case["rows"] = [
+        _row("A1", "B-DQ", 1000.0, 9.0, 48.0, 44.0, "passed"),
+        _row("A2", "B-DQ", 1002.0, 11.0, 52.0, 47.0, "passed"),
+        _row("A3", "R-DQ", 999.0, 10.0, 61.0, 58.0, "passed"),
+        _row("A4", "R-DQ", 1001.0, 9.5, 66.0, 60.0, "passed"),
+        _row("A79", "B-DQ", 1100.0, 25.0, 118.0, 96.0,
+             "warning_needs_human_review", ["primary_softening_outside_0_to_1"]),
+        _row("A80", "B-DQ", 1105.0, 40.0, 126.0, 115.0,
+             "warning_needs_human_review", ["primary_softening_outside_0_to_1"]),
+        _row("A84", "R-DQ", 1102.0, 18.0, 122.0, 108.0,
+             "warning_needs_human_review", ["primary_softening_outside_0_to_1"]),
+        _row("A85", "R-DQ", 1098.0, 33.0, 119.0, 96.0,
+             "warning_needs_human_review", ["primary_softening_outside_0_to_1"]),
+    ]
+    return case
+
+
+def test_draft_states_only_one_row_synthetic_facts() -> None:
+    draft = thermal_softening_case._draft_markdown(_synthetic_case())
+    assert "共 1 个采集；0 个范围 QC 通过；1 个仍需复核：A1。" in draft
+    assert "无法作组间比较：没有同时满足约 1000 ℃、有效变形间隔 9–11 s 且范围 QC 通过的采集。" in draft
+    assert "- A1（B-DQ）：范围 QC 未通过" in draft
+    assert "本案例未绑定文献条目" in draft and "张玲" not in draft
+    for fabricated in ("四个通过项", "A79", "A80", "A84", "A85", "约 1100 ℃", "合成演示标记"):
+        assert fabricated not in draft
+
+
+def test_draft_derives_multi_row_case_without_batch_ids() -> None:
+    draft = thermal_softening_case._draft_markdown(_multi_row_case())
+    assert "的 2 个通过项中" in draft and "B-DQ 主软化率为 48.00–48.00%（n=1）" in draft
+    assert "R-DQ 主软化率为 61.00–61.00%（n=1）" in draft
+    assert "其余 1 个采集（温度 1100–1100 ℃）中 1 个 2% 主结果超过 100%" in draft
+    assert "- A7（B-DQ）：范围 QC 未通过（QC 标记：primary_softening_outside_0_to_1）" in draft
+    for fabricated in ("A79", "A80", "A84", "A85", "四个通过项", "张玲"):
+        assert fabricated not in draft
+
+
+def test_real_batch_shape_keeps_its_own_warnings_and_literature_caveats() -> None:
+    draft = thermal_softening_case._draft_markdown(_real_batch_shape_case())
+    assert "的 4 个通过项中" in draft
+    assert "B-DQ 主软化率为 48.00–52.00%（n=2）" in draft
+    assert "R-DQ 主软化率为 61.00–66.00%（n=2）" in draft
+    assert "- A79（B-DQ）：范围 QC 未通过" in draft
+    assert "- A80、A84：5% 对照同样超过 100%" in draft
+    assert "文献（仅作方法依据）：张玲（2007）" in draft
+    assert "论文的约 20% 回复、超过 90% 完全再结晶判据不直接移植到本批" in draft
+    for fabricated in ("四个通过项", "合成演示标记"):
+        assert fabricated not in draft
+
+
+def test_draft_marks_synthetic_demo_packages() -> None:
+    case = _synthetic_case()
+    case["evidence_class"] = "synthetic_demo_data"
+    draft = thermal_softening_case._draft_markdown(case)
+    assert "合成演示标记" in draft and "synthetic_demo_data" in draft
+    assert "不代表已核验真实论文 PDF" in draft
+    assert "合成演示标记" not in thermal_softening_case._draft_markdown(_synthetic_case())
+
+
+def test_published_draft_is_derived_from_the_case(tmp_path: Path) -> None:
+    case = _multi_row_case()
+    destination = publish_softening_case(case, output_root=tmp_path / "cases")
+    draft = (destination / "analysis_draft.md").read_text(encoding="utf-8")
+    assert "共 3 个采集；2 个范围 QC 通过；1 个仍需复核：A7。" in draft
+    assert "A79" not in draft and "四个通过项" not in draft
