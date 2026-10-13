@@ -266,7 +266,7 @@ Windows 完整研发环境可双击 `Freeze_v0.2_Candidate.cmd`，依次验证�
 - 完成会话时只向项目事件日志写入结构化摘要，便于后续Career Portfolio提取。
 - Research Session Contract已经加入离线质量门禁；不存在真实会话时也可只验证五个模板契约。
 
-## 科研工作台（React 六页 + 薄 API，WO-31）
+## 科研工作台（React 六页 + 薄 API，WO-31 / WO-32）
 
 2026-10-13 新增。原来的 Streamlit 入口**保持不变**（见下一节）；这一层是同一批工具之上的
 React 六页工作台，用薄 API 把"选项目/任务 → 导入资料 → 跑已有工具 → 看真实结果 → 下载"串起来。
@@ -281,6 +281,17 @@ React 六页工作台，用薄 API 把"选项目/任务 → 导入资料 → 跑
 
 两个服务都**只监听回环地址**；`Ctrl+C` 或关闭窗口即停止。端口被占用时薄 API 会明确报
 "端口已被占用"并以退出码 3 结束，**不做全机端口扫描**，也不自动换端口。
+`Start_Research_Streamlit.cmd`（WO-32 §3 重写）现在真的会解析解释器，退出码含义固定：
+
+| 退出码 | 含义 |
+| --- | --- |
+| 0 | Streamlit 正常退出 |
+| 2 | 找不到解释器（既没有 `STEELAI_PYTHON` 也没有 `config\local-tools.cmd`） |
+| 3 | 端口已被占用（打印监听行，**不杀任何进程**，原实例继续服务） |
+
+该脚本只写 ASCII：Windows cmd 按 OEM 代码页读取 `.cmd`，中文注释会变成杂字节并破坏解析。
+解释器解析走 `for /f` + `findstr /r /b /c:"set .STEELAI_PYTHON="`（`findstr` 不能吃正斜杠路径，
+且 `\"` 在反引号命令里不是合法转义）。
 
 薄 API 需要独立环境（不污染冻结的科学计算环境）：
 
@@ -293,20 +304,52 @@ cd frontend; npm install --ignore-scripts; npm run build; cd ..
 
 `frontend/dist` 缺失时薄 API 只提供 `/api/*`；`/api/health` 会如实报告 `frontend_built`。
 
+### WO-32：上传资料后的网页映射 / 人审 / 真实运行下载闭环
+
+1. **网页映射（§1）**：数据处理页不再只展示 CLI 卡片。选中本任务上传的 CSV/TSV/XLSX 后，
+   服务端用**同一套** `steelai/web_api/tabular.read_table` 读出原列名、表头单位、样列、
+   不齐列/重复表头/公式，并给出输入 SHA-256；映射表的目标字段与允许单位来自服务端合同
+   （`GET /api/mapping-contract`，与 SteelData 的 `Profile` 同源，前端不另抄一份）。
+   **只选已支持的字段/单位**：未知单位、缺单位、缺必需字段一律停在 `needs_human`，
+   不猜单位、不把缺值改成 0。保存的是**候选 profile**（`profiles/`），并附 SteelData 自己的复核摘要。
+2. **具名人工确认（§1，受限能力）**：确认只能由内置页面的**人工会话**发起，必须填真实姓名与备注；
+   记录写入 `reviews/`，审批文件由 SteelData 自己的 `approve` 生成并落在 `approvals/`。
+   三个服务端目录（`profiles/`/`approvals/`/`reviews/`）**上传写不进去**，所以上传一份"看起来像审批"
+   的 JSON 最多只能按 `imported` 来源被登记，冒充不了网页人审。拒绝、输入变化、映射改动都会让旧确认失效
+   （运行前再复核一次：缺审批、缺摘要、输入或映射变化即拒绝）。
+3. **真实运行与下载（§1）**：`steeldata.run` 用本次上传的输入 + 本任务审批真跑，输出 processed 表、
+   `manifest.json`、`qc.json`、`report.html`；页面按运行登记显示产物、可预览表/JSON、下载（带 SHA-256）。
+   QC 不达标就如实报 QCfailed，**不自动改绿、不补零**。正式成果晋升仍是候选：服务端返回 **501 未接通**。
+4. **作用域与本地能力（§2）**：每次选择是不可变快照 `{epoch, projectId, taskId}`；所有异步读/写
+   在回填或落盘前校验完整作用域与世代，换项目/换任务会中止或丢弃迟到响应。刷新后要么恢复原
+   project/task，要么**明确要求重选**，不会暗换默认项目/首任务再显示上一轮结果。
+   写接口需要本机**内存会话令牌**（`POST /api/session`）：`browser` 会话要求可信 `Origin`，
+   持有 `review:human`/`tasks:write`/`files:write`/`handoff:write`/`runs:create`；`ai` 会话只有读能力
+   与 `runs:create`，**不能代人审**。缺令牌/伪造/过期 → 401，能力不足 → 403，跨站 POST → 403。
+   不引入 SSO、不常驻认证服务、不对外暴露。
+5. **嵌入与解析（§3）**：分析工具页的 Streamlit iframe 地址**由服务端按已登记的 project/task 构建**
+   （`/api/projects/{p}/tasks/{t}/research-url`），切换任务会重载并让旧绑定失效，客户端不能把 iframe
+   指向任意地址。资料页的 CSV/TSV 预览与后续映射/运行**同一套解释**：引号内逗号/换行按逻辑记录处理，
+   支持 BOM 与 `""` 转义，保留空字段；编码损坏明确报错（**不做 `errors="replace"` 把坏内容当合法来源**），
+   不齐列/重复表头只报告不静默修。上传与保存的 SHA-256 对的是**上传字节**。
+
+
 ### 真实输入到导出
 
 1. **项目页**：项目清单直接读现有科研登记（科研主表 `项目表` 工作表），不新建第二个总项目库；
    任务落在既有的 `03_工作区/<项目>/<任务>/` 结构里（`TASK.md`、`inputs/`、`runs/`、`handoff.md`）。
 2. **资料页**：上传到本任务 `inputs/`，可只读预览（表头/单位/分隔符/图像尺寸）。上传名会被
    服务端规整为单一文件名，拒绝 `../`、盘符、NTFS 数据流、Windows 设备名与未登记类型。
-3. **数据处理页**：SteelData `preview` 只读；`run` **必须**提供显式人工审批文件（缺审批直接拒绝，
-   不自动改绿）；`demo` 只跑仓库自带合成 fixture，坏值按原合同 `QCfailed`；`verify` 校验完成标记与产物校验和。
+3. **数据处理页**：上传 → 网页映射/单位 → SteelData 预览 → 具名人工确认 → 按确认运行（见上一小节）；
+   另保留原 CLI 能力卡：`preview` 只读、`run` 必须带显式人工审批、`demo` 只跑仓库自带合成 fixture
+   （坏值按原合同 `QCfailed`）、`verify` 校验完成标记与产物校验和。
 4. **分析工具页**：SteelStats 描述统计报告 + 报告包校验；Micro-SAM 单图点/框分割（坐标是**原像素**）；
    CALPHAD 缩减体系平衡相分数（温度 K/C、显式组元/相，`VA` 由脚本自动加入、手写会被拒绝）。
 5. **成果页**：列出本任务产物（含 SHA-256）与直接下载；候选晋升需要**具名人工审批人**，
    且正式晋升流程未接通时如实返回"未接通"，不假装成功。
 6. **工作记录页**：参数、退出码、用时、产物与接手摘要 `handoff.md`；另一个 AI 读同一 README、
-   同一任务目录与这份摘要即可接续。
+   同一任务目录与这份摘要即可接续。草稿按 `project/task` 分桶并落 sessionStorage：切任务不串、
+   回到原任务原样恢复、刷新不丢；保存前再校验一次作用域，迟到的保存一律拒绝。
 
 ### 产物位置
 
@@ -314,6 +357,8 @@ cd frontend; npm install --ignore-scripts; npm run build; cd ..
 | --- | --- |
 | 每次运行的输出 | `<工作区>/<项目>/<任务>/runs/<run_id>/`（薄 API 的运行根默认在 `outputs/research_web/`） |
 | 任务说明与接手摘要 | `<工作区>/<项目>/<任务>/TASK.md`、`handoff.md` |
+| 候选映射 / 人审批复 / 确认记录 | `<工作区>/<项目>/<任务>/profiles/`、`approvals/`、`reviews/`（**服务端自管，上传写不进**） |
+| 运行的暂存输入 | `<工作区>/<项目>/<任务>/.stage/<run_id>/inputs/`（只放本次选中文件，7 天后自动清理） |
 | 合成演示项目（隔离） | `<工作区>/PSYN_合成演示/`（只用于本批隔离测试） |
 | React 构建产物 | `frontend/dist/`（被 Git 忽略，`npm run build` 重建） |
 
@@ -325,16 +370,47 @@ cd frontend; npm install --ignore-scripts; npm run build; cd ..
 - 工具解释器与机器专用路径**只在被忽略的 `config/settings.toml` 里登记**，提交的代码里没有本机盘符；
   `/api/health` 会逐个报告解释器是否已登记、是否落在已声明的可信根内。
 
+### 技能入口（沿用现有技能，本单未新建）
+
+这一层不引入新技能，直接沿用工作空间已登记的技能源；跨软件接手时按下表找入口，不复制本机状态。
+
+| 用途 | 技能源 | 在本项目的用法 |
+| --- | --- | --- |
+| 工单执行与查收 | `00_Hub/skills/work-order-receipt`（draft） | 按工单分节执行、逐项自检、统一交付后停等查收 |
+| 迁移/范围守卫 | `00_Hub/skills/workspace-migration-guards`（draft） | 只动本单范围内的文件，不整树删、不迁第二遍 |
+| 科研数据/分析工具建设 | `research-workbench-build`（工作空间外技能源，未安装到本机） | 只复用来源归属、精简导航、真实状态三条原则；本单未加载 |
+| 界面视觉设计 | `frontend-design`（anthropics/skills，见 `00_Hub/SKILLS.md`） | 界面改动沿用项目既有设计与规则，不替换 |
+
+可移植操作说明（换机器/换 AI 也能照做）：
+
+- **入口**：`Start_Research_Workbench.cmd [端口]`（默认 8760）、`Start_Research_Streamlit.cmd [端口]`（默认 8761），
+  两者都只绑回环、都只按需启动、都明确报端口占用。
+- **依赖**：薄 API 用仓库内 `.venv-web`（`requirements-web.txt`）；前端用 `frontend/` 的 Node 依赖（`npm run build`）；
+  SteelData 走 `PYTHONPATH` 指向其独立源码根；工具解释器与机器路径只登记在被 Git 忽略的 `config/settings.toml`
+  与 `config/local-tools.cmd`，**提交里没有本机盘符**。
+- **API 合同**：`/api/health`、`/api/session`、`/api/mapping-contract`、`/api/projects/.../{files,preview,describe-input,
+  profiles,mapping,preview-profile,reviews,review,approval,runs,artifacts,research-url}`；写接口需要本机内存会话令牌。
+- **CLI 合同**：SteelData `profile|preview|approve|run|verify|demo`（退出码 0/2/3/64，`run` 收目录、要 `kind=="human"` 审批）。
+- **场景**：本机单用户科研数据处理与 QC 复核；**不是**多用户服务、不对外暴露、不做正式入库。
+- **结束条件**：任务目录里留下 `TASK.md`、`handoff.md`、`inputs/`、`profiles/`、`approvals/`、`reviews/`、`runs/<run_id>/`
+  与产物 SHA-256；候选成果保持候选。
+- **未验证项（保持 pending/draft）**：跨软件（非 WorkBuddy）真实浏览器复现、正式晋升链路、原 PAOS/生活页
+  的真实桌面同源；相关能力只在交付报告里标 `pending`，不写成已验证技能。
+
 ### 限制（如实）
 
 - 真实 B-DQ/R-DQ 炉次算例、复杂钢种与真实原件**仍未接线**：CALPHAD 只做已验证的 Fe–C 缩减小例，
   真实 B/R 科研仍 `blocked`；Micro-SAM 需要本机权重与独立环境，缺任一项该能力卡会给出具体缺失项。
 - 科研 Streamlit 原页**没有实现消息协议**，因此嵌入时按普通 iframe 显示并明确标注"未绑定"，
-  不把"能嵌进去"当成"数据/AI 已接通"；不可嵌时用"在新窗口打开原页"给出准确 URL。
-- 薄 API 不提供人审、不做正式入库；`actor='human'` 这类字符串**不构成人审**。
+  不把"能嵌进去"当成"数据/AI 已接通"；旧页地址由服务端按 project/task 构建，客户端不能自选 URL。
+- 正式成果晋升**仍未接通**（服务端 501）：页面如实显示"未接通"，候选仍留在任务 `runs/` 下。
+- 网页人审是**受限能力**：只认内置页面的人工会话 + 真实姓名，AI 会话/客户端 actor 字符串/自动脚本
+  都不能代填；上传内容无法冒充网页人审授权。
 - 完整旧测试套件仍非全绿（已知为环境级：WorkBuddy 沙箱 `sitecustomize` 守卫、pytest 临时目录 ACL、
-  本地科研数据缺失与既有未提交生活区内容漂移），**不写"全部零回归"**；WO-31 新增模块不在该套件覆盖范围内，
-  由 `Batch_WO31/logs/http_e2e.py` 与真实浏览器 `browser_e2e.js` 单独验证。
+  本地科研数据缺失与既有未提交生活区内容漂移），**不写"全部零回归"**；`tests/test_streamlit_pages.py`
+  的两项失败来自尚未提交的生活助理页数量漂移（`app.py` 期望 10 项、实际 17 项），**与本单改动无关**。
+  WO-31/WO-32 新增模块不在该套件覆盖范围内，由 `Batch_WO32/synthetic/run_wo32_*.py` 与真实浏览器
+  `run_wo32_browser.cjs` 单独验证（WO-32：映射闭环 35/35、HTTP 会话 15/15、解析 17/17、浏览器 44/44）。
 
 ## 运行
 

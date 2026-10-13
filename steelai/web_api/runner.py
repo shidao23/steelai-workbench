@@ -20,7 +20,7 @@ import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from steelai.web_api.config import config
@@ -58,6 +58,15 @@ class RunRecord:
     stderr_tail: str = ""
     error: str = ""
     actor: str = "web"
+    session_id: str = ""
+    actor_kind: str = ""
+    approval_origin: str = ""
+    approval_file: str = ""
+    approval_profile_id: str = ""
+    approval_profile_sha256: str = ""
+    approval_input_sha256: str = ""
+    approval_reviewer: str = ""
+    approval_synthetic: bool = False
     duration_sec: float | None = None
 
     def as_dict(self) -> dict:
@@ -213,8 +222,31 @@ def _execute(record: RunRecord, interpreter: Path, argv: list[str], cwd: Path) -
     save_record(record)
 
 
+def _prune_stage(root: Path, *, keep_days: int = 7) -> None:
+    """Drop ``.stage/<run_id>/`` 暂存目录里超期的条目，避免任务目录无界增长。
+
+    只清理超过 `keep_days` 的运行暂存；近期运行的输入快照保留着，方便对照
+    manifest 复核"这次到底用了哪份字节"。
+    """
+    import shutil
+
+    stage = root / ".stage"
+    if not stage.is_dir():
+        return
+    cutoff = datetime.now() - timedelta(days=keep_days)
+    for child in stage.iterdir():
+        if not child.is_dir():
+            continue
+        try:
+            mtime = datetime.fromtimestamp(child.stat().st_mtime)
+        except OSError:
+            continue
+        if mtime < cutoff:
+            shutil.rmtree(child, ignore_errors=True)
+
+
 def create_run(project_id: str, task_id: str, tool_id: str, params: dict | None = None,
-               actor: str = "web") -> dict:
+               actor: str = "web", session_id: str = "", actor_kind: str = "") -> dict:
     params = dict(params or {})
     reason = missing_asset_reason(tool_id)
     from steelai.web_api.tools import capability
@@ -225,7 +257,8 @@ def create_run(project_id: str, task_id: str, tool_id: str, params: dict | None 
             run_id="run-" + uuid.uuid4().hex[:12], project_id=project_id, task_id=task_id,
             tool_id=tool_id, tool_label=cap.get("label", tool_id), params=params,
             status="blocked", created=datetime.now().isoformat(timespec="seconds"),
-            error=reason or "工具不可用", actor=actor,
+            error=reason or "工具不可用", actor=actor, session_id=session_id,
+            actor_kind=actor_kind,
         )
         save_record(record)
         return record.as_dict()
@@ -241,9 +274,12 @@ def create_run(project_id: str, task_id: str, tool_id: str, params: dict | None 
 
     existing_runs = sorted(item.name for item in (root / "runs").iterdir() if item.is_dir()) \
         if (root / "runs").is_dir() else []
+    _prune_stage(root)
+    provenance: dict = {}
     interpreter, argv, cwd = build_argv(
         tool_id, params, task_inputs=root / "inputs", out_dir=out_dir,
-        run_id=run_id, existing_runs=existing_runs)
+        run_id=run_id, existing_runs=existing_runs,
+        project_id=project_id, task_id=task_id, provenance=provenance)
 
     if not Path(interpreter).is_file():
         record = RunRecord(
@@ -251,6 +287,7 @@ def create_run(project_id: str, task_id: str, tool_id: str, params: dict | None 
             tool_label=cap.get("label", tool_id), params=params, status="blocked",
             created=datetime.now().isoformat(timespec="seconds"),
             output_dir=str(out_dir), error=f"解释器不存在：{interpreter}", actor=actor,
+            session_id=session_id, actor_kind=actor_kind, **provenance,
         )
         save_record(record)
         return record.as_dict()
@@ -259,7 +296,8 @@ def create_run(project_id: str, task_id: str, tool_id: str, params: dict | None 
         run_id=run_id, project_id=project_id, task_id=task_id, tool_id=tool_id,
         tool_label=cap.get("label", tool_id), params=params, status="queued",
         created=datetime.now().isoformat(timespec="seconds"),
-        output_dir=str(out_dir), actor=actor,
+        output_dir=str(out_dir), actor=actor, session_id=session_id,
+        actor_kind=actor_kind, **provenance,
     )
     save_record(record)
     with _LOCK:

@@ -75,7 +75,10 @@ export function ProjectsPage() {
 
       <section className="panel">
         <h3>任务</h3>
-        {project && project.tasks.length === 0 && (
+        {session.needsReselect && (
+          <p className="warn-text">刷新后没有恢复上次选择，请显式点选一个任务（不会自动替你选）。</p>
+        )}
+        {!session.needsReselect && project && project.tasks.length === 0 && (
           <EmptyState title="该项目还没有任务" hint="在下面新建一个任务，或先在别处建立 03_工作区/<项目>/<任务>/ 结构。" />
         )}
         <div className="task-list">
@@ -90,6 +93,8 @@ export function ProjectsPage() {
                 <div className="task-title">{task.title}</div>
                 <div className="muted small">
                   <code>{task.task_id}</code> · 输入 {task.file_count} · 运行 {task.run_count}
+                  {task.profile_count ? ` · 映射 ${task.profile_count}` : ''}
+                  {task.approval_count ? ` · 人审 ${task.approval_count}` : ''}
                 </div>
               </div>
               <span className="muted small">{task.created_at}</span>
@@ -100,6 +105,9 @@ export function ProjectsPage() {
 
       <section className="panel">
         <h3>新建任务</h3>
+        {!project && (
+          <p className="warn-text">先在上面选一个项目；新建任务只会建在当前选中的项目下。</p>
+        )}
         <div className="form-row">
           <label className="field">
             <span className="field-label">任务标识<em className="required">*</em></span>
@@ -115,7 +123,7 @@ export function ProjectsPage() {
           <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3}
                     placeholder="本任务要做什么、输入来自哪里、验收条件" />
         </label>
-        <button type="button" className="primary" onClick={() => void submit()} disabled={session.busy !== ''}>
+        <button type="button" className="primary" onClick={() => void submit()} disabled={session.busy !== '' || !project}>
           创建任务
         </button>
         {message && <p className="cap-message">{message}</p>}

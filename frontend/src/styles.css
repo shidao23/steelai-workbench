@@ -60,6 +60,15 @@ h4 { font-size: 13px; margin: 0 0 6px; color: var(--ink-soft); text-transform: n
   padding: 4px 10px; font-size: 12px;
 }
 .context-chip b { color: #fff; }
+.context-chip.warn { background: rgba(198, 132, 22, 0.28); color: #ffe6bd; }
+
+/* 页面级提示条（刷新后需要显式重选等） */
+.banner {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 8px 16px 0;
+  font-size: 13px; background: #fafcfd;
+}
+.banner.warn { background: var(--warn-soft, #fdf6e6); border-color: #e8d9ae; color: #7a5b12; }
 
 .shell-body { flex: 1; display: flex; min-height: 0; }
 

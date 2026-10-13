@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { artifactUrl } from '../api/client'
+import { artifactBlobUrl } from '../api/client'
 import { useSession } from '../state/session'
 import { StatusBadge } from './ui'
 
@@ -12,10 +12,26 @@ export function AiPanel() {
   const session = useSession()
   const [copied, setCopied] = useState('')
 
+  const isAiSession = session.sessionInfo?.actor_kind === 'ai-assistant'
   const pendingHuman = useMemo(
     () => session.runs.filter((run) => run.status === 'blocked' || run.status === 'failed' || run.status === 'timeout'),
     [session.runs],
   )
+
+  /** 下载走带令牌的 blob URL（token 不进 URL）。 */
+  async function download(runId: string, rel: string, name: string) {
+    try {
+      const url = await artifactBlobUrl(runId, rel)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = name
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch {
+      setCopied('下载失败：请到“成果”页重试')
+    }
+  }
 
   const limits = useMemo(() => [
     '未知单位 / 身份 / 摘要变化 → needs_human，不自动改绿。',
@@ -31,6 +47,7 @@ export function AiPanel() {
       ``,
       `- project_id: ${session.projectId || '未选择'}`,
       `- task_id: ${session.taskId || '未选择'}`,
+      `- 会话类型: ${isAiSession ? '本地 AI（无人审权限）' : '内置页面（可信 Origin）'}`,
       `- 导出时间: ${new Date().toISOString()}`,
       ``,
       `## 运行记录`,
@@ -63,6 +80,12 @@ export function AiPanel() {
           <dt>任务</dt><dd>{session.taskId || '—'}</dd>
           <dt>输入</dt><dd>{session.files.length} 个文件</dd>
           <dt>运行</dt><dd>{session.runs.length} 次</dd>
+          <dt>会话</dt>
+          <dd>
+            {isAiSession
+              ? '本地 AI：只读/建议/获准后执行；不能代人审，不能写任务与上传'
+              : '内置页面（可信 Origin）：含具名人审能力'}
+          </dd>
         </dl>
       </section>
 
@@ -108,7 +131,10 @@ export function AiPanel() {
         <ul className="tight">
           {session.artifacts.slice(0, 6).map((artifact) => (
             <li key={`${artifact.run_id}-${artifact.rel}`}>
-              <a href={artifactUrl(artifact.run_id ?? '', artifact.rel)} download>{artifact.name}</a>
+              <button type="button" className="linkish"
+                      onClick={() => void download(artifact.run_id ?? '', artifact.rel, artifact.name)}>
+                {artifact.name}
+              </button>
               <div className="muted small">{artifact.tool_label}</div>
             </li>
           ))}

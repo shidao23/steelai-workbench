@@ -144,7 +144,8 @@ def _capabilities() -> list[Capability]:
         contract="SteelData-CLI-preview",
         fields=[
             Field("input_file", "file", "输入数据文件", True, "任务输入目录中的单个文件", suffix=".csv"),
-            Field("profile_file", "file", "映射 profile（JSON）", True, "任务输入目录中的 profile 文件", suffix=".json"),
+            Field("profile_file", "file", "映射 profile（JSON）", True,
+                  "网页映射保存的候选 profile（本任务 profiles/），或输入目录中导入的 profile", suffix=".json"),
         ],
         outputs=["预览 JSON（字段/单位/摘要）"],
         available=sd_ok, reason=sd_reason,
@@ -152,11 +153,12 @@ def _capabilities() -> list[Capability]:
     caps.append(Capability(
         tool_id="steeldata.run", page="data_processing",
         label="SteelData · 按人审审批运行",
-        description="使用显式人工审批文件运行；缺审批或缺摘要即拒绝，不自动改绿。",
+        description="使用显式人工审批文件运行；缺审批、缺摘要、输入或映射变化即拒绝，不自动改绿。",
         contract="SteelData-CLI-run",
         fields=[
             Field("input_file", "file", "输入数据文件", True, suffix=".csv"),
-            Field("approval_file", "file", "人工审批文件（approval JSON）", True, suffix=".json"),
+            Field("approval_file", "file", "人审审批文件（approval JSON）", True,
+                  "本任务 approvals/ 下由网页具名人审生成的，或 inputs/ 下导入的既有审批", suffix=".json"),
         ],
         outputs=["processed 表", "manifest.json", "QC 报告"],
         available=sd_ok, reason=sd_reason,
@@ -299,9 +301,33 @@ def _resolve_input(task_inputs: Path, name: str) -> Path:
     return resolve_under(task_inputs, safe_filename(name))
 
 
+def _stage_run_input(source: Path, task_dir: Path, run_id: str) -> Path:
+    """SteelData ``run --input`` 收的是**目录**（一个批次），不是一个文件。
+
+    这里为本次运行把选中的那一个输入复制进 `<task>/.stage/<run_id>/inputs/`：
+    * 复制字节，不改内容——原件仍然只读，且后续处理用的就是这同一批字节；
+    * 目录里放这一个文件，不放 `inputs/` 下的其他文件（否则 SteelData 会把
+      它们也当输入并报 unsupported，QC 会被无谓污染）；
+    * 输出目录在 `<task>/runs/<run_id>/`，与 `.stage/` 不重叠，符合 SteelData
+      "input/output 不得互相包含" 的约束。
+    """
+    stage = task_dir / ".stage" / run_id / "inputs"
+    stage.mkdir(parents=True, exist_ok=True)
+    staged = stage / source.name
+    if not staged.is_file():
+        staged.write_bytes(source.read_bytes())
+    return stage
+
+
 def build_argv(tool_id: str, params: dict, *, task_inputs: Path, out_dir: Path,
-               run_id: str, existing_runs: list[str]) -> tuple[Path, list[str], Path]:
-    """Return ``(interpreter, argv, cwd)`` for one run. Raises ``GuardError`` on bad input."""
+               run_id: str, existing_runs: list[str],
+               project_id: str | None = None, task_id: str | None = None,
+               provenance: dict | None = None) -> tuple[Path, list[str], Path]:
+    """Return ``(interpreter, argv, cwd)`` for one run. Raises ``GuardError`` on bad input.
+
+    当 ``provenance`` 是 dict 时，会把「这次运行依据的确认从哪来」写进去，供运行记录
+    如实留痕（web 人审生成 / 导入的既有审批），而不是让一个 actor 字符串自己声明。
+    """
     cfg = config()
 
     if tool_id == "steeldata.demo":
@@ -311,7 +337,11 @@ def build_argv(tool_id: str, params: dict, *, task_inputs: Path, out_dir: Path,
     if tool_id == "steeldata.preview":
         tool = cfg.tool("steeldata")
         source = _resolve_input(task_inputs, params.get("input_file", ""))
-        profile = _resolve_input(task_inputs, params.get("profile_file", ""))
+        if project_id and task_id:
+            from steelai.web_api import mapping
+            profile = mapping.resolve_profile_file(project_id, task_id, params.get("profile_file", ""))
+        else:
+            profile = _resolve_input(task_inputs, params.get("profile_file", ""))
         return _interpreter(tool, tool_id), [
             "-B", "-m", "steeldata", "preview",
             "--input-file", str(source), "--profile", str(profile),
@@ -325,10 +355,30 @@ def build_argv(tool_id: str, params: dict, *, task_inputs: Path, out_dir: Path,
     if tool_id == "steeldata.run":
         tool = cfg.tool("steeldata")
         source = _resolve_input(task_inputs, params.get("input_file", ""))
-        approval = _resolve_input(task_inputs, params.get("approval_file", ""))
+        if not project_id or not task_id:
+            raise GuardError("steeldata.run 需要任务上下文来复核人工确认")
+        from steelai.web_api import mapping
+        # 确认必须来自本任务 approvals/（网页人审生成）或 inputs/（导入的既有审批），
+        # 并且输入 SHA / profile 摘要任一变化都让旧确认失效。
+        info = mapping.approval_for_run(project_id, task_id, params.get("approval_file", ""))
+        if not info.get("ok"):
+            raise GuardError(str(info.get("message") or "该确认已失效，请重新保存映射并重新人工确认"))
+        approval = Path(info["path"])
+        if provenance is not None:
+            provenance.update({
+                "approval_origin": info.get("origin", ""),
+                "approval_file": info.get("file", ""),
+                "approval_profile_id": info.get("profile_id", ""),
+                "approval_profile_sha256": info.get("profile_sha256", ""),
+                "approval_input_sha256": info.get("input_sha256", ""),
+                "approval_reviewer": info.get("reviewer", ""),
+                "approval_synthetic": bool(info.get("synthetic", False)),
+            })
+        # SteelData run 的 --input 是目录：只把本次选中的输入暂存进去（见 _stage_run_input）
+        stage = _stage_run_input(source, out_dir.parent.parent, run_id)
         return _interpreter(tool, tool_id), [
             "-B", "-m", "steeldata", "run",
-            "--input", str(source), "--approval", str(approval), "--output", str(out_dir),
+            "--input", str(stage), "--approval", str(approval), "--output", str(out_dir),
         ], Path(tool.extra["project"])
 
     if tool_id == "steeldata.verify":

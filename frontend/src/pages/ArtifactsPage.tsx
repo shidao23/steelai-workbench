@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { artifactUrl } from '../api/client'
+import { api, artifactBlobUrl } from '../api/client'
 import { useSession } from '../state/session'
 import { EmptyState, StatusBadge, formatBytes } from '../components/ui'
 import { GridLayout } from '../layout/GridLayout'
@@ -9,6 +9,23 @@ export function ArtifactsPage() {
   const session = useSession()
   const [reviewer, setReviewer] = useState('')
   const [message, setMessage] = useState('')
+  const [downloadError, setDownloadError] = useState('')
+
+  /** 下载走带令牌的 fetch + blob URL：token 不进 URL，也不依赖 <a href> 的匿名 GET。 */
+  async function download(runId: string, rel: string, name: string) {
+    setDownloadError('')
+    try {
+      const url = await artifactBlobUrl(runId, rel)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = name
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : String(error))
+    }
+  }
 
   const succeededRuns = useMemo(
     () => session.runs.filter((run) => run.status === 'succeeded'),
@@ -23,18 +40,11 @@ export function ArtifactsPage() {
       return
     }
     try {
-      const response = await fetch(
-        `/api/projects/${session.projectId}/tasks/${session.taskId}/promote`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ run_id: runId, reviewer: reviewer.trim() }),
-        },
-      )
-      const body = await response.json()
-      setMessage(response.status === 501
-        ? `未接通（${body.status}）：${body.detail}`
-        : JSON.stringify(body))
+      // 服务端仍返回 501（未接通）：这里如实显示，不假装晋升成功
+      const result = await api.promote(session.projectId, session.taskId, runId, reviewer.trim())
+      if (result.pending) setMessage(`未接通：${result.detail}`)
+      else if (result.status >= 400) setMessage(`被拒绝（${result.status}）：${result.detail}`)
+      else setMessage('已提交晋升（详见运行记录）。')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     }
@@ -69,7 +79,8 @@ export function ArtifactsPage() {
                   <td>{formatBytes(artifact.size)}</td>
                   <td><code className="hash">{artifact.sha256?.slice(0, 16)}…</code></td>
                   <td>
-                    <a className="chip" href={artifactUrl(artifact.run_id ?? '', artifact.rel)} download>下载</a>
+                    <button type="button" className="chip"
+                            onClick={() => void download(artifact.run_id ?? '', artifact.rel, artifact.name)}>下载</button>
                   </td>
                 </tr>
               ))}
@@ -102,6 +113,8 @@ export function ArtifactsPage() {
         {message && <p className="cap-message">{message}</p>}
       </section>
 
+      {downloadError && <p className="warn-text">下载失败：{downloadError}</p>}
+
       <GridLayout
         projectId={session.projectId}
         page={`${session.page}_detail`}
@@ -117,7 +130,8 @@ export function ArtifactsPage() {
                     <code>{artifact.rel}</code>
                     <span className="muted small">{artifact.tool_label}</span>
                     <StatusBadge status={artifact.status ?? 'succeeded'} />
-                    <a className="chip" href={artifactUrl(artifact.run_id ?? '', artifact.rel)} download>下载</a>
+                    <button type="button" className="chip"
+                            onClick={() => void download(artifact.run_id ?? '', artifact.rel, artifact.name)}>下载</button>
                   </li>
                 ))}
               </ul>

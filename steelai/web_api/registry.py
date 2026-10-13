@@ -8,6 +8,9 @@
 <project>/<task_id>/
 ├── TASK.md          # 任务说明（人/换 AI 都能读）
 ├── inputs/          # 本任务上传的输入（原件只读，不改写）
+├── profiles/        # WO-32 网页映射生成的候选 profile（服务端写，上传写不到）
+├── approvals/       # WO-32 网页人审生成的 SteelData 审批（服务端写）
+├── reviews/         # WO-32 人审/失效/导入登记（谁、核的哪份输入摘要）
 ├── runs/<run_id>/   # 每次运行的唯一输出目录
 └── handoff.md       # 接手摘要
 ```
@@ -38,6 +41,12 @@ ALLOWED_INPUT_SUFFIXES = {
 }
 MAX_UPLOAD_BYTES = 64 * 1024 * 1024
 
+# WO-32：服务端自管的三个子目录。上传只落 inputs/，所以"上传一份看起来像
+# 审批的 JSON"永远进不到 approvals/；profiles/ 由服务端写，也不接受上传。
+PROFILES_SUBDIR = "profiles"
+APPROVALS_SUBDIR = "approvals"
+REVIEWS_SUBDIR = "reviews"
+
 
 @dataclass(frozen=True)
 class Project:
@@ -57,6 +66,8 @@ class Task:
     created_at: str
     run_count: int
     file_count: int
+    profile_count: int = 0
+    approval_count: int = 0
 
 
 def _master_projects() -> tuple[list[Project], str]:
@@ -153,6 +164,36 @@ def task_root(project_id: str, task_id: str) -> Path:
     return root
 
 
+def task_inputs(project_id: str, task_id: str) -> Path:
+    """本任务上传输入目录（**只由上传**写入；映射/审批另有服务端目录）。"""
+    return task_root(project_id, task_id) / "inputs"
+
+
+def profiles_dir(project_id: str, task_id: str) -> Path:
+    return task_root(project_id, task_id) / PROFILES_SUBDIR
+
+
+def approvals_dir(project_id: str, task_id: str) -> Path:
+    return task_root(project_id, task_id) / APPROVALS_SUBDIR
+
+
+def reviews_dir(project_id: str, task_id: str) -> Path:
+    return task_root(project_id, task_id) / REVIEWS_SUBDIR
+
+
+def server_dirs(project_id: str, task_id: str) -> tuple[Path, Path, Path]:
+    """Create the three server-owned directories for one task."""
+    root = task_root(project_id, task_id)
+    if not (root / TASK_MARKER).is_file():
+        raise GuardError(f"任务不存在：{project_id}/{task_id}")
+    profiles = profiles_dir(project_id, task_id)
+    approvals = approvals_dir(project_id, task_id)
+    reviews = reviews_dir(project_id, task_id)
+    for directory in (profiles, approvals, reviews):
+        directory.mkdir(parents=True, exist_ok=True)
+    return profiles, approvals, reviews
+
+
 def list_tasks(project_id: str) -> list[Task]:
     root = project_root(project_id)
     if not root.is_dir():
@@ -165,13 +206,18 @@ def list_tasks(project_id: str) -> list[Task]:
         run_count = sum(1 for item in runs.iterdir() if item.is_dir()) if runs.is_dir() else 0
         inputs = child / "inputs"
         file_count = sum(1 for item in inputs.iterdir() if item.is_file()) if inputs.is_dir() else 0
+        profile_count = sum(1 for item in (child / PROFILES_SUBDIR).glob("*.json")
+                            if item.is_file()) if (child / PROFILES_SUBDIR).is_dir() else 0
+        approval_count = sum(1 for item in (child / APPROVALS_SUBDIR).glob("*.json")
+                             if item.is_file()) if (child / APPROVALS_SUBDIR).is_dir() else 0
         title = ""
         try:
             title = (child / TASK_MARKER).read_text(encoding="utf-8").splitlines()[0].lstrip("# ").strip()
         except (OSError, IndexError):
             title = child.name
         created = datetime.fromtimestamp(child.stat().st_mtime).isoformat(timespec="seconds")
-        tasks.append(Task(project_id, child.name, title or child.name, created, run_count, file_count))
+        tasks.append(Task(project_id, child.name, title or child.name, created,
+                          run_count, file_count, profile_count, approval_count))
     return tasks
 
 
@@ -183,6 +229,8 @@ def create_task(project_id: str, task_id: str, title: str, note: str = "") -> Ta
         raise GuardError(f"任务已存在：{tid}")
     (target / "inputs").mkdir(parents=True)
     (target / "runs").mkdir(parents=True)
+    for sub in (PROFILES_SUBDIR, APPROVALS_SUBDIR, REVIEWS_SUBDIR):
+        (target / sub).mkdir(parents=True)
     heading = (title or tid).strip().replace("\n", " ")
     body = [f"# {heading}", "", f"- project_id: `{project_id}`", f"- task_id: `{tid}`",
             f"- created: {datetime.now().isoformat(timespec='seconds')}", ""]
@@ -195,7 +243,8 @@ def create_task(project_id: str, task_id: str, title: str, note: str = "") -> Ta
     (target / TASK_MARKER).write_text("\n".join(body), encoding="utf-8")
     (target / "handoff.md").write_text(
         f"# 接手摘要 · {heading}\n\n- 尚未运行。\n", encoding="utf-8")
-    return Task(project_id, tid, heading, datetime.now().isoformat(timespec="seconds"), 0, 0)
+    return Task(project_id, tid, heading, datetime.now().isoformat(timespec="seconds"),
+                0, 0, 0, 0)
 
 
 def task_context(project_id: str, task_id: str) -> dict:
@@ -217,6 +266,22 @@ def task_context(project_id: str, task_id: str) -> dict:
     }
 
 
+def _sha256(path: Path) -> str:
+    """SHA-256 of the bytes on disk; empty when the file is too big to hash on listing."""
+    import hashlib
+
+    try:
+        if path.stat().st_size > 32 * 1024 * 1024:
+            return ""
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1 << 20), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return ""
+
+
 def list_input_files(project_id: str, task_id: str) -> list[dict]:
     root = task_root(project_id, task_id) / "inputs"
     if not root.is_dir():
@@ -230,6 +295,7 @@ def list_input_files(project_id: str, task_id: str) -> list[dict]:
             "file_id": item.name,
             "name": item.name,
             "size": stat.st_size,
+            "sha256": _sha256(item),
             "suffix": item.suffix.lower(),
             "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
             "previewable": item.suffix.lower() in ALLOWED_INPUT_SUFFIXES,
@@ -240,9 +306,24 @@ def list_input_files(project_id: str, task_id: str) -> list[dict]:
 def input_path(project_id: str, task_id: str, file_id: str) -> Path:
     from steelai.web_api.security import safe_filename, resolve_under
 
-    root = task_root(project_id, task_id) / "inputs"
+    root = task_inputs(project_id, task_id)
     name = safe_filename(file_id)
     return resolve_under(root, name)
+
+
+def server_owned_path(project_id: str, task_id: str, subdir: str, file_id: str) -> Path:
+    """Resolve a file inside profiles/ approvals/ reviews/ (server-owned).
+
+    Deliberately separate from :func:`input_path`: these directories are written
+    by the mapping/review flow only, never by an upload, so an uploaded JSON
+    that mimics an approval cannot be confused with one.
+    """
+    from steelai.web_api.security import resolve_under
+
+    root = {"profiles": profiles_dir, "approvals": approvals_dir, "reviews": reviews_dir}.get(subdir)
+    if root is None:
+        raise GuardError(f"未知的服务端目录：{subdir}")
+    return resolve_under(root(project_id, task_id), safe_filename(file_id))
 
 
 def register_upload(project_id: str, task_id: str, filename: str, payload: bytes) -> dict:
@@ -260,7 +341,8 @@ def register_upload(project_id: str, task_id: str, filename: str, payload: bytes
     if target.exists():
         raise GuardError(f"同名输入已存在，先改名或删除：{name}")
     target.write_bytes(payload)
-    return {"file_id": name, "name": name, "size": len(payload)}
+    # WO-32 §3：保存的 hash 必须对上上传字节，run/verify/下载都能拿它复核。
+    return {"file_id": name, "name": name, "size": len(payload), "sha256": _sha256(target)}
 
 
 def delete_input(project_id: str, task_id: str, file_id: str) -> None:
