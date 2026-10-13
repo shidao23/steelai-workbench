@@ -26,6 +26,43 @@
 | GEMD 材料—工艺—测量关系导出 | `gemd-python 2.2.4`, `af4336f` | Apache-2.0 | 中等；与 graduation-v1 身份模型重叠 | 延后，出现真实互操作需求再评估 |
 | Great Expectations 验证文档/规则集 | `1.21.0`, `eb0faa5…` | Apache-2.0 | 兼容当前 Python 3.12，但与现有 QC 重复 | 当前拒绝 |
 | MLflow 运行/产物追踪 | `3.16.0`, `998f710` | Apache-2.0 | 新增追踪运行时和存储模型；当前 manifest 已够用 | 延后到实验规模明显增长后 |
+| OpenBB Workspace 前端小模块（分栏/面板状态/iframe 协议与注册表） | `workspace` `be00e95019a55d57af146919ee46b7e1a4859226` | Apache-2.0（上游 NOTICE 排除 TradingView Advanced Charts） | 只读 5 个小模块；**不安装 OpenBB 整栈** | **WO-31 已采用**：按本项目状态重写，见下节 |
+
+## WO-31 OpenBB Workspace 选择性复用登记
+
+2026-10-13。参考已读源码在 `08_Archive/00_Workspace_Migration/Batch_WO31/planning_20261013/`
+（`openbb_selected/` 选读副本 + `OPENBB_SOURCE_MANIFEST.json` 固定提交与逐件 SHA-256）。
+
+- 上游：<https://github.com/OpenBB-finance/workspace>，固定提交 `be00e95019a55d57af146919ee46b7e1a4859226`。
+- 许可：**Apache-2.0**；上游 `NOTICE` 明确把 **TradingView Advanced Charts 排除在许可之外**，本项目未使用该组件。
+- 许可原文随分发：`frontend/third_party/openbb/LICENSE`
+  （sha256 `c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4`）与
+  `frontend/third_party/openbb/NOTICE`
+  （sha256 `7ead59cd1679b65fb3be5d056b6415564f9c6849b37401c0f0b5020b9dce4c8b`），
+  两个摘要与选读清单完全一致。
+
+**逐文件改编登记**（完整表格见 `frontend/THIRD_PARTY.md`）：
+
+| 本项目文件 | 上游文件 | 修改 |
+| --- | --- | --- |
+| `frontend/src/layout/usePanelsState.ts` | `terminalpro/.../hooks/usePanelsState.ts` | 去 `react-router`/`usehooks-ts`；按 `schemaVersion+project+page` 隔离；新增 `resetPanels()` |
+| `frontend/src/layout/GridLayout.tsx` | `terminalpro/src/components/GridLayout.tsx` | 去 TabContext/app/theme store 与上传耦合、去拖动排序；重连项目状态；补键盘与 aria |
+| `frontend/src/iframe/protocol.ts` | `terminalpro/src/types/iframeProtocol.ts` | 去 `zod`；命名空间改 `steelai-*`；**删除 `openbb-auth`/authHeaders 转发**；加 `projectId/taskId/frameInstanceId/requestId` |
+| `frontend/src/iframe/registry.ts` | `terminalpro/src/lib/iframeWidgetRegistry.ts` | 键改 `frameInstanceId`；新增项目切换失效、卸载清 pending、请求超时 |
+| `frontend/src/iframe/IframePanel.tsx` | `terminalpro/.../useIframeProtocol.tsx` | **上游「同 origin 即放行」不作为本项目隔离边界**；三重校验 origin + `event.source` + 三元组；未实现协议时退化为普通 iframe 并标"未绑定" |
+| `frontend/src/components/LineChart.tsx` | `terminalpro/src/components/Charting/PlotlyChart.tsx` | 懒加载与尺寸自适应；轴标题/单位由调用方显式给出 |
+
+**明确未采用**：`terminalpro/package.json` 的金融/SSO/遥测依赖树、OpenBB 的 DB/Redis/SSO/Docker/云模型整栈、
+上游修改性 lint 脚本、`backend-api` 的 FastAPI 应用、TradingView Advanced Charts、AG Grid Enterprise 等需商业授权的组件。
+
+**WO-31 新增前端依赖**（`frontend/package-lock.json` 锁定）：`react` 19.3.0 (MIT)、`react-dom` 19.3.0 (MIT)、
+`plotly.js-dist-min` 4.1.2 (MIT)；dev：`typescript` 5.9.3 (Apache-2.0)、`vite` 7.3.7 (MIT)、
+`@vitejs/plugin-react` 5.2.0 (MIT)、`@types/react` 19.3.0 (MIT)、`@types/react-dom` 19.3.0 (MIT)。
+
+**WO-31 新增 Python 依赖**（独立环境 `.venv-web`，不改冻结的科学计算环境，见 `requirements-web.txt`）：
+`fastapi` 0.115.6 (MIT)、`uvicorn` 0.34.0 (BSD-3-Clause)、`python-multipart` 0.0.20 (Apache-2.0)、
+`openpyxl` 3.1.5 (MIT)、`pydantic` 2.10.4 (MIT)。
+
 
 ## T14 实施结果
 

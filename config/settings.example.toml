@@ -52,6 +52,40 @@ ebsd_matched_b_ctf = ""
 ebsd_matched_r_ctf = ""
 ebsd_highres_r_ctf = ""
 composition_mcp_server = ""
+# materials_agent_project: absolute path to the migrated MaterialsResearchAgent root
+# (default <engineering container>/04_Materials_Research_Agent). The source moved while
+# its runtime environment stayed in place, so materials_agent_python must point at the
+# retained interpreter; the new root has no virtual environment of its own.
+materials_agent_project = ""
+# materials_agent_python: absolute path to the MaterialsResearchAgent interpreter.
+# Empty means "not registered" and the Materials Research capabilities report as
+# unavailable instead of guessing a path.
+materials_agent_python = ""
+# microsam_script / calphad_script: the registered tool entry scripts. Empty keeps the
+# repository default under <workspace>/06_Tools/01_Applications/... .
+microsam_script = ""
+calphad_script = ""
+# microsam_checkpoint / calphad_tdb: registered model weights and database. Empty keeps
+# the repository default under <workspace>/06_Tools/03_Models and .../04_Databases.
+microsam_checkpoint = ""
+calphad_tdb = ""
+
+[research_web]
+# WO-31 React research workbench. Everything derivable from the repository location is
+# derived (workspace root, work/output roots, the shared tool scripts, models and
+# databases, and the SteelData/SteelStats/MRA project roots). Only machine-specific
+# values belong here, and they stay in the ignored config/settings.toml.
+workspace_root = ""
+work_root = ""
+output_root = ""
+run_root = ""
+synthetic_root = ""
+streamlit_url = ""
+allowed_origins = ""
+# tool_env_roots: the trusted roots a configured interpreter must resolve inside.
+# Empty means every interpreter that is not under a project root is reported as
+# untrusted in /api/health (it never blocks a run by itself).
+tool_env_roots = []
 
 [ai]
 # CI and public examples are deterministic and offline.

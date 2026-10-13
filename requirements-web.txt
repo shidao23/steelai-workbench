@@ -1,0 +1,23 @@
+# WO-31 §3 — 科研薄 API 的独立环境（.venv-web）
+#
+# 用途：只服务 `steelai/web_api`（FastAPI 应用）与 `research_app.py` 的读取路径。
+# 来源：PyPI（pypi.org），全部为开源许可。
+# 安装：.\.venv-web\Scripts\python.exe -m pip install -r requirements-web.txt
+#
+# 为什么独立：原 Workbench 环境是冻结的科学计算环境（fastapi 缺失、uvicorn/pydantic 已装），
+# 本单明确不改计算环境，所以 UI/web 依赖只装在这个独立环境里。
+#
+# 许可：
+#   fastapi            MIT
+#   uvicorn            BSD-3-Clause
+#   python-multipart   Apache-2.0
+#   openpyxl           MIT          （只用于读取现有科研主表的“项目表”工作表）
+#   pydantic           MIT
+#
+# 不安装：OpenBB 全套（DB/Redis/SSO/Docker/遥测/云模型）、任何商业图表组件。
+
+fastapi==0.115.6
+uvicorn==0.34.0
+python-multipart==0.0.20
+openpyxl==3.1.5
+pydantic==2.10.4

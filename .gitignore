@@ -63,3 +63,9 @@ approved_v2/
 *.pt
 *.pth
 *.safetensors
+
+# WO-31: the research thin-API environment and the React build products.
+# The environment is machine-specific; dist/ is rebuilt by `npm run build`.
+.venv-web/
+frontend/node_modules/
+frontend/dist/

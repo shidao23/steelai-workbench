@@ -266,6 +266,76 @@ Windows 完整研发环境可双击 `Freeze_v0.2_Candidate.cmd`，依次验证�
 - 完成会话时只向项目事件日志写入结构化摘要，便于后续Career Portfolio提取。
 - Research Session Contract已经加入离线质量门禁；不存在真实会话时也可只验证五个模板契约。
 
+## 科研工作台（React 六页 + 薄 API，WO-31）
+
+2026-10-13 新增。原来的 Streamlit 入口**保持不变**（见下一节）；这一层是同一批工具之上的
+React 六页工作台，用薄 API 把"选项目/任务 → 导入资料 → 跑已有工具 → 看真实结果 → 下载"串起来。
+它**不重写任何科学算法**，也不新建云 Agent。
+
+### 启动 / 停止 / 准确 URL
+
+| 入口 | 命令 | URL |
+| --- | --- | --- |
+| React 六页 + 薄 API | 双击 `Start_Research_Workbench.cmd`（可选端口参数，默认 8760） | <http://127.0.0.1:8760/> |
+| 科研 Streamlit 原页 | 双击 `Start_Research_Streamlit.cmd`（默认 8761） | <http://127.0.0.1:8761/> |
+
+两个服务都**只监听回环地址**；`Ctrl+C` 或关闭窗口即停止。端口被占用时薄 API 会明确报
+"端口已被占用"并以退出码 3 结束，**不做全机端口扫描**，也不自动换端口。
+
+薄 API 需要独立环境（不污染冻结的科学计算环境）：
+
+```powershell
+py -m venv .venv-web
+.venv-web\Scripts\python.exe -m pip install -r requirements-web.txt
+cd frontend; npm install --ignore-scripts; npm run build; cd ..
+.venv-web\Scripts\python.exe -m steelai.web_api --host 127.0.0.1 --port 8760
+```
+
+`frontend/dist` 缺失时薄 API 只提供 `/api/*`；`/api/health` 会如实报告 `frontend_built`。
+
+### 真实输入到导出
+
+1. **项目页**：项目清单直接读现有科研登记（科研主表 `项目表` 工作表），不新建第二个总项目库；
+   任务落在既有的 `03_工作区/<项目>/<任务>/` 结构里（`TASK.md`、`inputs/`、`runs/`、`handoff.md`）。
+2. **资料页**：上传到本任务 `inputs/`，可只读预览（表头/单位/分隔符/图像尺寸）。上传名会被
+   服务端规整为单一文件名，拒绝 `../`、盘符、NTFS 数据流、Windows 设备名与未登记类型。
+3. **数据处理页**：SteelData `preview` 只读；`run` **必须**提供显式人工审批文件（缺审批直接拒绝，
+   不自动改绿）；`demo` 只跑仓库自带合成 fixture，坏值按原合同 `QCfailed`；`verify` 校验完成标记与产物校验和。
+4. **分析工具页**：SteelStats 描述统计报告 + 报告包校验；Micro-SAM 单图点/框分割（坐标是**原像素**）；
+   CALPHAD 缩减体系平衡相分数（温度 K/C、显式组元/相，`VA` 由脚本自动加入、手写会被拒绝）。
+5. **成果页**：列出本任务产物（含 SHA-256）与直接下载；候选晋升需要**具名人工审批人**，
+   且正式晋升流程未接通时如实返回"未接通"，不假装成功。
+6. **工作记录页**：参数、退出码、用时、产物与接手摘要 `handoff.md`；另一个 AI 读同一 README、
+   同一任务目录与这份摘要即可接续。
+
+### 产物位置
+
+| 内容 | 位置 |
+| --- | --- |
+| 每次运行的输出 | `<工作区>/<项目>/<任务>/runs/<run_id>/`（薄 API 的运行根默认在 `outputs/research_web/`） |
+| 任务说明与接手摘要 | `<工作区>/<项目>/<任务>/TASK.md`、`handoff.md` |
+| 合成演示项目（隔离） | `<工作区>/PSYN_合成演示/`（只用于本批隔离测试） |
+| React 构建产物 | `frontend/dist/`（被 Git 忽略，`npm run build` 重建） |
+
+### 工具依赖与"改哪一层"
+
+- 科学算法**不在这里**：SteelData / SteelStats / Micro-SAM / CALPHAD 各自保持独立环境与固定 CLI 合同，
+  薄 API 只做可信解析 + 固定 argv 构造（`shell=False`，客户端不能提交路径/URL/解释器/shell）。
+- 要改界面：`frontend/src/`；要改接口或工具接线：`steelai/web_api/`；要改科研 Streamlit 入口：`research_app.py`。
+- 工具解释器与机器专用路径**只在被忽略的 `config/settings.toml` 里登记**，提交的代码里没有本机盘符；
+  `/api/health` 会逐个报告解释器是否已登记、是否落在已声明的可信根内。
+
+### 限制（如实）
+
+- 真实 B-DQ/R-DQ 炉次算例、复杂钢种与真实原件**仍未接线**：CALPHAD 只做已验证的 Fe–C 缩减小例，
+  真实 B/R 科研仍 `blocked`；Micro-SAM 需要本机权重与独立环境，缺任一项该能力卡会给出具体缺失项。
+- 科研 Streamlit 原页**没有实现消息协议**，因此嵌入时按普通 iframe 显示并明确标注"未绑定"，
+  不把"能嵌进去"当成"数据/AI 已接通"；不可嵌时用"在新窗口打开原页"给出准确 URL。
+- 薄 API 不提供人审、不做正式入库；`actor='human'` 这类字符串**不构成人审**。
+- 完整旧测试套件仍非全绿（已知为环境级：WorkBuddy 沙箱 `sitecustomize` 守卫、pytest 临时目录 ACL、
+  本地科研数据缺失与既有未提交生活区内容漂移），**不写"全部零回归"**；WO-31 新增模块不在该套件覆盖范围内，
+  由 `Batch_WO31/logs/http_e2e.py` 与真实浏览器 `browser_e2e.js` 单独验证。
+
 ## 运行
 
 当前工作目录若已包含 `.venv`，可直接双击 `Start_SteelAI.bat`（仓库中只有这一个 Windows 启动器）。应用只监听本机 `127.0.0.1`，不会主动暴露到局域网；若已运行，启动器会直接打开现有页面。启动器对本机健康端点做检查时会显式绕过系统 HTTP 代理，因此设置了 `HTTP_PROXY` 但没有 localhost 例外时，也能正确识别已在运行的实例，不会在 8501 上启动第二个实例。
