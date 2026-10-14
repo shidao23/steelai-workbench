@@ -236,14 +236,34 @@ export interface ProfileMeta {
   sheet?: string | null
   header_row?: number
   revision?: number
+  content_fingerprint?: string
   created: string
   previous_profile_sha256?: string | null
+}
+
+// WO-34 §1：服务端生成的「人所看见的完整对象」。确认时原样交回，服务端按它做
+// compare-and-set；前端不自己拼摘要。
+export interface ConfirmationSnapshot {
+  project_id: string
+  task_id: string
+  profile_id: string
+  input_file: string
+  input_sha256: string
+  input_bytes: number
+  profile_sha256: string
+  revision: number
+  content_fingerprint: string
+  sheet?: string | null
+  header_row: number
+  domain: string
+  layout: string
 }
 
 export interface CandidateProfile {
   profile_id: string
   profile: Record<string, unknown>
   meta: ProfileMeta
+  snapshot?: ConfirmationSnapshot
   approval_sha256: string
 }
 

@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -63,6 +64,59 @@ SUPPORTED_FORMATS_NOTE = ("网页映射支持 CSV / TSV / XLSX（与 SteelData �
                           "其它类型只能上传/预览/下载，不能进入映射与运行。")
 
 RESERVED_REVIEWERS = {"system", "agent", "auto", "automatic", "web", "ai", "assistant", "bot", ""}
+
+# WO-34 §1：一次「确认」必须绑定人所看见的**完整对象**（项目/任务/profile 身份、
+# 输入 file_id+字节 SHA、profile 内容 SHA、有效修订、逻辑表头）。核对与落盘之间
+# 若有并发的保存/换绑/拒绝，就不能「核旧值后落盘新对象」。这里用一把进程内可重入锁
+# 串行化 save_candidate / review_candidate 的关键段——服务是单进程回环服务，
+# 这是最小实现；不引入企业锁服务。SteelData 自己的 approve --expected-sha256
+# 仍是第二道闸（profile 文件在核对后被换，CLI 会拒绝）。
+_CONTENT_LOCK = threading.RLock()
+
+
+def _content_fingerprint(*, input_file: str, input_sha256: str, profile_sha256: str,
+                         sheet: str | None, header_row: int) -> str:
+    """A digest over the **effective content** a confirmation covers.
+
+    它把「输入身份 + 输入字节 + profile 内容 + 逻辑表」合在一起：任一变化都算
+    新的有效版本（revision +1、旧确认失效）；只有四项全同才算「无变化重存」。
+    """
+    import hashlib
+
+    canonical = json.dumps({
+        "input_file": str(input_file or ""),
+        "input_sha256": str(input_sha256 or ""),
+        "profile_sha256": str(profile_sha256 or ""),
+        "sheet": str(sheet or ""),
+        "header_row": int(header_row or 1),
+    }, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def confirmation_snapshot(project_id: str, task_id: str, profile_id: str) -> dict:
+    """The server-generated, immutable "what the human is looking at" object.
+
+    WO-34 §1：前端必须从**实际展示的对象**读取这份快照，并在确认时原样交回；
+    服务端按同一快照做 compare-and-set，缺字段/过期/不同一律 409。它不是前端
+    自己拼出来的摘要——project/task/profile 身份、输入 file_id+SHA、profile
+    内容 SHA、有效修订都在服务端这里生成。
+    """
+    meta = _read_meta(project_id, task_id, profile_id)
+    return {
+        "project_id": project_id,
+        "task_id": task_id,
+        "profile_id": str(meta.get("profile_id") or profile_id),
+        "input_file": str(meta.get("input_file", "") or ""),
+        "input_sha256": str(meta.get("input_sha256", "") or ""),
+        "input_bytes": int(meta.get("input_bytes") or 0),
+        "profile_sha256": str(meta.get("profile_sha256", "") or ""),
+        "revision": int(meta.get("revision") or 0),
+        "content_fingerprint": str(meta.get("content_fingerprint", "") or ""),
+        "sheet": meta.get("sheet") or "",
+        "header_row": int(meta.get("header_row") or 1),
+        "domain": str(meta.get("domain", "") or ""),
+        "layout": str(meta.get("layout", "") or ""),
+    }
 
 
 def _sha256(path: Path) -> str:
@@ -493,6 +547,7 @@ def list_profiles(project_id: str, task_id: str) -> list[dict]:
             "profile_id": item.stem,
             "profile": profile,
             "meta": info,
+            "snapshot": confirmation_snapshot(project_id, task_id, item.stem),
             "approval_sha256": _approval_digest_for(project_id, task_id, item.stem),
         })
     return rows
@@ -554,14 +609,18 @@ def _archive_approval(project_id: str, task_id: str, item: Path) -> str:
 
 
 def _invalidate_stale_approvals(project_id: str, task_id: str, profile_id: str, meta: dict) -> list[str]:
-    """Invalidate **only this profile's** approval when its digest changed.
+    """Invalidate **only this profile's** approval when its **effective content** changed.
 
     WO-32 的实现遍历了全任务的审批并逐份比对摘要，于是「保存一份无关的
     profile」会把别的 profile 的有效批准一起删掉（WO-33 §2 第 3 条复现）。
-    这里只处理 ``profile_id`` 自己的审批文件：
+    这里只处理 ``profile_id`` 自己的审批文件。
 
-    * 摘要一致（同一 profile 原样重存）→ 不动，批准继续有效；
-    * 摘要变化 → 该审批失效，挪进 ``reviews/invalidated/`` 并只追加一条记录；
+    WO-34 §1：审批绑定的是「人所看见的那份输入与版本」，所以失效判据不只看
+    profile 摘要，还要看**输入身份（file_id）+ 字节 SHA**——把同字节的 ``a.csv``
+    改绑成 ``same.csv`` 也必须让旧确认失效，否则 SHA 相同就能被暗批：
+
+    * 有效内容指纹一致（同一 profile 原样重存）→ 不动，批准继续有效；
+    * 指纹变化 → 该审批失效，挪进 ``reviews/invalidated/`` 并只追加一条记录；
     * 其它 profile 的审批**完全不碰**。
 
     Returns the approval files that were invalidated (as archived names).
@@ -570,7 +629,8 @@ def _invalidate_stale_approvals(project_id: str, task_id: str, profile_id: str, 
     approvals = approvals_dir(project_id, task_id)
     if not approvals.is_dir():
         return removed
-    expected = str(meta.get("profile_sha256", "") or "")
+    expected = str(meta.get("content_fingerprint", "") or "")
+    expected_profile = str(meta.get("profile_sha256", "") or "")
     item = approvals / f"{safe_filename(profile_id)}.json"
     if not item.is_file():
         return removed
@@ -582,18 +642,45 @@ def _invalidate_stale_approvals(project_id: str, task_id: str, profile_id: str, 
     if bound_id and bound_id != profile_id:
         # 文件名与内容指向不同 profile：不认这份审批，也不动别人的。
         return removed
-    if str(data.get("profile_sha256", "") or "") == expected:
+
+    # 审批当时复核记录里的输入身份（file_id + 字节 SHA）与内容指纹。
+    entry = next((row for row in reversed(list_reviews(project_id, task_id))
+                  if row.get("approval_file") == item.name and row.get("decision") == "approve"), {})
+    bound_input_file = str(entry.get("input_file", "") or "")
+    bound_input_sha = str(entry.get("input_sha256", "") or "")
+    approval_profile_sha = str(data.get("profile_sha256", "") or "")
+    bound_fingerprint = str(entry.get("content_fingerprint", "") or "")
+
+    # 无变化重存：有效内容指纹一致 → 批准继续有效（不因每次点击保存而无意义撤销）。
+    if expected and bound_fingerprint and bound_fingerprint == expected:
         return removed
+    # 没有指纹记录的旧审批：退回到「profile 摘要 + 输入身份」逐项比对。
+    same_profile = approval_profile_sha == expected_profile
+    same_input_identity = (
+        (not bound_input_file or bound_input_file == str(meta.get("input_file", "") or ""))
+        and (not bound_input_sha or bound_input_sha == str(meta.get("input_sha256", "") or ""))
+    )
+    if same_profile and same_input_identity:
+        return removed
+
     archived = _archive_approval(project_id, task_id, item)
     removed.append(item.name)
+    reasons = []
+    if not same_profile:
+        reasons.append("映射内容已变化")
+    if not same_input_identity:
+        reasons.append("输入身份或字节已变化")
     _append_review(project_id, task_id, {
         "kind": "invalidation",
         "profile_id": profile_id,
         "approval_file": item.name,
         "archived_as": archived,
-        "reason": "该映射的候选内容已变化，旧确认失效（只影响这一个 profile）",
-        "previous_profile_sha256": str(data.get("profile_sha256", "") or ""),
-        "profile_sha256": expected,
+        "reason": "该确认覆盖的输入/映射已变化，旧确认失效（只影响这一个 profile）："
+                  + "、".join(reasons),
+        "previous_profile_sha256": approval_profile_sha,
+        "profile_sha256": expected_profile,
+        "bound_input_file": bound_input_file,
+        "current_input_file": str(meta.get("input_file", "") or ""),
         "created": datetime.now().isoformat(timespec="seconds"),
     })
     return removed
@@ -669,44 +756,61 @@ def save_candidate(project_id: str, task_id: str, payload: dict) -> dict:
 
     profile_id = profile["profile_id"]
     target = _candidate_path(project_id, task_id, profile_id)
-    existing_meta = _read_meta(project_id, task_id, profile_id)
+    input_sha = _sha256(source)
     try:
         SteelDataLike = _profile_json(profile)
     except GuardError as exc:
         return {"ok": False, "problem": str(exc), "needs_human": [str(exc)]}
 
-    # SteelData 自己的 CLI 复核：校验 + 输出 authoritative profile_sha256。
-    cli = _steeldata_profile_cli(SteelDataLike, target)
-    problems.extend(cli["problems"])
-    if cli["problems"]:
-        return {"ok": False, "profile": SteelDataLike, "needs_human": cli["problems"],
-                "problem": "映射未通过 SteelData 合同校验，未保存。"}
+    # WO-34 §1：整个「读旧 meta → 写候选/新 meta → 按指纹失效旧确认」必须在同一把
+    # 进程内锁里完成，否则并发的保存/换绑可能「核旧值后落盘新对象」。
+    with _CONTENT_LOCK:
+        existing_meta = _read_meta(project_id, task_id, profile_id)
+        # SteelData 自己的 CLI 复核：校验 + 输出 authoritative profile_sha256。
+        cli = _steeldata_profile_cli(SteelDataLike, target)
+        problems.extend(cli["problems"])
+        if cli["problems"]:
+            return {"ok": False, "profile": SteelDataLike, "needs_human": cli["problems"],
+                    "problem": "映射未通过 SteelData 合同校验，未保存。"}
 
-    payload_bytes = json.dumps(SteelDataLike, ensure_ascii=False, indent=2).encode("utf-8")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(".json.tmp")
-    tmp.write_bytes(payload_bytes)
-    tmp.replace(target)
-    meta = {
-        "profile_id": profile_id,
-        "project_id": project_id,
-        "task_id": task_id,
-        "input_file": input_file,
-        "input_sha256": _sha256(source),
-        "input_bytes": source.stat().st_size,
-        "profile_sha256": cli["profile_sha256"],
-        "domain": profile["domain"],
-        "layout": profile["layout"],
-        "sheet": view.sheet,
-        "header_row": view.header_row,
-        "revision": int(existing_meta.get("revision") or 0) + 1,
-        "created": datetime.now().isoformat(timespec="seconds"),
-        "previous_profile_sha256": existing_meta.get("profile_sha256"),
-    }
-    meta_path = target.with_suffix(".meta.json")
-    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        fingerprint = _content_fingerprint(
+            input_file=input_file, input_sha256=input_sha,
+            profile_sha256=cli["profile_sha256"], sheet=view.sheet, header_row=view.header_row)
+        previous_fingerprint = str(existing_meta.get("content_fingerprint", "") or "")
+        # 只有**有效内容**变化才 +1：真正相同的输入身份/字节/映射重存不递增，
+        # 也就不会无意义地撤销批准（WO-34 §1）。
+        unchanged = bool(previous_fingerprint) and previous_fingerprint == fingerprint
+        revision = int(existing_meta.get("revision") or 0) + (0 if unchanged else 1)
+        if revision < 1:
+            revision = 1
 
-    invalidated = _invalidate_stale_approvals(project_id, task_id, profile_id, meta)
+        payload_bytes = json.dumps(SteelDataLike, ensure_ascii=False, indent=2).encode("utf-8")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(".json.tmp")
+        tmp.write_bytes(payload_bytes)
+        tmp.replace(target)
+        meta = {
+            "profile_id": profile_id,
+            "project_id": project_id,
+            "task_id": task_id,
+            "input_file": input_file,
+            "input_sha256": input_sha,
+            "input_bytes": source.stat().st_size,
+            "profile_sha256": cli["profile_sha256"],
+            "domain": profile["domain"],
+            "layout": profile["layout"],
+            "sheet": view.sheet,
+            "header_row": view.header_row,
+            "revision": revision,
+            "content_fingerprint": fingerprint,
+            "created": datetime.now().isoformat(timespec="seconds"),
+            "previous_profile_sha256": existing_meta.get("profile_sha256"),
+        }
+        meta_path = target.with_suffix(".meta.json")
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        invalidated = _invalidate_stale_approvals(project_id, task_id, profile_id, meta)
+        snapshot = confirmation_snapshot(project_id, task_id, profile_id)
 
     preview = preview_profile(project_id, task_id, profile_id)
     return {
@@ -715,7 +819,11 @@ def save_candidate(project_id: str, task_id: str, payload: dict) -> dict:
         "profile": SteelDataLike,
         "profile_sha256": cli["profile_sha256"],
         "input_file": input_file,
-        "input_sha256": meta["input_sha256"],
+        "input_sha256": input_sha,
+        "revision": revision,
+        "unchanged": unchanged,
+        "content_fingerprint": fingerprint,
+        "snapshot": snapshot,
         "records": view.records,
         "notes": view.notes,
         "previous_profile_sha256": meta["previous_profile_sha256"],
@@ -787,130 +895,207 @@ def review_candidate(project_id: str, task_id: str, payload: dict, session: Sess
     if not PROFILE_ID_RE.match(profile_id):
         raise GuardError("非法 profile_id")
 
-    # 用户「看到的那一份」必须被显式提交，缺了就不做任何确认动作。
+    # WO-34 §1：确认必须绑定人所看见的**完整对象**。以下字段缺一不可，
+    # 且都要与实际展示对象一致；服务端绝不用当前值补缺（缺 → 可行动报错）。
+    expected_project = str(payload.get("expected_project_id", "") or "").strip()
+    expected_task = str(payload.get("expected_task_id", "") or "").strip()
     expected_profile = str(payload.get("expected_profile_sha256", "") or "").strip().lower()
+    expected_input_file = str(payload.get("expected_input_file", "") or "").strip()
     expected_input = str(payload.get("expected_input_sha256", "") or "").strip().lower()
+    missing: list[str] = []
+    if not expected_project:
+        missing.append("expected_project_id（你看到的项目）")
+    if not expected_task:
+        missing.append("expected_task_id（你看到的任务）")
     if not re.fullmatch(r"[0-9a-f]{64}", expected_profile):
-        raise GuardError("缺少你看到的映射版本摘要（expected_profile_sha256）："
-                         "请重新读取该候选映射后再确认，服务器不会替你取最新值。")
+        missing.append("expected_profile_sha256（你看到的映射内容摘要）")
+    if not expected_input_file:
+        missing.append("expected_input_file（你看到的输入文件名）")
     if not re.fullmatch(r"[0-9a-f]{64}", expected_input):
-        raise GuardError("缺少你看到的输入摘要（expected_input_sha256）："
-                         "请重新读取该输入后再确认，服务器不会替你取最新值。")
+        missing.append("expected_input_sha256（你看到的输入字节摘要）")
+    try:
+        expected_revision = int(payload.get("expected_revision"))
+    except (TypeError, ValueError):
+        expected_revision = -1
+        missing.append("expected_revision（你看到的映射修订）")
+    if missing:
+        raise GuardError(
+            "确认必须绑定你实际看到的那一份（缺字段，服务器不会替你补当前值）："
+            + "；".join(missing) + "。请重新读取该输入与候选映射后再确认。")
 
     root = task_root(project_id, task_id)
     if not (root / "TASK.md").is_file():
         raise GuardError(f"任务不存在：{project_id}/{task_id}")
-    candidate = _candidate_path(project_id, task_id, profile_id)
-    if not candidate.is_file():
-        raise GuardError(f"候选 profile 不存在：{profile_id}")
-    meta = _read_meta(project_id, task_id, profile_id)
-    input_file = str(meta.get("input_file", "") or "")
-    source = task_inputs(project_id, task_id) / input_file if input_file else None
-    if source is None or not source.is_file():
-        raise GuardError("候选 profile 未记录有效的 input_file")
 
-    current = _sha256(source)
-    digest = str(meta.get("profile_sha256", "") or "")
-    if not digest:
-        raise GuardError("候选 profile 缺少 SteelData 复核算出的 profile_sha256，请重新保存映射")
+    # 读元数据 → 核对 → 原 CLI approve → 写审批/审计：整段在同一把进程内锁里，
+    # 与并发的保存/换绑/拒绝串行，避免「核旧值后落盘新对象」（WO-34 §1）。
+    with _CONTENT_LOCK:
+        candidate = _candidate_path(project_id, task_id, profile_id)
+        if not candidate.is_file():
+            raise GuardError(f"候选 profile 不存在：{profile_id}")
+        meta = _read_meta(project_id, task_id, profile_id)
+        input_file = str(meta.get("input_file", "") or "")
+        source = task_inputs(project_id, task_id) / input_file if input_file else None
+        if source is None or not source.is_file():
+            raise GuardError("候选 profile 未记录有效的 input_file")
+        current = _sha256(source)
+        digest = str(meta.get("profile_sha256", "") or "")
+        if not digest:
+            raise GuardError("候选 profile 缺少 SteelData 复核算出的 profile_sha256，请重新保存映射")
+        current_revision = int(meta.get("revision") or 0)
+        current_fingerprint = str(meta.get("content_fingerprint", "") or "")
 
-    # ---- compare-and-set：只批用户看见的那一版，过期就 409 --------------------- #
-    stale: list[str] = []
-    if expected_profile != digest:
-        stale.append(f"映射已变化（你看到 {expected_profile[:12]}… / 现在 {digest[:12]}…）")
-    if expected_input != current:
-        stale.append(f"输入已变化（你看到 {expected_input[:12]}… / 现在 {current[:12]}…）")
-    if stale:
-        _append_review(project_id, task_id, {
-            "kind": "review_stale",
+        # ---- compare-and-set：只批用户看见的那一版，过期就 409 --------------- #
+        stale: list[str] = []
+        if expected_project != project_id:
+            stale.append(f"项目已变化（你看到 {expected_project} / 现在 {project_id}）")
+        if expected_task != task_id:
+            stale.append(f"任务已变化（你看到 {expected_task} / 现在 {task_id}）")
+        if expected_profile != digest:
+            stale.append(f"映射内容已变化（你看到 {expected_profile[:12]}… / 现在 {digest[:12]}…）")
+        if expected_input_file != input_file:
+            stale.append(f"输入身份已变化（你看到 {expected_input_file} / 现在 {input_file}）")
+        if expected_input != current:
+            stale.append(f"输入字节已变化（你看到 {expected_input[:12]}… / 现在 {current[:12]}…）")
+        if expected_revision != current_revision:
+            stale.append(f"映射修订已变化（你看到 r{expected_revision} / 现在 r{current_revision}）")
+        if stale:
+            _append_review(project_id, task_id, {
+                "kind": "review_stale",
+                "decision": decision,
+                "project_id": project_id, "task_id": task_id, "profile_id": profile_id,
+                "input_file": input_file,
+                "expected_project_id": expected_project, "expected_task_id": expected_task,
+                "expected_profile_sha256": expected_profile,
+                "expected_input_file": expected_input_file,
+                "expected_input_sha256": expected_input,
+                "expected_revision": expected_revision,
+                "current_profile_sha256": digest,
+                "current_input_file": input_file,
+                "current_input_sha256": current,
+                "current_revision": current_revision,
+                "reason": "；".join(stale),
+                "reviewer": reviewer,
+                "synthetic": bool(synthetic),
+                "actor_kind": session.actor_kind,
+                "session_id": session.session_id,
+                "created": datetime.now().isoformat(timespec="seconds"),
+            })
+            raise ConflictError(
+                "你确认的那一版已经不是当前版本：" + "；".join(stale) +
+                "。请重新读取该输入与候选映射后再确认（服务器不会自动替你批最新版）。")
+        try:
+            profile = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise GuardError(f"候选 profile 无法读取：{exc}") from exc
+
+        review_id = "rev-" + uuid.uuid4().hex[:12]
+        entry = {
+            "review_id": review_id,
+            "kind": "review",
             "decision": decision,
-            "project_id": project_id, "task_id": task_id, "profile_id": profile_id,
+            "project_id": project_id,
+            "task_id": task_id,
+            "profile_id": profile_id,
             "input_file": input_file,
+            "input_sha256": current,
+            "profile_sha256": digest,
+            "profile_revision": current_revision,
+            "content_fingerprint": current_fingerprint,
+            "expected_project_id": expected_project,
+            "expected_task_id": expected_task,
             "expected_profile_sha256": expected_profile,
+            "expected_input_file": expected_input_file,
             "expected_input_sha256": expected_input,
-            "current_profile_sha256": digest,
-            "current_input_sha256": current,
-            "reason": "；".join(stale),
+            "expected_revision": expected_revision,
             "reviewer": reviewer,
+            "note": note[:1000],
             "synthetic": bool(synthetic),
             "actor_kind": session.actor_kind,
             "session_id": session.session_id,
             "created": datetime.now().isoformat(timespec="seconds"),
-        })
-        raise ConflictError(
-            "你确认的那一版已经不是当前版本：" + "；".join(stale) +
-            "。请重新读取该输入与候选映射后再确认（服务器不会自动替你批最新版）。")
+        }
+
+        if decision == "reject":
+            # 拒绝同样让旧确认失效：上传/修改后不能再拿旧批准跑。
+            removed = _invalidate_all_approvals(project_id, task_id, profile_id, digest,
+                                                reason="人工拒绝：旧确认失效")
+            entry["invalidated_approvals"] = removed
+            _append_review(project_id, task_id, entry)
+            return {"ok": True, "decision": "reject", "review_id": review_id,
+                    "invalidated_approvals": removed,
+                    "message": "已记录拒绝；该映射的旧确认已失效。"}
+
+        approval_name = f"{profile_id}.json"
+        approval_path = approvals_dir(project_id, task_id) / approval_name
+        # SteelData approve 是独占创建：已存在就拒绝，不静默覆盖别人的确认。
+        # --expected-sha256 用**用户提交的期望值**（上面已核过它等于当前版本），
+        # 不用服务器当前值顶替。
+        code, out, err = _run_steeldata([
+            "approve", "--profile", str(candidate),
+            "--expected-sha256", expected_profile,
+            "--reviewer", reviewer, "--note", note,
+            "--output", str(approval_path),
+        ])
+        if code != 0 or not approval_path.is_file():
+            detail = (out or err or "").strip()
+            try:
+                parsed = json.loads(detail)
+                message = str(parsed.get("message", detail))
+            except json.JSONDecodeError:
+                message = detail or f"SteelData approve 退出码 {code}"
+            entry["kind"] = "review_failed"
+            entry["reason"] = message
+            _append_review(project_id, task_id, entry)
+            return {"ok": False, "decision": "approve", "review_id": review_id,
+                    "problem": f"SteelData 拒绝生成审批文件：{message}"}
+
+        # 落盘后再核对一次：审批文件里的 profile 摘要必须等于用户看到的版本；
+        # 否则丢弃该文件，绝不留下可被 run 误用的错配批准（WO-34 §1）。
+        mismatch = _verify_written_approval(approval_path, expected_profile)
+        if mismatch:
+            entry["kind"] = "review_failed"
+            entry["reason"] = mismatch
+            _append_review(project_id, task_id, entry)
+            try:
+                approval_path.unlink()
+            except OSError:
+                pass
+            return {"ok": False, "decision": "approve", "review_id": review_id,
+                    "problem": mismatch}
+
+        entry["approval_file"] = approval_name
+        entry["approval_sha256"] = _sha256(approval_path)
+        _append_review(project_id, task_id, entry)
+        return {
+            "ok": True, "decision": "approve", "review_id": review_id,
+            "approval_file": approval_name,
+            "approval_sha256": _sha256(approval_path),
+            "profile_id": profile_id,
+            "input_file": input_file, "input_sha256": current, "profile_sha256": digest,
+            "revision": current_revision,
+            "reviewer": reviewer, "synthetic": bool(synthetic),
+            "message": "审批文件由 SteelData 自己的 approve 命令生成，落在本任务 approvals/ 下。",
+        }
+
+
+def _verify_written_approval(path: Path, expected_profile: str) -> str:
+    """Return a problem string if the freshly written approval does not match.
+
+    WO-34 §1：approve 与并发的保存可能交错；即使 CLI 用了 ``--expected-sha256``，
+    落盘后再核一次「审批文件里的 profile 摘要 == 用户看到的版本」，不一致就丢弃，
+    不留下一份可用于 run 的错配批准。
+    """
     try:
-        profile = json.loads(candidate.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise GuardError(f"候选 profile 无法读取：{exc}") from exc
-
-    review_id = "rev-" + uuid.uuid4().hex[:12]
-    entry = {
-        "review_id": review_id,
-        "kind": "review",
-        "decision": decision,
-        "project_id": project_id,
-        "task_id": task_id,
-        "profile_id": profile_id,
-        "input_file": input_file,
-        "input_sha256": current,
-        "profile_sha256": digest,
-        "profile_revision": int(meta.get("revision") or 0),
-        "expected_profile_sha256": expected_profile,
-        "expected_input_sha256": expected_input,
-        "reviewer": reviewer,
-        "note": note[:1000],
-        "synthetic": bool(synthetic),
-        "actor_kind": session.actor_kind,
-        "session_id": session.session_id,
-        "created": datetime.now().isoformat(timespec="seconds"),
-    }
-
-    if decision == "reject":
-        # 拒绝同样让旧确认失效：上传/修改后不能再拿旧批准跑。
-        removed = _invalidate_all_approvals(project_id, task_id, profile_id, digest,
-                                            reason="人工拒绝：旧确认失效")
-        entry["invalidated_approvals"] = removed
-        _append_review(project_id, task_id, entry)
-        return {"ok": True, "decision": "reject", "review_id": review_id,
-                "invalidated_approvals": removed,
-                "message": "已记录拒绝；该映射的旧确认已失效。"}
-
-    approval_name = f"{profile_id}.json"
-    approval_path = approvals_dir(project_id, task_id) / approval_name
-    # SteelData approve 是独占创建：已存在就拒绝，不静默覆盖别人的确认。
-    # --expected-sha256 用**用户提交的期望值**（上面已核过它等于当前版本），
-    # 不用服务器当前值顶替。
-    code, out, err = _run_steeldata([
-        "approve", "--profile", str(candidate),
-        "--expected-sha256", expected_profile,
-        "--reviewer", reviewer, "--note", note,
-        "--output", str(approval_path),
-    ])
-    if code != 0 or not approval_path.is_file():
-        detail = (out or err or "").strip()
-        try:
-            parsed = json.loads(detail)
-            message = str(parsed.get("message", detail))
-        except json.JSONDecodeError:
-            message = detail or f"SteelData approve 退出码 {code}"
-        entry["kind"] = "review_failed"
-        entry["reason"] = message
-        _append_review(project_id, task_id, entry)
-        return {"ok": False, "decision": "approve", "review_id": review_id,
-                "problem": f"SteelData 拒绝生成审批文件：{message}"}
-
-    entry["approval_file"] = approval_name
-    _append_review(project_id, task_id, entry)
-    return {
-        "ok": True, "decision": "approve", "review_id": review_id,
-        "approval_file": approval_name,
-        "approval_sha256": _sha256(approval_path),
-        "input_file": input_file, "input_sha256": current, "profile_sha256": digest,
-        "reviewer": reviewer, "synthetic": bool(synthetic),
-        "message": "审批文件由 SteelData 自己的 approve 命令生成，落在本任务 approvals/ 下。",
-    }
+        return f"审批文件写入后无法解析：{exc}"
+    if not isinstance(data, dict) or data.get("kind") != "human":
+        return "审批文件不是 SteelData human 审批"
+    if str(data.get("profile_sha256", "") or "") != expected_profile:
+        return ("审批文件记录的 profile 摘要与你确认的版本不一致"
+                "（可能在校对后映射被替换），已丢弃该审批，请重新读取后再确认。")
+    return ""
 
 
 def _invalidate_all_approvals(project_id: str, task_id: str, profile_id: str, digest: str,

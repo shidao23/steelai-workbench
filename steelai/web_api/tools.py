@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from dataclasses import asdict, dataclass, field
@@ -330,6 +331,32 @@ def _stage_run_input(source: Path, task_dir: Path, run_id: str) -> Path:
     return stage
 
 
+def _stage_run_approval(approval: Path, task_dir: Path, run_id: str) -> Path:
+    """Freeze the verified approval's bytes into the run's own staging dir.
+
+    WO-34 §2：run 必须消费**固定审批**。原实现把 ``--approval`` 指向 task 的
+    ``approvals/<id>.json``——它在排队期间可能被失效归档或重建，于是出现
+    「记录 MPa、实际执行 GPa」（``race_probe.py`` 已复现）。这里把经核验的审批
+    **完整字节**复制进 ``.stage/<run_id>/approvals/``；SteelData 的 ``run`` 直接从
+    审批文件里取 profile，所以冻结审批文件 = 冻结 profile 版本。
+    """
+    stage = task_dir / ".stage" / run_id / "approvals"
+    stage.mkdir(parents=True, exist_ok=True)
+    frozen = stage / approval.name
+    if not frozen.is_file():
+        frozen.write_bytes(approval.read_bytes())
+    return frozen
+
+
+def _frozen_approval_profile_sha(path: Path) -> str:
+    """The ``profile_sha256`` recorded inside a frozen approval file (or "")."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    return str(data.get("profile_sha256", "") or "") if isinstance(data, dict) else ""
+
+
 def build_argv(tool_id: str, params: dict, *, task_inputs: Path, out_dir: Path,
                run_id: str, existing_runs: list[str],
                project_id: str | None = None, task_id: str | None = None,
@@ -378,9 +405,10 @@ def build_argv(tool_id: str, params: dict, *, task_inputs: Path, out_dir: Path,
         if not info.get("ok"):
             raise GuardError(str(info.get("message") or "该确认与本次运行不匹配，请重新保存映射并重新人工确认"))
         approval = Path(info["path"])
+        task_dir = out_dir.parent.parent
         # SteelData run 的 --input 是目录：只把本次选中的输入暂存进去（见 _stage_run_input），
         # 再核对**暂存后字节**的 SHA 仍等于审批绑定的输入，避免"核对后、启动前被换文件"。
-        stage = _stage_run_input(source, out_dir.parent.parent, run_id)
+        stage = _stage_run_input(source, task_dir, run_id)
         staged = stage / source.name
         staged_sha = _sha256(staged)
         bound_sha = str(info.get("bound_input_sha256") or "")
@@ -388,6 +416,15 @@ def build_argv(tool_id: str, params: dict, *, task_inputs: Path, out_dir: Path,
             raise GuardError(
                 "暂存后的输入字节与审批覆盖的输入不一致（文件在核对后被改动或替换），"
                 "已停止，未执行任何子进程。请重新人工确认。")
+        # WO-34 §2：把审批完整内容冻结进本 run 的暂存目录，--approval 指向冻结副本。
+        # 只固定 filename 不算固定版本——这里固定的是经核验的那份**字节**。
+        frozen_approval = _stage_run_approval(approval, task_dir, run_id)
+        frozen_sha = _sha256(frozen_approval)
+        frozen_profile = _frozen_approval_profile_sha(frozen_approval)
+        if not frozen_profile or frozen_profile != str(info.get("profile_sha256") or ""):
+            raise GuardError(
+                "冻结的审批内容与经核验的版本不一致（审批在核对后被替换），已停止，"
+                "未执行任何子进程。请重新人工确认。")
         if provenance is not None:
             provenance.update({
                 "approval_origin": info.get("origin", ""),
@@ -402,10 +439,14 @@ def build_argv(tool_id: str, params: dict, *, task_inputs: Path, out_dir: Path,
                 "approval_synthetic": bool(info.get("synthetic", False)),
                 "actual_input_file": source.name,
                 "actual_input_sha256": staged_sha,
+                # 冻结快照（供 runner 在真正启动前再核一次）
+                "approval_sha256": frozen_sha,
+                "approval_frozen_path": str(frozen_approval),
+                "input_frozen_path": str(staged),
             })
         return _interpreter(tool, tool_id), [
             "-B", "-m", "steeldata", "run",
-            "--input", str(stage), "--approval", str(approval), "--output", str(out_dir),
+            "--input", str(stage), "--approval", str(frozen_approval), "--output", str(out_dir),
         ], Path(tool.extra["project"])
 
     if tool_id == "steeldata.verify":

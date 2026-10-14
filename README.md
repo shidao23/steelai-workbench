@@ -367,6 +367,30 @@ cd frontend; npm install --ignore-scripts; npm run build; cd ..
    挡不住已拥有同一 Windows 账号全部文件/进程权限的对手——那种对手本就能直接读配对文件或改本进程。
 
 
+### WO-34：人审绑定"完整所见对象"、运行消费"固定审批与固定输入"
+
+WO-33 已把 XLSX 真读与最小受信任人审配对修好，但仍留两个洞：确认只绑两个 SHA（同字节换输入身份会被
+静默批准），排队运行的 `--approval` 指向可被替换的路径（记录旧版本、执行新审批）。本单收尾这两点。
+
+1. **确认绑定完整所见对象（§1）**：保存候选映射时服务端生成一份**确认快照**
+   （`project_id`/`task_id`/`profile_id` + 输入 `file_id`+名称+字节 SHA + profile 完整内容 SHA + 修订
+   `revision` + `content_fingerprint`），前端**原样交回用户此刻看到的那一份**；后端在**一把进程内锁**里
+   完成"读元数据 → 核对 → 原 CLI `approve` → 写审批/审计"整段，按同一快照 compare-and-set。
+   - **缺字段不补**：少任一 `expected_*` 返回 400，服务器**绝不用当前值替用户补缺**。
+   - **同字节换绑也重核**：把输入从 `a.csv` 换成同字节的 `same.csv`，旧快照确认返回
+     `409 stale_confirmation`（输入身份变了），不写审批。
+   - **修订语义统一**：`revision` 只在**有效内容指纹**（输入身份+字节 + profile 内容 + sheet + header_row）
+     变化时 +1；**完全相同的重存不递增、不撤销批准**；单位/列映射/表/逻辑表头变化**必须失效**。
+     只影响**该 profile 自己**的审批，无关 profile 的批准不动；review/invalidation **只追加**。
+   - **落盘再核一次**：审批文件写入后校验其 `profile_sha256 == 用户看到的版本`，不一致就丢弃，
+     **不留下可用于 run 的错配批准**。
+
+2. **运行消费固定审批与固定输入（§2）**：创建 run 时把**经核验的审批完整字节**与**输入字节**冻结进
+   本 run 独立的 `.stage/<run_id>/approvals/`、`.stage/<run_id>/inputs/`，`--approval` 指向**冻结副本**
+   （SteelData 的 `run` 直接从审批文件取 profile，故冻结审批文件 = 冻结 profile 版本）；运行记录如实
+   写下冻结路径与摘要。**真正启动前再核一次**这两份冻结快照，不一致即 `blocked`、**不执行任何子进程**。
+   于是排队期间即使换掉 task 的审批/输入，运行的仍是**记录里那一版**——**绝不执行新审批却记录旧版本**。
+
 ### 真实输入到导出
 
 1. **项目页**：项目清单直接读现有科研登记（科研主表 `项目表` 工作表），不新建第二个总项目库；
@@ -449,6 +473,12 @@ cd frontend; npm install --ignore-scripts; npm run build; cd ..
   WO-33 的回归落在项目自己的 `tests/`（`tests/test_web_tabular_contract.py` 24 项、`tests/test_web_session_pairing.py` 22 项，
   与既有 `tests/test_governance_core.py` 同跑 59 项全绿）与 `Batch_WO33/synthetic/`（真实 XLSX 解析 36/36、
   HTTP 绑定/配对 49/49、会话重启 5/5、真实浏览器 XLSX 闭环 23/23，并复跑 WO-32 解析 17/17 无回归）。
+  WO-34 的回归同样落在 `tests/`（新增 `tests/test_web_approval_snapshot.py` 12 项；连同 `test_web_tabular_contract.py`、
+  `test_web_session_pairing.py`、`test_governance_core.py` 同跑 **71 passed**）与 `Batch_WO34/synthetic/`
+  （HTTP 合同 18/18、排队运行固定审批竞态 6/6、真实浏览器 CSV+XLSX 闭环 26/26，并复跑 WO-33 XLSX 解析 36/36 无回归）。
+  完整 `tests/` 全量入口 `scripts/test.ps1` 在本机**跑不起来**：配置解释器缺 `openpyxl`、`.venv-web` 缺 `streamlit`，
+  均为**环境级依赖缺口**（如实记录，未安装依赖、未改生活模块）；用 `--basetemp` 指向批内独立临时根可避开沙箱
+  pytest 临时目录 ACL 失败。
 
 ## 运行
 

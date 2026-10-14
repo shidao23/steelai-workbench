@@ -70,6 +70,9 @@ class RunRecord:
     approval_reviewer: str = ""
     approval_review_id: str = ""
     approval_synthetic: bool = False
+    approval_sha256: str = ""
+    approval_frozen_path: str = ""
+    input_frozen_path: str = ""
     actual_input_file: str = ""
     actual_input_sha256: str = ""
     duration_sec: float | None = None
@@ -179,7 +182,49 @@ def _collect_artifacts(root: Path) -> list[dict]:
     return rows
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _verify_frozen_snapshots(record: RunRecord) -> str:
+    """Return a blocker string if the frozen input/approval no longer match.
+
+    WO-34 §2：run 必须消费**固定审批与固定输入**。创建 run 时已把经核验的输入
+    字节与审批字节冻结进 ``.stage/<run_id>/``；真正启动前再核一次这两份快照——
+    排队到启动之间被改动就阻断，绝不执行新审批却记录旧版本。
+    """
+    if record.tool_id != "steeldata.run":
+        return ""
+    for raw, expected, label in (
+        (record.input_frozen_path, record.actual_input_sha256, "输入快照"),
+        (record.approval_frozen_path, record.approval_sha256, "审批快照"),
+    ):
+        if not raw or not expected:
+            return (f"{label}未登记冻结路径/摘要，拒绝执行"
+                    "（无法证明消费的是创建 run 时已核验的版本）。")
+        path = Path(raw)
+        if not path.is_file():
+            return f"{label}已不存在（{Path(raw).name}），拒绝执行。"
+        actual = _sha256(path)
+        if actual != expected:
+            return (f"{label}在排队期间被改动（冻结时 {expected[:12]}… / 现在 {actual[:12]}…），"
+                    "已阻断，未执行任何子进程。请重新发起运行。")
+    return ""
+
+
 def _execute(record: RunRecord, interpreter: Path, argv: list[str], cwd: Path) -> None:
+    # WO-34 §2：真正启动前先核冻结快照，不一致就阻断，绝不带着旧版本记录去执行新审批。
+    blocker = _verify_frozen_snapshots(record)
+    if blocker:
+        record.status = "blocked"
+        record.error = blocker
+        record.finished = datetime.now().isoformat(timespec="seconds")
+        save_record(record)
+        return
     out_dir = Path(record.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     record.status = "running"

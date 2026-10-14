@@ -204,15 +204,22 @@ export function DataProcessingPage() {
     try {
       const target = activeProfile
       if (!target) throw new Error('请先保存并选定一个候选映射')
-      // WO-33 §2：把**人看到的那一版**摘要一起提交；服务端做 compare-and-set，
-      // 过期就 409，绝不替人批最新版。
+      // WO-34 §1：把**用户实际看到的那份完整对象**（服务端生成的确认快照）原样交回，
+      // 而不是只发两个 SHA。服务端按同一快照 compare-and-set：缺字段/过期/不同一律
+      // 409（stale_confirmation），绝不替人批最新版。同字节的不同输入身份也会被拦。
+      const snap = target.snapshot
+      if (!snap) throw new Error('缺少服务端确认快照，请重新读取候选映射后再确认')
       const result = await api.review(scope.projectId, scope.taskId, {
         profile_id: target.profile_id,
         decision,
         reviewer: reviewer.trim(),
         note: note.trim(),
-        expected_profile_sha256: String(target.meta?.profile_sha256 ?? ''),
-        expected_input_sha256: String(target.meta?.input_sha256 ?? ''),
+        expected_project_id: snap.project_id,
+        expected_task_id: snap.task_id,
+        expected_profile_sha256: snap.profile_sha256,
+        expected_input_file: snap.input_file,
+        expected_input_sha256: snap.input_sha256,
+        expected_revision: snap.revision,
       }, synthetic)
       if (!session.isCurrent(scope)) return
       setReviewResult(result)
