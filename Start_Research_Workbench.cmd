@@ -26,6 +26,12 @@ if not exist "%REPO%frontend\dist\index.html" (
 
 pushd "%REPO%"
 echo Starting research thin API on http://127.0.0.1:%PORT%/
+echo.
+echo The API prints a ONE-TIME pairing code below (local human-review pairing).
+echo Enter that code in the page banner the first time you open the workbench.
+echo It is single-use and rotates after being used; it is a local loopback
+echo credential - do not paste it into chat, screenshots or public repos.
+echo.
 "%PY%" -m steelai.web_api --host 127.0.0.1 --port %PORT%
 set "RC=%ERRORLEVEL%"
 popd

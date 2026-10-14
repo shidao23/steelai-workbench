@@ -25,6 +25,12 @@ export function ToolRunner({ capability }: { capability: Capability }) {
     setScope(session.beginScope())
   }, [session.selection?.epoch, session.selection?.taskId, session.beginScope])
 
+  // 审批绑定到具体输入：换输入后旧选择不再适用，直接清空（服务端也会拒）。
+  useEffect(() => {
+    if (capability.tool_id !== 'steeldata.run') return
+    setValues((previous) => (previous.approval_file ? { ...previous, approval_file: '' } : previous))
+  }, [values.input_file, capability.tool_id])
+
   const runOptions = useMemo(
     () => session.runs.map((run) => run.run_id),
     [session.runs],
@@ -44,19 +50,36 @@ export function ToolRunner({ capability }: { capability: Capability }) {
   }
 
   /**
-   * 审批文件候选：inputs/ 里**导入**的既有审批 + 本任务 approvals/ 下由网页具名人审
-   * **生成**的审批（文件名 = <profile_id>.json）。两类来源服务端都會复核来源，
-   * 这里只是把可选项列全，不因为来源不同就藏起来。
+   * 审批文件候选（WO-33 §2）：只列出**能覆盖本次选中输入**的网页人审审批。
+   *
+   * 服务端在运行前会强制核对「审批绑定的输入名 + 字节 SHA」与本次选中的输入；
+   * 这里先按同一条件过滤，免得人挑一个必然被拒的审批。``inputs/`` 下导入的既有
+   * 审批仍列出来（带明确标注），但它无法证明覆盖本次输入，服务端不会用它运行。
    */
-  function approvalOptions(): string[] {
+  function approvalOptions(): { value: string; label: string; runnable: boolean }[] {
     if (!session.isCurrent(scope)) return []
-    const imported = session.files
-      .filter((file) => file.suffix === '.json')
-      .map((file) => file.file_id)
+    const selected = values['input_file'] ?? ''
     const generated = session.profiles
       .filter((profile) => profile.approval_sha256)
-      .map((profile) => `${profile.profile_id}.json`)
-    return [...new Set([...generated, ...imported])]
+      .filter((profile) => !selected || profile.meta?.input_file === selected)
+      .map((profile) => ({
+        value: `${profile.profile_id}.json`,
+        label: `${profile.profile_id}.json · 网页人审 · 覆盖 ${profile.meta?.input_file ?? '—'}`,
+        runnable: true,
+      }))
+    const imported = session.files
+      .filter((file) => file.suffix === '.json')
+      .map((file) => ({
+        value: file.file_id,
+        label: `${file.file_id} · 导入（无法证明覆盖本次输入，不用于运行）`,
+        runnable: false,
+      }))
+    const seen = new Set<string>()
+    return [...generated, ...imported].filter((item) => {
+      if (seen.has(item.value)) return false
+      seen.add(item.value)
+      return true
+    })
   }
 
   async function submit() {
@@ -136,7 +159,7 @@ export function ToolRunner({ capability }: { capability: Capability }) {
               >
                 <option value="">（选择人审审批文件）</option>
                 {approvalOptions().map((option) => (
-                  <option key={option} value={option}>{option}</option>
+                  <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
             ) : field.kind === 'file' ? (

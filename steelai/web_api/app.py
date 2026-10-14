@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from steelai.paths import ROOT
 from steelai.web_api import mapping, registry, runner, session as session_store, tools
 from steelai.web_api.config import config
-from steelai.web_api.security import GuardError, check_origin, interpreter_is_trusted
+from steelai.web_api.security import ConflictError, GuardError, check_origin, interpreter_is_trusted
 from steelai.web_api.tabular import TableError, read_table
 from steelai.web_api.runner import RunRecord
 
@@ -32,7 +32,7 @@ PREVIEW_ROWS = 25
 NO_SESSION = "未申请会话令牌（本地最小会话 /api/session 先换取）"
 READ_ONLY_METHODS = {"GET", "HEAD", "OPTIONS"}
 
-app = FastAPI(title="SteelAI 科研薄 API", version="0.2.0", docs_url="/api/docs",
+app = FastAPI(title="SteelAI 科研薄 API", version="0.3.0", docs_url="/api/docs",
               openapi_url="/api/openapi.json")
 
 app.add_middleware(
@@ -44,9 +44,39 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+def _startup() -> None:
+    """Publish the one-time pairing code on the local trusted channel.
+
+    WO-33 §3：人审能力由本地受信任入口授予。启动时生成一次性配对码，写到
+    本机文件并在**服务自己的控制台**打印一次（与 Jupyter token 同类做法）；
+    它不进公开 bundle、不进 README、不进运行日志。
+    """
+    pairing = session_store.ensure_pairing(rotate=True)
+    # flush=True：stdout 在重定向/管道时是块缓冲的，不刷新的话启动窗口里
+    # 看不到配对码（只有 uvicorn 的 stderr 日志），用户就没法完成首次配对。
+    print(
+        "=" * 68 + "\n"
+        "SteelAI 科研工作台 · 本地人审配对码（一次性，页面首次使用需要）\n"
+        f"  {pairing.code}\n"
+        f"  有效期至 {pairing.expires_at}；用过后自动轮换。\n"
+        f"  同一份也写在本机文件：{session_store.pairing_file()}\n"
+        "  这是本机回环服务的本地凭据，请不要贴进聊天/截图/公开仓库。\n"
+        + "=" * 68,
+        flush=True,
+    )
+
+
 def _guard(callable_):
     try:
         return callable_()
+    except ConflictError as exc:
+        # WO-33 §2：用户确认的那一版已经不是当前版本 → 409，服务器不替用户取最新值。
+        raise HTTPException(status_code=409, detail={
+            "code": "stale_confirmation",
+            "problem": str(exc),
+            "needs_human": [str(exc)],
+        }) from exc
     except GuardError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -92,6 +122,8 @@ def health() -> dict:
         "allowed_origins": list(cfg.allowed_origins),
         "research_app_url": cfg.streamlit_url,
         "frontend_built": FRONTEND_DIST.is_dir(),
+        # 非秘密：只说"需要配对"和本地配对文件在哪，绝不回传配对码本身。
+        "pairing": session_store.pairing_status(),
         # 解释器只来自服务端解析（环境变量/被忽略的 config/settings.toml），
         # 客户端永远不能提交。这里如实报告它是否落在已登记的可信根内。
         "tools": {
@@ -118,18 +150,23 @@ def capabilities() -> dict:
 def post_session(request: Request, payload: dict = Body(...)) -> dict:
     """Issue a local capability token for this loopback-only API.
 
-    ``client="browser"`` asks for the in-page human session and **must** arrive
-    with a trusted ``Origin`` (a same-origin POST always sends one). ``client="ai"``
-    asks for the restricted assistant session: read + advise + approved
-    execution, never a human review. The server decides the capability set; a
-    caller never chooses its own permissions.
+    ``client="ai"`` asks for the restricted assistant session: read + advise +
+    approved execution, never a human review.
+
+    ``client="browser"`` asks for the in-page human session. WO-33 §3: it needs
+    a **one-time local pairing code** (printed by the server on its own console
+    and written to a local file) on top of a trusted ``Origin``. A script that
+    only fills in ``client``/``Origin`` no longer receives ``review:human``.
+    The server decides the capability set; a caller never chooses its own.
     """
     client = str(payload.get("client", "") or "").strip().lower()
+    pairing = str(payload.get("pairing", "") or "")
     try:
         return session_store.issue(
             client,
             origin=request.headers.get("origin"),
             allowed_origins=config().allowed_origins,
+            pairing=pairing,
         )
     except GuardError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -207,10 +244,11 @@ def delete_file(project_id: str, task_id: str, file_id: str, request: Request) -
 
 
 @app.get("/api/projects/{project_id}/tasks/{task_id}/preview")
-def get_preview(project_id: str, task_id: str, file_id: str, request: Request) -> dict:
+def get_preview(project_id: str, task_id: str, file_id: str, request: Request,
+                sheet: str = "", header_row: int = 1) -> dict:
     _capability_of(request, "files:read")
     path = _guard(lambda: registry.input_path(project_id, task_id, file_id))
-    return _guard(lambda: _preview(path))
+    return _guard(lambda: _preview(path, sheet=sheet or None, header_row=header_row))
 
 
 @app.get("/api/projects/{project_id}/tasks/{task_id}/handoff")
@@ -339,10 +377,16 @@ def get_mapping_contract() -> dict:
 
 
 @app.get("/api/projects/{project_id}/tasks/{task_id}/describe-input")
-def get_describe_input(project_id: str, task_id: str, file_id: str, request: Request) -> dict:
-    """Read-only description of one uploaded file: real columns, units, problems."""
+def get_describe_input(project_id: str, task_id: str, file_id: str, request: Request,
+                       sheet: str = "", header_row: int = 1) -> dict:
+    """Read-only description of one uploaded file: real columns, units, problems.
+
+    ``sheet``/``header_row`` 是用户实际选的那张表与那一行；XLSX 多工作表时
+    前端必须先选定，服务端按同一张表读列——与 SteelData 运行时的读法一致。
+    """
     _capability_of(request, "files:read")
-    return _guard(lambda: mapping.describe_input(project_id, task_id, file_id))
+    return _guard(lambda: mapping.describe_input(project_id, task_id, file_id,
+                                                 sheet=sheet or None, header_row=header_row))
 
 
 @app.get("/api/projects/{project_id}/tasks/{task_id}/profiles")
@@ -452,7 +496,7 @@ def _image_size(path: Path) -> dict:
     return {"format": path.suffix.lstrip(".").lower(), "width": None, "height": None}
 
 
-def _preview(path: Path) -> dict:
+def _preview(path: Path, *, sheet: str | None = None, header_row: int = 1) -> dict:
     if not path.is_file():
         raise GuardError("文件不存在")
     suffix = path.suffix.lower()
@@ -467,18 +511,21 @@ def _preview(path: Path) -> dict:
     # 与 SteelData 自己的解析保持一致；预览与后续处理对同一份字节给同一解释。
     if suffix in {".csv", ".tsv", ".xlsx"}:
         try:
-            view = read_table(path)
+            view = read_table(path, sheet=sheet, header_row=header_row)
         except TableError as exc:
             return {**base, "kind": "error", "problem": str(exc),
                     "note": mapping.SUPPORTED_FORMATS_NOTE, "columns": [], "rows": [],
-                    "records": 0, "delimiter": ""}
+                    "records": 0, "delimiter": "", "sheet": sheet or None, "sheets": []}
         payload = {
             "kind": "workbook" if view.suffix == ".xlsx" else "table",
             "delimiter": view.delimiter,
             "delimiter_source": view.delimiter_source,
             "sheet": view.sheet,
             "sheets": view.sheets,
+            "sheet_required": view.sheet_required,
+            "header_row": view.header_row,
             "has_formulas": view.has_formulas,
+            "cached_rows": view.cached_rows,
             "columns": view.columns,
             "rows": view.rows[:PREVIEW_ROWS],
             "records": view.records,

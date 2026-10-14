@@ -30,10 +30,13 @@ import {
 } from 'react'
 import {
   api,
+  pairSession,
+  useReadOnlySession,
   type Artifact,
   type Capability,
   type CandidateProfile,
   type FileEntry,
+  type PairingStatus,
   type ProjectSummary,
   type ReviewEntry,
   type RunRecord,
@@ -106,6 +109,14 @@ interface SessionValue {
   projectId: string
   taskId: string
   sessionInfo: SessionInfo | null
+  /** WO-33 §3：当前会话是否完成了本地人审配对（决定能不能上传/建任务/人审） */
+  paired: boolean
+  pairing: PairingStatus | null
+  pairError: string
+  /** 用一次性配对码换人审会话；成功返回 true */
+  pair: (code: string) => Promise<boolean>
+  /** 明确回退到只读会话（不做人审） */
+  useReadOnly: () => Promise<void>
   page: PageKey
   files: FileEntry[]
   context: TaskContext | null
@@ -149,6 +160,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [selection, setSelection] = useState<Selection | null>(null)
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null)
+  const [paired, setPaired] = useState(false)
+  const [pairing, setPairing] = useState<PairingStatus | null>(null)
+  const [pairError, setPairError] = useState('')
   const [page, setPage] = useState<PageKey>('projects')
   const [files, setFiles] = useState<FileEntry[]>([])
   const [context, setContext] = useState<TaskContext | null>(null)
@@ -297,8 +311,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setWorkRoot(health.work_root)
       setResearchAppUrl(health.research_app_url)
       setAllowedOrigins(health.allowed_origins)
+      setPairing(health.pairing ?? null)
       setCapabilities(caps.tools)
-      if (session) setSessionInfo(session.session)
+      if (session) {
+        setSessionInfo(session.session)
+        setPaired(Boolean(session.session.paired))
+      }
       setProjects(proj.projects)
 
       const restored = readRestoredSelection()
@@ -306,15 +324,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         ? proj.projects.find((item) => item.project_id === restored.projectId)
         : undefined
       const taskStillThere = stillThere?.tasks.some((item) => item.task_id === restored?.taskId)
-      if (restored && stillThere && taskStillThere) {
-        // 刷新后回到上次的项目/任务（epoch 重新计数，内容来自磁盘）
-        setSelection({ epoch: 0, projectId: restored.projectId, taskId: restored.taskId })
+      const canRestore = Boolean(restored && stillThere && taskStillThere)
+      // WO-33 §3：配对（pair → refreshAll）与「刷新」都会走到这里，而它是**异步**的。
+      // 绝不能因为一次迟到的 refreshAll 就把用户已经做出的选择换成一个新对象：
+      // isCurrent 是按**引用**判断的，引用一变，页面手上那一代 scope 立刻被判过期，
+      // 正在进行的读取会被静默丢弃——首次使用「配对后马上选文件/读列」正好会踩到。
+      // 所以：已有选择就原样保留（内容由 refreshTask 刷新）；只有还没有选择时才按存储恢复。
+      const restoreTarget: Selection | null = canRestore && restored
+        ? { epoch: 0, projectId: restored.projectId, taskId: restored.taskId }
+        : null
+      setSelection((previous) => previous ?? restoreTarget)
+      if (canRestore) {
         setNeedsReselect(false)
         await refreshTask()
-      } else {
-        // 恢复不了：不暗换默认项目/首任务，要求用户显式选择
+      } else if (!selectionRef.current) {
+        // 恢复不了且当前没有选择：不暗换默认项目/首任务，要求用户显式选择
         writeRestoredSelection(null)
-        setSelection(null)
         setNeedsReselect(true)
         clearTaskScoped()
       }
@@ -485,6 +510,34 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [frozenScope, isCurrent],
   )
 
+  /** WO-33 §3：用一次性配对码换取人审会话；失败如实回显原因，不静默降级。 */
+  const pair = useCallback(async (code: string) => {
+    setPairError('')
+    try {
+      const info = await pairSession(code)
+      setSessionInfo(info)
+      setPaired(Boolean(info.paired))
+      // 拿到人审能力后重新拉一次数据（能力变化会影响可用操作）
+      await refreshAll()
+      return Boolean(info.paired)
+    } catch (err) {
+      setPairError(err instanceof Error ? err.message : String(err))
+      return false
+    }
+  }, [refreshAll])
+
+  const useReadOnly = useCallback(async () => {
+    setPairError('')
+    try {
+      const info = await useReadOnlySession()
+      setSessionInfo(info)
+      setPaired(Boolean(info.paired))
+      await refreshAll()
+    } catch (err) {
+      setPairError(err instanceof Error ? err.message : String(err))
+    }
+  }, [refreshAll])
+
   const value = useMemo<SessionValue>(
     () => ({
       ready,
@@ -499,6 +552,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       projectId: selection?.projectId ?? '',
       taskId: selection?.taskId ?? '',
       sessionInfo,
+      paired,
+      pairing,
+      pairError,
+      pair,
+      useReadOnly,
       page,
       files,
       context,
@@ -529,7 +587,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }),
     [
       ready, needsReselect, error, workRoot, researchAppUrl, allowedOrigins, capabilities, projects,
-      selection, sessionInfo, page, files, context, runs, artifacts, profiles, reviews, activeRunId,
+      selection, sessionInfo, paired, pairing, pairError, pair, useReadOnly,
+      page, files, context, runs, artifacts, profiles, reviews, activeRunId,
       busy, beginScope, isCurrent, selectProject, selectTask, refreshAll, refreshTask, reloadRuns,
       reloadArtifacts, reloadProfiles, reloadReviews, createTask, runTool, uploadFile, deleteFile,
       saveHandoff,

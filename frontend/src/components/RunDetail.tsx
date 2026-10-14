@@ -168,7 +168,18 @@ export function RunDetail({ run }: { run: RunRecord }) {
             {run.approval_origin
               ? ` · 确认来源 ${run.approval_origin}（${run.approval_reviewer || '未署名'}）`
               : ''}
+            {run.approval_revision ? ` · 映射修订 ${run.approval_revision}` : ''}
             {run.approval_synthetic ? ' · 合成验收' : ''}
+          </div>
+        )}
+        {run.actual_input_sha256 && (
+          <div className="muted small">
+            本次实际输入：<code>{run.actual_input_file}</code>{' '}
+            <code className="hash">{run.actual_input_sha256.slice(0, 12)}…</code>
+            {run.approval_input_sha256
+              ? ` · 审批覆盖 ${run.approval_input_file || '—'} ` +
+                `${run.approval_input_sha256.slice(0, 12)}…`
+              : ''}
           </div>
         )}
         {run.error && <p className="warn-text">{run.error}</p>}

@@ -30,7 +30,7 @@ from steelai.web_api.registry import (
     approvals_dir, profiles_dir, reviews_dir,
     task_root, task_inputs, list_input_files,
 )
-from steelai.web_api.security import GuardError, safe_identifier, safe_filename
+from steelai.web_api.security import ConflictError, GuardError, safe_identifier, safe_filename
 from steelai.web_api.session import Session
 from steelai.web_api.tabular import (
     SUPPORTED_SUFFIXES, TableError, TableView,
@@ -98,8 +98,13 @@ def _run_steeldata(argv: list[str], *, timeout: int = 300) -> tuple[int, str, st
 # 用户界面能看到的"这份资料长什么样"（原列/建议目标/单位证据）
 # --------------------------------------------------------------------------- #
 
-def describe_input(project_id: str, task_id: str, file_id: str, *, sheet: str | None = None) -> dict:
-    """Read-only description of one uploaded file: real columns, units, problems."""
+def describe_input(project_id: str, task_id: str, file_id: str, *,
+                   sheet: str | None = None, header_row: int = 1) -> dict:
+    """Read-only description of one uploaded file: real columns, units, problems.
+
+    ``sheet``/``header_row`` 是**用户实际选的那张表与那一行**；默认值只是让页面
+    先有东西可看，多工作表时会明确标 ``sheet_required``，不假装第一张表就是答案。
+    """
     root = task_root(project_id, task_id)
     if not (root / "TASK.md").is_file():
         raise GuardError(f"任务不存在：{project_id}/{task_id}")
@@ -110,8 +115,10 @@ def describe_input(project_id: str, task_id: str, file_id: str, *, sheet: str | 
     path = inputs / name
     if not path.is_file():
         raise GuardError(f"输入文件不存在：{name}")
+    if header_row < 1 or header_row > 100:
+        raise GuardError("header_row 必须在 1..100")
     try:
-        view = read_table(path)
+        view = read_table(path, sheet=sheet or None, header_row=header_row)
     except TableError as exc:
         return {
             "file_id": name,
@@ -120,6 +127,11 @@ def describe_input(project_id: str, task_id: str, file_id: str, *, sheet: str | 
             "note": SUPPORTED_FORMATS_NOTE,
             "columns": [],
             "records": 0,
+            "sheet": sheet or None,
+            "sheets": [],
+            "sheet_required": False,
+            "header_row": header_row,
+            "input_sha256": _sha256(path),
         }
     columns = header_cells(view)
     suggestions: list[dict] = []
@@ -147,7 +159,10 @@ def describe_input(project_id: str, task_id: str, file_id: str, *, sheet: str | 
         "delimiter_source": view.delimiter_source,
         "sheet": view.sheet,
         "sheets": view.sheets,
+        "sheet_required": view.sheet_required,
+        "header_row": view.header_row,
         "has_formulas": view.has_formulas,
+        "cached_rows": view.cached_rows,
         "columns": columns,
         "records": view.records,
         "preview_rows": view.rows,
@@ -512,34 +527,75 @@ def _approval_digest_for(project_id: str, task_id: str, profile_id: str) -> str:
     return str(data.get("profile_sha256", "") or "")
 
 
-def _invalidate_stale_approvals(project_id: str, task_id: str, profile_id: str, meta: dict) -> list[str]:
-    """Mark approvals whose profile digest no longer matches the saved candidate.
+def _archive_approval(project_id: str, task_id: str, item: Path) -> str:
+    """Move a superseded approval out of ``approvals/`` but keep the evidence.
 
-    Returns the approval files that were invalidated. The records themselves are
-    kept under ``reviews/``; only the SteelData approval file that would let a
-    stale confirmation through a run is removed from ``approvals/``.
+    WO-33 §2：被引用过的审批版本不能被悄悄擦掉。失效的审批文件挪到
+    ``reviews/invalidated/``（带时间戳前缀，只追加、不覆盖），这样
+    ``approvals/`` 里不会留下能被误用的旧授权，而历史证据仍在任务目录内。
+    """
+    import shutil
+
+    archive = reviews_dir(project_id, task_id) / "invalidated"
+    archive.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    target = archive / f"{stamp}__{item.name}"
+    if target.exists():  # pragma: no cover - same-second double invalidation
+        target = archive / f"{stamp}__{uuid.uuid4().hex[:6]}__{item.name}"
+    try:
+        shutil.move(str(item), str(target))
+    except OSError:
+        try:
+            item.unlink()
+        except OSError:
+            pass
+        return ""
+    return target.relative_to(reviews_dir(project_id, task_id)).as_posix()
+
+
+def _invalidate_stale_approvals(project_id: str, task_id: str, profile_id: str, meta: dict) -> list[str]:
+    """Invalidate **only this profile's** approval when its digest changed.
+
+    WO-32 的实现遍历了全任务的审批并逐份比对摘要，于是「保存一份无关的
+    profile」会把别的 profile 的有效批准一起删掉（WO-33 §2 第 3 条复现）。
+    这里只处理 ``profile_id`` 自己的审批文件：
+
+    * 摘要一致（同一 profile 原样重存）→ 不动，批准继续有效；
+    * 摘要变化 → 该审批失效，挪进 ``reviews/invalidated/`` 并只追加一条记录；
+    * 其它 profile 的审批**完全不碰**。
+
+    Returns the approval files that were invalidated (as archived names).
     """
     removed: list[str] = []
     approvals = approvals_dir(project_id, task_id)
     if not approvals.is_dir():
         return removed
-    expected = meta.get("profile_sha256", "")
-    for item in sorted(approvals.glob("*.json")):
-        try:
-            data = json.loads(item.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if str(data.get("profile_sha256", "") or "") != expected:
-            item.unlink()
-            removed.append(item.name)
-            _append_review(project_id, task_id, {
-                "kind": "invalidation",
-                "profile_id": profile_id,
-                "approval_file": item.name,
-                "reason": "候选映射已变化，旧确认失效（输入变化/映射修改）",
-                "profile_sha256": expected,
-                "created": datetime.now().isoformat(timespec="seconds"),
-            })
+    expected = str(meta.get("profile_sha256", "") or "")
+    item = approvals / f"{safe_filename(profile_id)}.json"
+    if not item.is_file():
+        return removed
+    try:
+        data = json.loads(item.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return removed
+    bound_id = str((data.get("profile") or {}).get("profile_id", "") or "")
+    if bound_id and bound_id != profile_id:
+        # 文件名与内容指向不同 profile：不认这份审批，也不动别人的。
+        return removed
+    if str(data.get("profile_sha256", "") or "") == expected:
+        return removed
+    archived = _archive_approval(project_id, task_id, item)
+    removed.append(item.name)
+    _append_review(project_id, task_id, {
+        "kind": "invalidation",
+        "profile_id": profile_id,
+        "approval_file": item.name,
+        "archived_as": archived,
+        "reason": "该映射的候选内容已变化，旧确认失效（只影响这一个 profile）",
+        "previous_profile_sha256": str(data.get("profile_sha256", "") or ""),
+        "profile_sha256": expected,
+        "created": datetime.now().isoformat(timespec="seconds"),
+    })
     return removed
 
 
@@ -562,8 +618,17 @@ def save_candidate(project_id: str, task_id: str, payload: dict) -> dict:
     if not source.is_file():
         raise GuardError(f"输入文件不存在：{input_file}")
 
+    # 用户选的那张表/那一行必须先进 read_table，否则「预览看到的列」与「保存的映射」
+    # 会针对不同的工作表——这正是 WO-33 §1 要求消除的不一致。
+    wanted_sheet = str(payload.get("sheet", "") or "").strip() or None
     try:
-        view = read_table(source)
+        wanted_header = int(payload.get("header_row", 1) or 1)
+    except (TypeError, ValueError):
+        raise GuardError("header_row 必须是整数") from None
+    if not 1 <= wanted_header <= 100:
+        raise GuardError("header_row 必须在 1..100")
+    try:
+        view = read_table(source, sheet=wanted_sheet, header_row=wanted_header)
     except TableError as exc:
         return {"ok": False, "problem": str(exc), "note": SUPPORTED_FORMATS_NOTE,
                 "needs_human": [f"输入不可用于映射：{exc}"]}
@@ -581,15 +646,20 @@ def save_candidate(project_id: str, task_id: str, payload: dict) -> dict:
             if missing:
                 problems.append("缺少 SteelData 必需字段：" + ", ".join(sorted(missing)))
     if view.has_formulas:
-        problems.append("工作簿含公式：SteelData 运行会要求「仅值」导出（预览值可能不同）")
+        problems.append("工作簿含公式：SteelData 会拒绝这种文件，需先导出「仅值」版本"
+                        "（预览另列的缓存值仅供辨认，不是本次运行会读到的内容）")
+    if view.sheet_required and not wanted_sheet:
+        problems.append("该工作簿有多个工作表（" + "、".join(view.sheets) +
+                        "）：SteelData 要求 profile 显式写明 sheet，请先选定要用的工作表")
     if view.duplicate_headers:
         problems.append("重复表头，无法确定映射哪一列：" + ", ".join(view.duplicate_headers))
     if view.ragged_rows:
         shown = ", ".join(str(item + 1) for item in view.ragged_rows[:5])
         problems.append(f"有 {len(view.ragged_rows)} 行列数与表头不一致（第 {shown} 行…），需先修数据")
     header_row = profile["header_row"]
-    if header_row > len(view.rows) + 1:
-        problems.append(f"header_row={header_row} 超出文件行数")
+    if header_row != view.header_row:
+        problems.append(f"header_row={header_row} 与实际读表用的第 {view.header_row} 行不一致，"
+                        "请重新读取该输入后再保存")
 
     # 自己就能说清的原因（未知单位/缺字段/列不齐/表头重复）先于人审提交；
     # 不要丢掉这条更清楚的理由，只回一段 pydantic 报错。
@@ -623,10 +693,13 @@ def save_candidate(project_id: str, task_id: str, payload: dict) -> dict:
         "task_id": task_id,
         "input_file": input_file,
         "input_sha256": _sha256(source),
-        "input_bytes": len(payload_bytes and source.read_bytes()),
+        "input_bytes": source.stat().st_size,
         "profile_sha256": cli["profile_sha256"],
         "domain": profile["domain"],
         "layout": profile["layout"],
+        "sheet": view.sheet,
+        "header_row": view.header_row,
+        "revision": int(existing_meta.get("revision") or 0) + 1,
         "created": datetime.now().isoformat(timespec="seconds"),
         "previous_profile_sha256": existing_meta.get("profile_sha256"),
     }
@@ -687,9 +760,13 @@ def review_candidate(project_id: str, task_id: str, payload: dict, session: Sess
                      *, synthetic: bool = False) -> dict:
     """Record an explicit human approve/reject through SteelData's own approve.
 
-    * The caller must hold ``review:human`` — a browser session that proved its
-      Origin. An ``ai`` session is refused here, full stop.
+    * The caller must hold ``review:human`` — a browser session that completed
+      the local pairing. An ``ai`` session is refused here, full stop.
     * ``reviewer`` must be a named human; ``system``/``agent``/``web``/… are not.
+    * WO-33 §2: the caller must submit the **exact snapshot it displayed**
+      (``expected_profile_sha256`` + ``expected_input_sha256``). This is a
+      compare-and-set: a mismatch is a 409 and the server never substitutes the
+      newest values — otherwise a confirmation of v1 would silently bless v2.
     * The confirmation is written by SteelData's ``approve`` command into
       ``<task>/approvals/`` and journaled with the input SHA-256 it covered.
     """
@@ -710,6 +787,16 @@ def review_candidate(project_id: str, task_id: str, payload: dict, session: Sess
     if not PROFILE_ID_RE.match(profile_id):
         raise GuardError("非法 profile_id")
 
+    # 用户「看到的那一份」必须被显式提交，缺了就不做任何确认动作。
+    expected_profile = str(payload.get("expected_profile_sha256", "") or "").strip().lower()
+    expected_input = str(payload.get("expected_input_sha256", "") or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_profile):
+        raise GuardError("缺少你看到的映射版本摘要（expected_profile_sha256）："
+                         "请重新读取该候选映射后再确认，服务器不会替你取最新值。")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_input):
+        raise GuardError("缺少你看到的输入摘要（expected_input_sha256）："
+                         "请重新读取该输入后再确认，服务器不会替你取最新值。")
+
     root = task_root(project_id, task_id)
     if not (root / "TASK.md").is_file():
         raise GuardError(f"任务不存在：{project_id}/{task_id}")
@@ -723,17 +810,40 @@ def review_candidate(project_id: str, task_id: str, payload: dict, session: Sess
         raise GuardError("候选 profile 未记录有效的 input_file")
 
     current = _sha256(source)
-    recorded = str(meta.get("input_sha256", "") or "")
-    if recorded and recorded != current:
-        raise GuardError(f"输入自映射保存后已变化，旧确认不再适用；请重新保存映射。"
-                         f"记录 {recorded[:12]}… / 当前 {current[:12]}…")
+    digest = str(meta.get("profile_sha256", "") or "")
+    if not digest:
+        raise GuardError("候选 profile 缺少 SteelData 复核算出的 profile_sha256，请重新保存映射")
+
+    # ---- compare-and-set：只批用户看见的那一版，过期就 409 --------------------- #
+    stale: list[str] = []
+    if expected_profile != digest:
+        stale.append(f"映射已变化（你看到 {expected_profile[:12]}… / 现在 {digest[:12]}…）")
+    if expected_input != current:
+        stale.append(f"输入已变化（你看到 {expected_input[:12]}… / 现在 {current[:12]}…）")
+    if stale:
+        _append_review(project_id, task_id, {
+            "kind": "review_stale",
+            "decision": decision,
+            "project_id": project_id, "task_id": task_id, "profile_id": profile_id,
+            "input_file": input_file,
+            "expected_profile_sha256": expected_profile,
+            "expected_input_sha256": expected_input,
+            "current_profile_sha256": digest,
+            "current_input_sha256": current,
+            "reason": "；".join(stale),
+            "reviewer": reviewer,
+            "synthetic": bool(synthetic),
+            "actor_kind": session.actor_kind,
+            "session_id": session.session_id,
+            "created": datetime.now().isoformat(timespec="seconds"),
+        })
+        raise ConflictError(
+            "你确认的那一版已经不是当前版本：" + "；".join(stale) +
+            "。请重新读取该输入与候选映射后再确认（服务器不会自动替你批最新版）。")
     try:
         profile = json.loads(candidate.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise GuardError(f"候选 profile 无法读取：{exc}") from exc
-    digest = str(meta.get("profile_sha256", "") or "")
-    if not digest:
-        raise GuardError("候选 profile 缺少 SteelData 复核算出的 profile_sha256，请重新保存映射")
 
     review_id = "rev-" + uuid.uuid4().hex[:12]
     entry = {
@@ -746,6 +856,9 @@ def review_candidate(project_id: str, task_id: str, payload: dict, session: Sess
         "input_file": input_file,
         "input_sha256": current,
         "profile_sha256": digest,
+        "profile_revision": int(meta.get("revision") or 0),
+        "expected_profile_sha256": expected_profile,
+        "expected_input_sha256": expected_input,
         "reviewer": reviewer,
         "note": note[:1000],
         "synthetic": bool(synthetic),
@@ -767,9 +880,11 @@ def review_candidate(project_id: str, task_id: str, payload: dict, session: Sess
     approval_name = f"{profile_id}.json"
     approval_path = approvals_dir(project_id, task_id) / approval_name
     # SteelData approve 是独占创建：已存在就拒绝，不静默覆盖别人的确认。
+    # --expected-sha256 用**用户提交的期望值**（上面已核过它等于当前版本），
+    # 不用服务器当前值顶替。
     code, out, err = _run_steeldata([
         "approve", "--profile", str(candidate),
-        "--expected-sha256", digest,
+        "--expected-sha256", expected_profile,
         "--reviewer", reviewer, "--note", note,
         "--output", str(approval_path),
     ])
@@ -800,7 +915,13 @@ def review_candidate(project_id: str, task_id: str, payload: dict, session: Sess
 
 def _invalidate_all_approvals(project_id: str, task_id: str, profile_id: str, digest: str,
                               *, reason: str) -> list[str]:
+    """Invalidate the approvals of **one** profile (used by an explicit reject).
+
+    与 :func:`_invalidate_stale_approvals` 一样只动 ``profile_id`` 自己：
+    拒绝一个映射不该让同任务其它已批准的映射失效。
+    """
     removed: list[str] = []
+    archived_names: list[str] = []
     approvals = approvals_dir(project_id, task_id)
     if not approvals.is_dir():
         return removed
@@ -809,13 +930,19 @@ def _invalidate_all_approvals(project_id: str, task_id: str, profile_id: str, di
             data = json.loads(item.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        if str(data.get("profile_id", "") or "") == profile_id or item.stem == profile_id:
-            item.unlink()
-            removed.append(item.name)
+        bound_id = str((data.get("profile") or {}).get("profile_id", "") or "")
+        if bound_id != profile_id and item.stem != profile_id:
+            continue
+        archived = _archive_approval(project_id, task_id, item)
+        removed.append(item.name)
+        if archived:
+            archived_names.append(archived)
     if removed:
         _append_review(project_id, task_id, {
             "kind": "invalidation", "profile_id": profile_id,
-            "approval_file": ", ".join(removed), "reason": reason,
+            "approval_file": ", ".join(removed),
+            "archived_as": ", ".join(archived_names),
+            "reason": reason,
             "profile_sha256": digest,
             "created": datetime.now().isoformat(timespec="seconds"),
         })
@@ -826,20 +953,21 @@ def _invalidate_all_approvals(project_id: str, task_id: str, profile_id: str, di
 # 运行前的确认复核（供 steeldata.run 使用）
 # --------------------------------------------------------------------------- #
 
-def approval_for_run(project_id: str, task_id: str, approval_file: str) -> dict:
+def approval_for_run(project_id: str, task_id: str, approval_file: str, *,
+                     input_file: str | None = None) -> dict:
     """Resolve one approval reference into a path **plus its provenance**.
 
-    Two origins are accepted, and both are reported honestly:
+    WO-33 §2：审批只覆盖「人所看见的那份输入与版本」。所以除了复核审批本身
+    没过期，还要把**本次实际选中的 source** 与审批绑定的输入身份/SHA 完整比对，
+    不同就是 ``needs_human``——不能因为「同一任务、列名相同」就放行另一个文件。
 
     ``server``      web human review -> <task>/approvals/<profile_id>.json.
-                    The input SHA-256 and profile digest are re-checked here, so
-                    an approval cannot outlive a changed input or a changed
-                    mapping.
-    ``imported``    a file the user placed in <task>/inputs/ (an owner-supplied
-                    approval). SteelData validates its structure and digest, but
-                    this server cannot attest that a named human reviewed it, so
-                    the record says ``imported`` and never claims web review.
-
+                    Re-checks the profile digest **and** the bound input's
+                    name + SHA-256 against the selected source.
+    ``imported``    a file the user placed in <task>/inputs/. Its structure can be
+                    checked, but this server cannot attest which input it covers,
+                    so it is **not** a run authorisation: the result is
+                    ``needs_human`` with the path to a proper web review.
     ``forged``      a JSON crafted to look like an approval is rejected on
                     structure/digest and never written into ``approvals/``.
     """
@@ -848,23 +976,36 @@ def approval_for_run(project_id: str, task_id: str, approval_file: str) -> dict:
     if not (root / "TASK.md").is_file():
         raise GuardError(f"任务不存在：{project_id}/{task_id}")
 
+    selected_name = ""
+    selected_sha = ""
+    if input_file:
+        selected = safe_filename(input_file)
+        selected_path = task_inputs(project_id, task_id) / selected
+        if not selected_path.is_file():
+            raise GuardError(f"输入文件不存在：{selected}")
+        selected_name = selected
+        selected_sha = _sha256(selected_path)
+
     # 1) 服务端生成的确认
     approvals = approvals_dir(project_id, task_id)
     candidate = approvals / name
     if candidate.is_file():
-        return _verify_server_approval(project_id, task_id, candidate, name)
+        return _verify_server_approval(project_id, task_id, candidate, name,
+                                       selected_name=selected_name, selected_sha=selected_sha)
 
     # 2) 导入的既有确认（inputs/ 下，原 owner 提供）
     inputs = task_inputs(project_id, task_id)
     imported = inputs / name
     if imported.is_file():
-        return _verify_imported_approval(project_id, task_id, imported, name)
+        return _verify_imported_approval(project_id, task_id, imported, name,
+                                         selected_name=selected_name, selected_sha=selected_sha)
 
     raise GuardError(f"审批文件不存在：{name}（只能选本任务 approvals/ 下由网页人审生成的，"
                      "或 inputs/ 下导入的既有审批）")
 
 
-def _verify_server_approval(project_id: str, task_id: str, path: Path, name: str) -> dict:
+def _verify_server_approval(project_id: str, task_id: str, path: Path, name: str, *,
+                            selected_name: str = "", selected_sha: str = "") -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -877,48 +1018,75 @@ def _verify_server_approval(project_id: str, task_id: str, path: Path, name: str
     if not profile_id or not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise GuardError("审批文件缺少 profile_id / profile_sha256")
 
-    # 审批里的 profile 摘要必须仍与候选一致（映射被改过 → 旧确认失效）。
+    entry = next((item for item in reversed(list_reviews(project_id, task_id))
+                  if item.get("approval_file") == name and item.get("decision") == "approve"), {})
+    # 审批绑定的输入身份：优先取审批时的复核记录，其次取候选 meta。
     candidate = _candidate_path(project_id, task_id, profile_id)
     current_meta = _read_meta(project_id, task_id, profile_id) if candidate.is_file() else {}
-    current_digest = str(current_meta.get("profile_sha256", "") or "")
-    input_file = str(current_meta.get("input_file", "") or "")
+    bound_file = str(entry.get("input_file") or current_meta.get("input_file", "") or "")
+    bound_sha = str(entry.get("input_sha256") or data.get("input_sha256", "")
+                    or current_meta.get("input_sha256", "") or "")
+
     reasons: list[str] = []
     if not candidate.is_file():
         reasons.append(f"候选 profile {profile_id} 已不存在（可能被删除/重建）")
-    elif current_digest and current_digest != digest:
-        reasons.append(f"映射自确认后已变化（确认时 {digest[:12]}… / 现在 {current_digest[:12]}…）")
-        input_file = str(current_meta.get("input_file", ""))
-    if input_file:
-        source = task_inputs(project_id, task_id) / input_file
-        if source.is_file():
-            current = _sha256(source)
-            recorded = str(data.get("input_sha256", "") or "")
-            entry = next((item for item in reversed(list_reviews(project_id, task_id))
-                          if item.get("approval_file") == name and item.get("decision") == "approve"), None)
-            recorded = str((entry or {}).get("input_sha256", "") or recorded)
-            if recorded and recorded != current:
-                reasons.append(f"输入自确认后已变化（确认时 {recorded[:12]}… / 现在 {current[:12]}…）")
+    else:
+        current_digest = str(current_meta.get("profile_sha256", "") or "")
+        if current_digest and current_digest != digest:
+            reasons.append(f"映射自确认后已变化（确认时 {digest[:12]}… / 现在 {current_digest[:12]}…）")
+
+    # 审批覆盖的那份输入本身必须还在、且没被换过字节。
+    if bound_file:
+        bound_path = task_inputs(project_id, task_id) / bound_file
+        if not bound_path.is_file():
+            reasons.append(f"审批覆盖的输入 {bound_file} 已不在本任务 inputs/ 里")
+        elif bound_sha:
+            now_sha = _sha256(bound_path)
+            if now_sha != bound_sha:
+                reasons.append(f"审批覆盖的输入 {bound_file} 已被改动"
+                               f"（确认时 {bound_sha[:12]}… / 现在 {now_sha[:12]}…）")
+
+    # 本次真正要跑的 source 必须与审批绑定的输入一致（名字与字节都比）。
+    if selected_name:
+        if not bound_file:
+            reasons.append("该审批没有可核对的输入绑定，无法证明它覆盖本次选中的文件")
+        else:
+            if selected_name != bound_file:
+                reasons.append(f"本次选的是 {selected_name}，但该审批只覆盖 {bound_file}"
+                               "（同一任务的不同输入不能互相顶替）")
+            elif selected_sha and bound_sha and selected_sha != bound_sha:
+                reasons.append(f"本次选中的 {selected_name} 与审批覆盖的字节不一致"
+                               f"（审批 {bound_sha[:12]}… / 本次 {selected_sha[:12]}…）")
+
     if reasons:
         return {"ok": False, "origin": "server", "path": str(path), "file": name,
+                "profile_id": profile_id, "profile_sha256": digest,
+                "bound_input_file": bound_file, "bound_input_sha256": bound_sha,
+                "selected_input_file": selected_name, "selected_input_sha256": selected_sha,
                 "problems": reasons,
-                "message": "该确认已失效：" + "；".join(reasons) + "。请重新保存映射并重新人工确认。"}
-    entry = next((item for item in reversed(list_reviews(project_id, task_id))
-                  if item.get("approval_file") == name and item.get("decision") == "approve"), {})
+                "message": "该确认与本次运行不匹配：" + "；".join(reasons) +
+                           "。请对本次要用的输入重新保存映射并重新人工确认。"}
     return {
         "ok": True, "origin": "server", "path": str(path), "file": name,
         "profile_id": profile_id, "profile_sha256": digest,
-        "input_file": input_file, "reviewer": str(data.get("reviewer", "") or ""),
+        "profile_revision": int(current_meta.get("revision") or 0),
+        "input_file": bound_file, "input_sha256": bound_sha,
+        "bound_input_file": bound_file, "bound_input_sha256": bound_sha,
+        "selected_input_file": selected_name, "selected_input_sha256": selected_sha,
+        "reviewer": str(data.get("reviewer", "") or ""),
         "review_id": str(entry.get("review_id", "") or ""),
         "synthetic": bool(entry.get("synthetic", False)),
         "problems": [],
     }
 
 
-def _verify_imported_approval(project_id: str, task_id: str, path: Path, name: str) -> dict:
-    """Validate an owner-supplied approval file via SteelData's own approve.
+def _verify_imported_approval(project_id: str, task_id: str, path: Path, name: str, *,
+                              selected_name: str = "", selected_sha: str = "") -> dict:
+    """Validate an owner-supplied approval file, but never let it authorise a run.
 
-    We cannot corroborate that a named human reviewed this one, so it is
-    reported as ``imported`` and never becomes a web-review authorisation.
+    WO-33 §2：结构合法或带一个 reviewer 字符串，**不能**证明本次输入已获准。
+    这个分支以前可以绕过新的输入绑定（只查「审批里的 input 还在」就放行别的
+    source），现在如实返回 ``needs_human`` 并给出网页人审这条可用路径。
     """
     tool = config().tool("steeldata")
     if tool is None or not tool.interpreter or not tool.interpreter.is_file():
@@ -948,15 +1116,26 @@ def _verify_imported_approval(project_id: str, task_id: str, path: Path, name: s
             "kind": "imported-approval",
             "profile_id": profile_id, "profile_sha256": digest,
             "approval_file": name, "reviewer": str(data.get("reviewer", "") or ""),
+            "selected_input_file": selected_name, "selected_input_sha256": selected_sha,
+            "used_for_run": False,
             "created": datetime.now().isoformat(timespec="seconds"),
         }
         _append_review(project_id, task_id, entry)
+        needs = list(problems) + [
+            "导入的审批没有可核对的输入绑定：本服务无法证明它覆盖本次选中的输入"
+            + (f"（{selected_name}）" if selected_name else "") + "，因此不能作为本次运行的授权。",
+        ]
         return {
-            "ok": not problems, "origin": "imported", "path": str(path), "file": name,
+            "ok": False, "origin": "imported", "path": str(path), "file": name,
             "profile_id": profile_id, "profile_sha256": digest,
+            "bound_input_file": "", "bound_input_sha256": "",
+            "selected_input_file": selected_name, "selected_input_sha256": selected_sha,
             "reviewer": str(data.get("reviewer", "") or ""), "problems": problems,
-            "message": ("导入的既有审批；它的结构/摘要已按 SteelData 合同复核。"
-                        "本服务无法证明该审批出自网页具名人审，记录中标为 imported。"),
+            "needs_human": needs,
+            "message": ("导入的既有审批：结构与摘要已按 SteelData 合同复核，"
+                        "但无法证明它覆盖本次输入，标为 imported 且不用于运行。"
+                        "请在「数据处理」页对本输入重新保存映射并由具名人工确认，"
+                        "再按该确认运行。"),
         }
     finally:
         try:

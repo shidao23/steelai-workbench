@@ -17,6 +17,7 @@ export function FilesPage() {
   const [busy, setBusy] = useState(false)
   const [scope, setScope] = useState<Scope | null>(() => session.beginScope())
   const [message, setMessage] = useState('')
+  const [sheet, setSheet] = useState('')
 
   useEffect(() => {
     setScope(session.beginScope())
@@ -29,7 +30,7 @@ export function FilesPage() {
     setMessage('')
   }, [session.selection?.epoch, session.selection?.taskId])
 
-  async function openPreview(fileId: string) {
+  async function openPreview(fileId: string, sheetOverride?: string) {
     if (!scope || !session.isCurrent(scope)) {
       setPreviewError('选择已变化，请重新选择文件')
       return
@@ -37,11 +38,14 @@ export function FilesPage() {
     setPreviewError('')
     setMessage('')
     setBusy(true)
+    const wanted = sheetOverride ?? sheet
     try {
-      const result = await api.preview(scope.projectId, scope.taskId, fileId)
+      const result = await api.preview(scope.projectId, scope.taskId, fileId,
+        { sheet: wanted || undefined })
       if (!session.isCurrent(scope)) return   // 迟到的响应：丢弃
       setPreview(result)
       setPreviewName(fileId)
+      if (result.sheet) setSheet(result.sheet)
       if (result.kind === 'error') {
         setPreviewError(result.problem ?? '该文件无法解析。')
       }
@@ -180,13 +184,38 @@ export function FilesPage() {
         {preview?.kind === 'workbook' && (
           <>
             <p className="muted small">
-              工作表：{(preview.sheets ?? []).join('、')}（预览 {preview.sheet}）·
+              工作表：{(preview.sheets ?? []).join('、')}（预览 {preview.sheet}）· 表头第 {preview.header_row ?? 1} 行 ·
               {preview.records ?? 0} 条逻辑记录
+              {preview.sheet_required
+                ? ' · 多工作表：映射时必须显式选定 sheet，否则 SteelData 会拒绝运行'
+                : ''}
             </p>
+            {(preview.sheets ?? []).length > 1 && (
+              <div className="form-row">
+                <label className="field">
+                  <span className="field-label">预览工作表</span>
+                  <select
+                    value={preview.sheet ?? ''}
+                    onChange={(event) => void openPreview(previewName, event.target.value)}
+                  >
+                    {(preview.sheets ?? []).map((name) => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                </label>
+              </div>
+            )}
             {preview.has_formulas && (
-              <p className="warn-text">该工作簿含公式：这里显示的是缓存值，SteelData 运行要求"仅值"导出。</p>
+              <p className="warn-text">
+                该工作簿含公式：SteelData 会拒绝这种文件，需先另存为「仅值」版本。
+                下表是 SteelData 读到的内容；缓存值仅作辨认，不是运行会读到的数据。
+              </p>
             )}
             <DataTable columns={preview.columns} rows={preview.rows} />
+            {preview.has_formulas && (preview.cached_rows ?? []).length > 0 && (
+              <>
+                <p className="muted small">Excel 缓存的公式结果（仅供辨认）：</p>
+                <DataTable columns={preview.columns} rows={preview.cached_rows ?? []} />
+              </>
+            )}
           </>
         )}
         {preview?.kind === 'binary' && <p className="muted">{preview.note}</p>}

@@ -143,7 +143,7 @@ def _capabilities() -> list[Capability]:
         description="对选定输入与 profile 做本地预览，只读，不写审批或输出。",
         contract="SteelData-CLI-preview",
         fields=[
-            Field("input_file", "file", "输入数据文件", True, "任务输入目录中的单个文件", suffix=".csv"),
+            Field("input_file", "file", "输入数据文件", True, "任务输入目录中的单个 CSV/TSV/XLSX", suffix=""),
             Field("profile_file", "file", "映射 profile（JSON）", True,
                   "网页映射保存的候选 profile（本任务 profiles/），或输入目录中导入的 profile", suffix=".json"),
         ],
@@ -156,9 +156,10 @@ def _capabilities() -> list[Capability]:
         description="使用显式人工审批文件运行；缺审批、缺摘要、输入或映射变化即拒绝，不自动改绿。",
         contract="SteelData-CLI-run",
         fields=[
-            Field("input_file", "file", "输入数据文件", True, suffix=".csv"),
+            Field("input_file", "file", "输入数据文件", True, suffix=""),
             Field("approval_file", "file", "人审审批文件（approval JSON）", True,
-                  "本任务 approvals/ 下由网页具名人审生成的，或 inputs/ 下导入的既有审批", suffix=".json"),
+                  "本任务 approvals/ 下由网页具名人审生成的确认；它必须覆盖本次选中的输入，"
+                  "否则拒绝。inputs/ 下导入的既有审批无法证明覆盖范围，不用于运行", suffix=".json"),
         ],
         outputs=["processed 表", "manifest.json", "QC 报告"],
         available=sd_ok, reason=sd_reason,
@@ -301,6 +302,16 @@ def _resolve_input(task_inputs: Path, name: str) -> Path:
     return resolve_under(task_inputs, safe_filename(name))
 
 
+def _sha256(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _stage_run_input(source: Path, task_dir: Path, run_id: str) -> Path:
     """SteelData ``run --input`` 收的是**目录**（一个批次），不是一个文件。
 
@@ -358,24 +369,40 @@ def build_argv(tool_id: str, params: dict, *, task_inputs: Path, out_dir: Path,
         if not project_id or not task_id:
             raise GuardError("steeldata.run 需要任务上下文来复核人工确认")
         from steelai.web_api import mapping
-        # 确认必须来自本任务 approvals/（网页人审生成）或 inputs/（导入的既有审批），
-        # 并且输入 SHA / profile 摘要任一变化都让旧确认失效。
-        info = mapping.approval_for_run(project_id, task_id, params.get("approval_file", ""))
+        # 确认必须来自本任务 approvals/（网页人审生成），并且：
+        #   * 该确认覆盖的输入身份 + 字节 SHA 与本次选中的 source 完全一致；
+        #   * profile 摘要、输入字节任一变化都让旧确认失效。
+        # 导入的既有审批无法证明覆盖范围，返回 needs_human，不作为运行授权。
+        info = mapping.approval_for_run(project_id, task_id, params.get("approval_file", ""),
+                                        input_file=params.get("input_file", ""))
         if not info.get("ok"):
-            raise GuardError(str(info.get("message") or "该确认已失效，请重新保存映射并重新人工确认"))
+            raise GuardError(str(info.get("message") or "该确认与本次运行不匹配，请重新保存映射并重新人工确认"))
         approval = Path(info["path"])
+        # SteelData run 的 --input 是目录：只把本次选中的输入暂存进去（见 _stage_run_input），
+        # 再核对**暂存后字节**的 SHA 仍等于审批绑定的输入，避免"核对后、启动前被换文件"。
+        stage = _stage_run_input(source, out_dir.parent.parent, run_id)
+        staged = stage / source.name
+        staged_sha = _sha256(staged)
+        bound_sha = str(info.get("bound_input_sha256") or "")
+        if not bound_sha or staged_sha != bound_sha:
+            raise GuardError(
+                "暂存后的输入字节与审批覆盖的输入不一致（文件在核对后被改动或替换），"
+                "已停止，未执行任何子进程。请重新人工确认。")
         if provenance is not None:
             provenance.update({
                 "approval_origin": info.get("origin", ""),
                 "approval_file": info.get("file", ""),
                 "approval_profile_id": info.get("profile_id", ""),
                 "approval_profile_sha256": info.get("profile_sha256", ""),
-                "approval_input_sha256": info.get("input_sha256", ""),
+                "approval_revision": int(info.get("profile_revision") or 0),
+                "approval_input_file": info.get("bound_input_file", ""),
+                "approval_input_sha256": bound_sha,
                 "approval_reviewer": info.get("reviewer", ""),
+                "approval_review_id": info.get("review_id", ""),
                 "approval_synthetic": bool(info.get("synthetic", False)),
+                "actual_input_file": source.name,
+                "actual_input_sha256": staged_sha,
             })
-        # SteelData run 的 --input 是目录：只把本次选中的输入暂存进去（见 _stage_run_input）
-        stage = _stage_run_input(source, out_dir.parent.parent, run_id)
         return _interpreter(tool, tool_id), [
             "-B", "-m", "steeldata", "run",
             "--input", str(stage), "--approval", str(approval), "--output", str(out_dir),

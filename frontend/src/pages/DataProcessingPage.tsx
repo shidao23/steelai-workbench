@@ -43,6 +43,7 @@ export function DataProcessingPage() {
   const [domain, setDomain] = useState('tensile')
   const [layout, setLayout] = useState('flat')
   const [headerRow, setHeaderRow] = useState('1')
+  const [sheet, setSheet] = useState('')
   const [profileId, setProfileId] = useState('')
   const [rows, setRows] = useState<MappingRow[]>([])
   const [saving, setSaving] = useState(false)
@@ -88,10 +89,12 @@ export function DataProcessingPage() {
     setPreviewResult(null)
     setReviewResult(null)
     setRows([])
+    setSheet('')
+    setHeaderRow('1')
   }, [fileId])
 
   /** 读一次上传文件：真实列、表头单位、样本、不齐列/重复表头——不猜任何东西。 */
-  const describe = useCallback(async () => {
+  const describe = useCallback(async (options?: { sheet?: string; headerRow?: number }) => {
     if (!fileId || !scope) return
     setDescribeError('')
     setDescribed(null)
@@ -99,9 +102,17 @@ export function DataProcessingPage() {
     setPreviewResult(null)
     setReviewResult(null)
     try {
-      const result = await api.describeInput(scope.projectId, scope.taskId, fileId)
+      const wantedSheet = options?.sheet ?? sheet
+      const wantedHeader = options?.headerRow ?? (Number(headerRow) || 1)
+      const result = await api.describeInput(scope.projectId, scope.taskId, fileId, {
+        sheet: wantedSheet || undefined,
+        headerRow: wantedHeader,
+      })
       if (!session.isCurrent(scope)) return
       setDescribed(result)
+      // 服务端实际读的那张表/那一行就是唯一事实：把它回填到表单，避免"看的是 A、保存的是 B"
+      if (result.sheet) setSheet(result.sheet)
+      if (result.header_row) setHeaderRow(String(result.header_row))
       // 用服务端建议预填（只是建议：单位/目标都由人最后确认，rows 全部可改）
       const seed: MappingRow[] = result.suggestions.map((item: InputColumn) => ({
         source: item.source,
@@ -118,7 +129,7 @@ export function DataProcessingPage() {
         setDescribeError(error instanceof Error ? error.message : String(error))
       }
     }
-  }, [fileId, scope, session])
+  }, [fileId, scope, session, sheet, headerRow])
 
   function targetOptions(): string[] {
     if (!contract) return []
@@ -147,6 +158,7 @@ export function DataProcessingPage() {
       domain,
       layout,
       header_row: Number(headerRow) || 1,
+      sheet: sheet || undefined,
       columns,
     }
   }
@@ -190,11 +202,17 @@ export function DataProcessingPage() {
     setReviewError('')
     setReviewResult(null)
     try {
+      const target = activeProfile
+      if (!target) throw new Error('请先保存并选定一个候选映射')
+      // WO-33 §2：把**人看到的那一版**摘要一起提交；服务端做 compare-and-set，
+      // 过期就 409，绝不替人批最新版。
       const result = await api.review(scope.projectId, scope.taskId, {
-        profile_id: activeProfile?.profile_id ?? profileId.trim(),
+        profile_id: target.profile_id,
         decision,
         reviewer: reviewer.trim(),
         note: note.trim(),
+        expected_profile_sha256: String(target.meta?.profile_sha256 ?? ''),
+        expected_input_sha256: String(target.meta?.input_sha256 ?? ''),
       }, synthetic)
       if (!session.isCurrent(scope)) return
       setReviewResult(result)
@@ -213,7 +231,8 @@ export function DataProcessingPage() {
       ?? session.profiles[0]
   }, [session.profiles, profileId])
 
-  const canReview = session.sessionInfo?.actor_kind !== 'ai-assistant'
+  // WO-33 §3：人审能力只来自本地一次性配对，不看 actor 字符串。
+  const canReview = session.paired
   const needsHuman = saveResult && Array.isArray((saveResult as { needs_human?: unknown }).needs_human)
     ? ((saveResult as { needs_human?: string[] }).needs_human ?? [])
     : []
@@ -277,8 +296,40 @@ export function DataProcessingPage() {
             <p className="muted small">
               {described.columns.length} 列 · {described.records} 条记录 · 输入 SHA-256{' '}
               <code className="hash">{described.input_sha256.slice(0, 16)}…</code>
-              {described.has_formulas ? ' · 含公式（SteelData 运行会要求"仅值"导出）' : ''}
+              {described.suffix === '.xlsx'
+                ? ` · 工作表 ${described.sheet ?? '—'}（共 ${(described.sheets ?? []).length} 张）· 表头第 ${described.header_row ?? 1} 行`
+                : ` · 分隔符 ${described.delimiter === '	' ? '制表符' : described.delimiter}`}
             </p>
+            {described.sheet_required && (
+              <p className="warn-text">
+                该工作簿有多个工作表（{(described.sheets ?? []).join('、')}）：SteelData 要求 profile
+                显式写明 sheet，请先在下面选定要用的那张表，否则保存会被拒绝。
+              </p>
+            )}
+            {described.has_formulas && (
+              <>
+                <p className="warn-text">
+                  检测到公式单元格：SteelData 会拒绝这种文件，需先另存为「仅值」版本再上传。
+                  下面单独列出的是 Excel 上次算出的缓存值，仅供辨认，不是本次运行会读到的内容。
+                </p>
+                {(described.cached_rows ?? []).length > 0 && (
+                  <div className="table-wrap">
+                    <table className="data-table">
+                      <thead>
+                        <tr>{(described.columns ?? []).map((column) => <th key={column}>{column}</th>)}</tr>
+                      </thead>
+                      <tbody>
+                        {(described.cached_rows ?? []).slice(0, 5).map((row, index) => (
+                          <tr key={index}>
+                            {row.map((cell, cellIndex) => <td key={cellIndex}>{cell || '—'}</td>)}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
             {described.ragged_rows && described.ragged_rows.length > 0 && (
               <p className="warn-text">
                 有 {described.ragged_rows.length} 行列数与表头不一致：需先修数据再映射，本页不会替你补齐。
@@ -316,9 +367,31 @@ export function DataProcessingPage() {
                       {contract.layouts.map((item) => <option key={item} value={item}>{item}</option>)}
                     </select>
                   </label>
+                  {(described.sheets ?? []).length > 0 && (
+                    <label className="field">
+                      <span className="field-label">
+                        工作表{described.sheet_required ? <em className="required">*</em> : null}
+                      </span>
+                      <select
+                        value={sheet}
+                        onChange={(event) => {
+                          const next = event.target.value
+                          setSheet(next)
+                          void describe({ sheet: next, headerRow: Number(headerRow) || 1 })
+                        }}
+                      >
+                        <option value="">（选择工作表）</option>
+                        {(described.sheets ?? []).map((name) => <option key={name} value={name}>{name}</option>)}
+                      </select>
+                    </label>
+                  )}
                   <label className="field">
                     <span className="field-label">表头行</span>
-                    <input value={headerRow} onChange={(event) => setHeaderRow(event.target.value)} />
+                    <input
+                      value={headerRow}
+                      onChange={(event) => setHeaderRow(event.target.value)}
+                      onBlur={() => void describe({ sheet: sheet || undefined, headerRow: Number(headerRow) || 1 })}
+                    />
                   </label>
                   <label className="field">
                     <span className="field-label">候选 profile 标识<em className="required">*</em></span>
@@ -461,8 +534,9 @@ export function DataProcessingPage() {
             <h3>4 · 具名人工确认（受限能力）</h3>
             {!canReview && (
               <p className="warn-text">
-                当前是本地 AI 会话：可以读、可以建议、可以在人确认后执行，但<strong>不能代人审</strong>。
-                服务端会拒绝 AI 会话的确认请求，即使这里填了具名审批人。
+                当前是<strong>只读会话</strong>：可以读、可以建议、可以在人确认后执行，但<strong>不能代人审</strong>。
+                服务端只对完成本地一次性配对（页面顶部配对条）的会话发放人审能力；
+                即使这里填了具名审批人，未配对的会话也会被拒绝。
               </p>
             )}
             {session.profiles.length === 0 && <EmptyState title="还没有候选映射" hint="先在上面保存一个候选映射。" />}
@@ -474,6 +548,15 @@ export function DataProcessingPage() {
                     ? ' · 已有审批（profile_sha256 ' + activeProfile.approval_sha256.slice(0, 12) + '…）'
                     : ' · 尚未审批'}
                   {activeProfile?.meta?.input_file ? ` · 输入 ${activeProfile.meta.input_file}` : ''}
+                  {activeProfile?.meta?.revision ? ` · 修订 ${activeProfile.meta.revision}` : ''}
+                  {activeProfile?.meta?.sheet ? ` · 工作表 ${activeProfile.meta.sheet}` : ''}
+                </p>
+                <p className="muted small">
+                  确认会绑定你此刻看到的这一版：映射摘要{' '}
+                  <code className="hash">{String(activeProfile?.meta?.profile_sha256 ?? '').slice(0, 12)}…</code>
+                  {' '}与输入摘要{' '}
+                  <code className="hash">{String(activeProfile?.meta?.input_sha256 ?? '').slice(0, 12)}…</code>。
+                  保存新映射或换输入后，旧确认自动失效，需要重新确认。
                 </p>
                 <div className="form-row">
                   <label className="field">
@@ -559,8 +642,10 @@ export function DataProcessingPage() {
           <section className="panel">
             <h3>5 · 按确认运行（原 SteelData CLI）</h3>
             <p className="muted small">
-              运行会再次复核审批：输入或映射变化后旧确认失效，输入文件必须来自本任务、审批文件必须落在本任务
-              <code>approvals/</code>（网页人审生成）或 <code>inputs/</code>（导入的既有审批）。
+              运行会再次复核审批，而且绑定到<strong>本次实际选中的输入</strong>：审批覆盖的输入名与字节 SHA
+              必须和这次选的一致，否则拒绝执行（同一任务的另一份输入不能顶替）。输入或映射变化后旧确认失效。
+              审批文件必须由网页具名人审生成并落在本任务 <code>approvals/</code>；<code>inputs/</code> 下导入的
+              既有审批会被标为 <code>imported</code>，但它无法证明覆盖本次输入，<strong>不用于运行</strong>。
             </p>
           </section>
         </>

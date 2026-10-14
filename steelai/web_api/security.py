@@ -25,6 +25,15 @@ class GuardError(ValueError):
     """Raised when a caller-supplied value fails a trust check."""
 
 
+class ConflictError(GuardError):
+    """Raised when a caller's expected snapshot no longer matches the server's.
+
+    WO-33 §2: a review must be a compare-and-set against the version the human
+    actually saw. A stale ``expected_*`` digest is a 409, never a silent
+    "approve whatever is newest" — that would let a confirmation of v1 bless v2.
+    """
+
+
 def is_reparse_point(path: Path) -> bool:
     """Return ``True`` for symlinks, junctions and other reparse points."""
     try:

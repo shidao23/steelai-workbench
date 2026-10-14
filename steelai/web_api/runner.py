@@ -64,9 +64,14 @@ class RunRecord:
     approval_file: str = ""
     approval_profile_id: str = ""
     approval_profile_sha256: str = ""
+    approval_revision: int = 0
+    approval_input_file: str = ""
     approval_input_sha256: str = ""
     approval_reviewer: str = ""
+    approval_review_id: str = ""
     approval_synthetic: bool = False
+    actual_input_file: str = ""
+    actual_input_sha256: str = ""
     duration_sec: float | None = None
 
     def as_dict(self) -> dict:

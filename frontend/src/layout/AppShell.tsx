@@ -1,6 +1,65 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useSession, type PageKey } from '../state/session'
 import { usePanelsState } from './usePanelsState'
+
+/**
+ * WO-33 §3 — 本地人审配对条。
+ *
+ * 页面默认拿到的是**只读**会话；要上传/建任务/做具名人审，需要用服务启动窗口
+ * （或本地配对文件）里的**一次性配对码**换一个带 ``review:human`` 的会话。
+ * 配对码是一次性的、用过即轮换；这里只把它提交给本机回环服务，不落任何存储。
+ */
+function PairingBanner() {
+  const session = useSession()
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  if (session.paired) return null
+
+  const submit = async () => {
+    if (!code.trim()) return
+    setBusy(true)
+    try {
+      const ok = await session.pair(code.trim())
+      if (ok) setCode('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="banner warn" role="status">
+      <strong>未配对：当前是只读会话</strong>
+      <p className="muted small">
+        可以查看项目/任务/文件与运行记录，但<strong>不能</strong>上传、建任务或做具名人工确认。
+        要解锁这些操作，请把服务启动窗口里打印的<strong>一次性配对码</strong>填到这里
+        （同一份也写在本机文件 <code>{session.pairing?.file || 'outputs/research_web/session/pairing.txt'}</code>）。
+        配对码用过即作废并自动轮换；它只是本机回环服务的本地凭据，请不要贴进聊天或截图。
+      </p>
+      <div className="row-inline">
+        <input
+          type="text"
+          value={code}
+          placeholder="8 位配对码"
+          aria-label="一次性配对码"
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(event) => setCode(event.target.value.toUpperCase())}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') void submit()
+          }}
+        />
+        <button type="button" className="primary" disabled={busy || !code.trim()} onClick={() => void submit()}>
+          {busy ? '配对中…' : '配对并解锁人审'}
+        </button>
+        <button type="button" className="chip" disabled={busy} onClick={() => void session.useReadOnly()}>
+          继续只读
+        </button>
+      </div>
+      {session.pairError && <p className="problem">{session.pairError}</p>}
+    </div>
+  )
+}
 
 const NAV: { key: PageKey; label: string; hint: string }[] = [
   { key: 'projects', label: '项目', hint: '项目/任务选择与当前进度' },
@@ -50,20 +109,22 @@ export function AppShell({ children, aiPanel }: { children: ReactNode; aiPanel: 
             {scopeLabel}
           </span>
           <span
-            className={session.sessionInfo?.actor_kind === 'ai-assistant' ? 'context-chip warn' : 'context-chip'}
+            className={session.paired ? 'context-chip' : 'context-chip warn'}
             title={
-              session.sessionInfo?.actor_kind === 'ai-assistant'
-                ? '本地 AI 会话：可读/建议/获准后执行；不能人审、不能写任务与上传'
-                : '内置页面会话：可信 Origin，含具名人审能力'
+              session.paired
+                ? '已配对的人审会话：本地一次性配对码换取，含具名人审能力'
+                : '只读会话：可读/建议；不能人审、不能写任务与上传（需本地配对码解锁）'
             }
           >
-            {session.sessionInfo?.actor_kind === 'ai-assistant' ? '本地 AI 会话' : '页面会话'}
+            {session.paired ? '已配对 · 可人审' : '只读会话'}
           </span>
           <button type="button" className="chip" onClick={() => void session.refreshAll()}>
             刷新
           </button>
         </div>
       </header>
+
+      <PairingBanner />
 
       {session.needsReselect && (
         <div className="banner warn" role="status">

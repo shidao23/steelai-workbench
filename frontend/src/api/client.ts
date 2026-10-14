@@ -56,6 +56,9 @@ export interface PreviewCommon {
   delimiter_source?: string
   sheet?: string
   sheets?: string[]
+  sheet_required?: boolean
+  header_row?: number
+  cached_rows?: string[][]
   has_formulas?: boolean
   ragged_rows?: number[]
   duplicate_headers?: string[]
@@ -135,9 +138,14 @@ export interface RunRecord {
   approval_file?: string
   approval_profile_id?: string
   approval_profile_sha256?: string
+  approval_revision?: number
+  approval_input_file?: string
   approval_input_sha256?: string
   approval_reviewer?: string
+  approval_review_id?: string
   approval_synthetic?: boolean
+  actual_input_file?: string
+  actual_input_sha256?: string
   duration_sec: number | null
 }
 
@@ -169,6 +177,15 @@ export interface SessionInfo {
   issued_at: string
   expires_at: string
   origin: string
+  paired?: boolean
+}
+
+export interface PairingStatus {
+  required: boolean
+  active: boolean
+  file: string
+  expires_at: string
+  consumed: boolean
 }
 
 export interface InputColumn {
@@ -196,6 +213,15 @@ export interface DescribeInput {
   notes?: string[]
   has_formulas?: boolean
   preview_rows?: string[][]
+  suffix?: string
+  delimiter?: string
+  delimiter_source?: string
+  sheet?: string | null
+  sheets?: string[]
+  sheet_required?: boolean
+  header_row?: number
+  cached_rows?: string[][]
+  size?: number
 }
 
 export interface ProfileMeta {
@@ -207,6 +233,9 @@ export interface ProfileMeta {
   profile_sha256: string
   domain: string
   layout: string
+  sheet?: string | null
+  header_row?: number
+  revision?: number
   created: string
   previous_profile_sha256?: string | null
 }
@@ -241,6 +270,13 @@ export interface ReviewEntry {
   approval_sha256?: string
   reason?: string
   input_file?: string
+  profile_revision?: number
+  expected_profile_sha256?: string
+  expected_input_sha256?: string
+  current_profile_sha256?: string
+  current_input_sha256?: string
+  archived_as?: string
+  used_for_run?: boolean
 }
 
 export interface ResearchUrl {
@@ -252,10 +288,18 @@ export interface ResearchUrl {
 }
 
 // --------------------------------------------------------------------------- #
-// 会话令牌：进程内持有 + 401 自动重申请（服务端令牌本就只活在进程内存里）
+// 会话令牌（WO-33 §3）
+//
+// * 令牌只活在服务端进程内存里；页面把它放在 sessionStorage，刷新还能用，
+//   服务端一重启就失效（随后自动重申请）。
+// * 默认先拿一个**只读的 AI 会话**，页面能打开、能看；要上传/建任务/人审，
+//   必须用启动窗口里的一次性配对码换一个**人审会话**。
+// * 令牌绝不进 URL、不进 localStorage、不写进聊天材料。
 // --------------------------------------------------------------------------- #
 
+const TOKEN_KEY = 'steelai.session.token.v1'
 let token = ''
+let paired = false
 
 export function currentToken(): string {
   return token
@@ -265,20 +309,86 @@ export function setSessionToken(next: string): void {
   token = next
 }
 
-async function ensureSession(): Promise<string> {
-  if (token) return token
+export function isPaired(): boolean {
+  return paired
+}
+
+export class NeedsPairing extends Error {}
+
+function readStoredToken(): string {
+  try {
+    return window.sessionStorage.getItem(TOKEN_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function storeToken(next: string): void {
+  try {
+    if (next) window.sessionStorage.setItem(TOKEN_KEY, next)
+    else window.sessionStorage.removeItem(TOKEN_KEY)
+  } catch {
+    /* 隐私模式下 sessionStorage 可能不可用：退化为纯内存令牌 */
+  }
+}
+
+async function postSession(body: Record<string, unknown>): Promise<{ token: string; session: SessionInfo }> {
   const response = await fetch('/api/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client: 'browser' }),
+    body: JSON.stringify(body),
   })
   if (!response.ok) {
-    const body = await response.json().catch(() => ({}))
-    throw new Error(body.detail ?? '无法申请本地会话')
+    const detail = await response.json().catch(() => ({}))
+    throw new Error((detail as { detail?: string }).detail ?? `${response.status}`)
   }
-  const payload = (await response.json()) as { token: string }
+  return (await response.json()) as { token: string; session: SessionInfo }
+}
+
+function adopt(payload: { token: string; session: SessionInfo }): string {
   token = payload.token
+  paired = Boolean(payload.session.paired)
+  storeToken(token)
   return token
+}
+
+/** Exchange the one-time local pairing code for a human-review session. */
+export async function pairSession(code: string): Promise<SessionInfo> {
+  const payload = await postSession({ client: 'browser', pairing: code })
+  adopt(payload)
+  return payload.session
+}
+
+/** Fall back to the restricted read-only session (no human review). */
+export async function useReadOnlySession(): Promise<SessionInfo> {
+  const payload = await postSession({ client: 'ai' })
+  adopt(payload)
+  return payload.session
+}
+
+export async function dropSession(): Promise<void> {
+  token = ''
+  paired = false
+  storeToken('')
+}
+
+async function ensureSession(): Promise<string> {
+  if (token) return token
+  const stored = readStoredToken()
+  if (stored) {
+    // 复用刷新前那枚令牌：先验证它还有效（服务端重启后就会失效）。
+    const response = await fetch('/api/session', { headers: { Authorization: `Bearer ${stored}` } })
+    if (response.ok) {
+      const body = (await response.json()) as { session: SessionInfo }
+      token = stored
+      paired = Boolean(body.session.paired)
+      return token
+    }
+    storeToken('')
+  }
+  // 没有有效令牌：先给一个只读会话，页面能打开；人审能力要靠配对换取。
+  const payload = await postSession({ client: 'ai' })
+  return adopt(payload)
 }
 
 class Unauthorized extends Error {}
@@ -290,9 +400,12 @@ async function requestRaw<T>(path: string, init?: RequestInit, allowRetry = true
   if (init?.headers) Object.assign(headers, init.headers as Record<string, string>)
   const response = await fetch(path, { ...init, headers, signal: init?.signal ?? undefined })
   if (response.status === 401) {
-    // 服务端重启过（令牌只存在进程内存）：重申请一次再重试，之后仍然失败就如实报错。
+    // 服务端重启过（令牌只存在进程内存）：清掉旧令牌重申请一次再重试；
+    // 重申请得到的是只读会话，要人审就得重新配对——页面会如实提示。
     if (allowRetry && token) {
       token = ''
+      paired = false
+      storeToken('')
       return requestRaw<T>(path, init, false)
     }
     throw new Unauthorized('本地会话已失效，页面会自动重新申请；若持续出现请刷新页面')
@@ -328,6 +441,7 @@ export const api = {
     work_root: string
     research_app_url: string
     allowed_origins: string[]
+    pairing: PairingStatus
   }>('/api/health'),
 
   capabilities: () => request<{ tools: Capability[] }>('/api/capabilities'),
@@ -350,11 +464,18 @@ export const api = {
   files: (projectId: string, taskId: string, signal?: AbortSignal) =>
     request<{ files: FileEntry[] }>(`/api/projects/${projectId}/tasks/${taskId}/files`, { signal }),
 
-  preview: (projectId: string, taskId: string, fileId: string, signal?: AbortSignal) =>
-    request<Preview>(
-      `/api/projects/${projectId}/tasks/${taskId}/preview?file_id=${encodeURIComponent(fileId)}`,
-      { signal },
-    ),
+  preview: (
+    projectId: string,
+    taskId: string,
+    fileId: string,
+    options?: { sheet?: string; headerRow?: number },
+    signal?: AbortSignal,
+  ) => {
+    const query = new URLSearchParams({ file_id: fileId })
+    if (options?.sheet) query.set('sheet', options.sheet)
+    if (options?.headerRow && options.headerRow !== 1) query.set('header_row', String(options.headerRow))
+    return request<Preview>(`/api/projects/${projectId}/tasks/${taskId}/preview?${query}`, { signal })
+  },
 
   upload: async (projectId: string, taskId: string, file: File) => {
     const bearer = await ensureSession()
@@ -418,11 +539,21 @@ export const api = {
 
   // ---- WO-32 §1：网页映射 / 人审 / 运行前复核 ------------------------------ #
 
-  describeInput: (projectId: string, taskId: string, fileId: string, signal?: AbortSignal) =>
-    request<DescribeInput>(
-      `/api/projects/${projectId}/tasks/${taskId}/describe-input?file_id=${encodeURIComponent(fileId)}`,
+  describeInput: (
+    projectId: string,
+    taskId: string,
+    fileId: string,
+    options?: { sheet?: string; headerRow?: number },
+    signal?: AbortSignal,
+  ) => {
+    const query = new URLSearchParams({ file_id: fileId })
+    if (options?.sheet) query.set('sheet', options.sheet)
+    if (options?.headerRow && options.headerRow !== 1) query.set('header_row', String(options.headerRow))
+    return request<DescribeInput>(
+      `/api/projects/${projectId}/tasks/${taskId}/describe-input?${query}`,
       { signal },
-    ),
+    )
+  },
 
   profiles: (projectId: string, taskId: string, signal?: AbortSignal) =>
     request<{ profiles: CandidateProfile[] }>(
@@ -454,11 +585,20 @@ export const api = {
       { method: 'POST', body: JSON.stringify(payload) },
     ),
 
-  approval: (projectId: string, taskId: string, approvalFile: string, signal?: AbortSignal) =>
-    request<Record<string, unknown>>(
-      `/api/projects/${projectId}/tasks/${taskId}/approval?approval_file=${encodeURIComponent(approvalFile)}`,
+  approval: (
+    projectId: string,
+    taskId: string,
+    approvalFile: string,
+    inputFile?: string,
+    signal?: AbortSignal,
+  ) => {
+    const query = new URLSearchParams({ approval_file: approvalFile })
+    if (inputFile) query.set('input_file', inputFile)
+    return request<Record<string, unknown>>(
+      `/api/projects/${projectId}/tasks/${taskId}/approval?${query}`,
       { signal },
-    ),
+    )
+  },
 
   researchUrl: (projectId: string, taskId: string, signal?: AbortSignal) =>
     request<ResearchUrl>(`/api/projects/${projectId}/tasks/${taskId}/research-url`, { signal }),
